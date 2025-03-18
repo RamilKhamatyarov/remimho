@@ -1,0 +1,36 @@
+plugins {
+    id("application")
+    id("io.spring.dependency-management") version "1.1.4"
+    id("org.jetbrains.kotlin.jvm") version "2.1.10"
+    id("org.jetbrains.kotlin.plugin.spring") version "2.1.10"
+    id("org.openjfx.javafxplugin") version "0.0.14"
+    id("org.springframework.boot") version "3.2.3"
+
+}
+
+group = "ru.rkhamatyarov"
+version = "1.0-SNAPSHOT"
+
+javafx {
+    version = "17"
+    modules("javafx.controls", "javafx.fxml")
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation("org.jetbrains.kotlin:kotlin-stdlib")
+
+    // javafx
+    implementation("org.openjfx:javafx-controls:17")
+    implementation("org.openjfx:javafx-fxml:17")
+
+    // spring boot
+    implementation("org.springframework.boot:spring-boot-starter")
+}
+
+application {
+    mainClass.set("ru.rkhamatyarov.WhiteboardApplication")
+}
