@@ -27,19 +27,3 @@ jobs:
 
       - name: Build the project
         run: ./gradlew build
-
-      - name: Run Whiteboard Application
-        run: |
-          # Find JavaFX JARs in Gradle cache
-          JAVAFX_PATHS=$(find ~/.gradle/caches/modules-2/files-2.1/org.openjfx \
-            -name "javafx-*.jar" \
-            | grep -E "javafx-(controls|fxml)-23.*linux" \
-            | tr '\n' ':')
-
-          echo "Using JavaFX modules: ${JAVAFX_PATHS}"
-          
-          ./gradlew run --no-daemon \
-            -Dorg.gradle.jvmargs="\
-              --module-path ${JAVAFX_PATHS} \
-              --add-modules javafx.controls,javafx.fxml \
-              -Dprism.order=sw"
