@@ -12,7 +12,7 @@ group = "ru.rkhamatyarov"
 version = "1.0-SNAPSHOT"
 
 javafx {
-    version = "17"
+    version = "23"
     modules("javafx.controls", "javafx.fxml")
 }
 
@@ -24,8 +24,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
 
     // javafx
-    implementation("org.openjfx:javafx-controls:17")
-    implementation("org.openjfx:javafx-fxml:17")
+    implementation("org.openjfx:javafx-controls:23")
+    implementation("org.openjfx:javafx-fxml:23")
 
     // spring boot
     implementation("org.springframework.boot:spring-boot-starter")
