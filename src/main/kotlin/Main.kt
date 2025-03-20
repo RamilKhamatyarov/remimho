@@ -12,9 +12,6 @@ import ru.rkhamatyarov.engine.Whiteboard
 class WhiteboardApplication
 
 fun main() {
-    Thread {
-        runApplication<WhiteboardApplication>()
-    }.start()
-
+    runApplication<WhiteboardApplication>()
     Application.launch(Whiteboard::class.java)
 }
