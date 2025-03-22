@@ -20,5 +20,9 @@ class Whiteboard() : Application() {
     override fun start(stage: Stage) {
         whiteboardService.startGame(stage)
     }
+
+    fun getWhiteboardService(): WhiteboardService {
+        return whiteboardService
+    }
 }
 

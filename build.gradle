@@ -29,6 +29,18 @@ dependencies {
 
     // spring boot
     implementation("org.springframework.boot:spring-boot-starter")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.testfx:testfx-junit5:4.0.16-alpha")
+    testImplementation("io.mockk:mockk:1.13.17")
+}
+
+tasks.test {
+    useJUnitPlatform()
+    jvmArgs = [
+            '--add-opens=javafx.graphics/javafx.stage=ALL-UNNAMED',
+            '--add-opens=javafx.graphics/javafx.scene=ALL-UNNAMED'
+    ]
 }
 
 application {
