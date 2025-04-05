@@ -23,11 +23,9 @@ repositories {
 dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
 
-    // javafx
     implementation("org.openjfx:javafx-controls:23")
     implementation("org.openjfx:javafx-fxml:23")
 
-    // spring boot
     implementation("org.springframework.boot:spring-boot-starter")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")

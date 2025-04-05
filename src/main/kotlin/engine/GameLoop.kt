@@ -4,15 +4,28 @@ import javafx.animation.AnimationTimer
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import org.springframework.stereotype.Component
+import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
 
 
 @Component
-class GameLoop(private val gameState: GameState) : AnimationTimer() {
+class GameLoop(
+    private val gameState: GameState,
+    private val inputHandler: InputHandler
+) : AnimationTimer() {
     var gc: GraphicsContext? = null
+    var player1Score = 0
+    var player2Score = 0
 
     override fun handle(now: Long) {
+        inputHandler.update()
+
         gc?.clearRect(0.0, 0.0, 800.0, 600.0)
+
+        gc?.fill = Color.BLACK
+        gc?.fillText("Player: $player1Score", 100.0, 30.0)
+        gc?.fillText("AI: $player2Score", 700.0, 30.0)
+
         gc?.fill = Color.BLUEVIOLET
         gc?.fillRect(20.0, gameState.paddle1Y, 10.0, 100.0)
         gc?.fillRect(770.0, gameState.paddle2Y, 10.0, 100.0)
@@ -26,7 +39,14 @@ class GameLoop(private val gameState: GameState) : AnimationTimer() {
         if (gameState.puckY <= 0 || gameState.puckY >= 580) {
             gameState.puckVY *= -1
         }
-
+        if (gameState.puckX < 0) {
+            player2Score++
+            gameState.reset()
+        }
+        if (gameState.puckX > 800) {
+            player1Score++
+            gameState.reset()
+        }
         if (gameState.puckX <= 30 &&
             gameState.puckY >= gameState.paddle1Y &&
             gameState.puckY <= gameState.paddle1Y + 100) {
