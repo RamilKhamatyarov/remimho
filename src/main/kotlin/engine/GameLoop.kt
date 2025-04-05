@@ -6,6 +6,7 @@ import javafx.scene.paint.Color
 import org.springframework.stereotype.Component
 import ru.rkhamatyarov.model.GameState
 
+
 @Component
 class GameLoop(private val gameState: GameState) : AnimationTimer() {
     var gc: GraphicsContext? = null
@@ -20,10 +21,47 @@ class GameLoop(private val gameState: GameState) : AnimationTimer() {
         gameState.puckX += gameState.puckVX
         gameState.puckY += gameState.puckVY
 
-        if (gameState.puckY <= 0 || gameState.puckY >= 580) gameState.puckVY *= -1
-        if ((gameState.puckX <= 30 && gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + 100)) ||
-            (gameState.puckX >= 750 && gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + 100))) {
+        updateAI()
+
+        if (gameState.puckY <= 0 || gameState.puckY >= 580) {
+            gameState.puckVY *= -1
+        }
+
+        if (gameState.puckX <= 30 &&
+            gameState.puckY >= gameState.paddle1Y &&
+            gameState.puckY <= gameState.paddle1Y + 100) {
+            gameState.puckVX *= -1
+
+            gameState.puckVY += (Math.random() - 0.5) * 2
+        }
+
+        if (gameState.puckX >= 750 &&
+            gameState.puckY >= gameState.paddle2Y &&
+            gameState.puckY <= gameState.paddle2Y + 100) {
             gameState.puckVX *= -1
         }
+    }
+
+    private fun updateAI() {
+        val paddleCenter = gameState.paddle1Y + 50
+
+        if (gameState.puckVX < 0) {
+
+            val predictedY = gameState.puckY + (gameState.puckVY * ((gameState.puckX - 30) / -gameState.puckVX))
+
+            if (paddleCenter < predictedY - 10) {
+                gameState.paddle1Y += 5.0
+            } else if (paddleCenter > predictedY + 10) {
+                gameState.paddle1Y -= 5.0
+            }
+        } else {
+
+            if (paddleCenter < 300 - 10) {
+                gameState.paddle1Y += 3.0
+            } else if (paddleCenter > 300 + 10) {
+                gameState.paddle1Y -= 3.0
+            }
+        }
+        gameState.paddle1Y = gameState.paddle1Y.coerceIn(0.0, 500.0)
     }
 }
