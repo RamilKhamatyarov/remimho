@@ -34,7 +34,7 @@ class WhiteboardTest {
   val scene = stage.scene
   Assertions.assertThat(scene).isNotNull()
   Assertions.assertThat(scene.width).isEqualTo(800.0)
-  Assertions.assertThat(scene.height).isEqualTo(600.0)
+  Assertions.assertThat(scene.height).isEqualTo(650.0)
   Assertions.assertThat(scene.fill).isEqualTo(Color.WHITE)
  }
 }
