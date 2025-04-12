@@ -29,7 +29,7 @@ class WhiteboardTest {
 
  @Test
  fun testGameInitialization(robot: FxRobot) {
-  Assertions.assertThat(stage.title).isEqualTo("Whiteboard Hockey")
+  Assertions.assertThat(stage.title).isEqualTo("Whiteboard")
 
   val scene = stage.scene
   Assertions.assertThat(scene).isNotNull()
