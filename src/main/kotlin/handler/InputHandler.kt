@@ -7,12 +7,23 @@ import ru.rkhamatyarov.model.GameState
 
 @Component
 class InputHandler(private val gameState: GameState) {
-    fun handleKeyPress(event: KeyEvent) {
+    private val keysPressed = mutableSetOf<KeyCode>()
 
-        when (event.code) {
-            KeyCode.UP -> gameState.paddle2Y -= 20
-            KeyCode.DOWN -> gameState.paddle2Y += 20
-            else -> {}
+    fun handleKeyPress(event: KeyEvent) {
+        keysPressed.add(event.code)
+    }
+
+    fun handleKeyRelease(event: KeyEvent) {
+        keysPressed.remove(event.code)
+    }
+
+    fun update() {
+        keysPressed.forEach { key ->
+            when (key) {
+                KeyCode.UP -> gameState.paddle2Y -= 10
+                KeyCode.DOWN -> gameState.paddle2Y += 10
+                else -> {}
+            }
         }
         gameState.paddle2Y = gameState.paddle2Y.coerceIn(0.0, 500.0)
     }
