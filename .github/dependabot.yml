@@ -12,10 +12,11 @@ updates:
       - "gradle"
     commit-message:
       prefix: "chore"
-      prefix-development: false
+      prefix-development: "false"
       include: "scope"
     ignore:
       - dependency-name: "org.springframework.boot:*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "org.openjfx:*"
         versions: ["23.*"]
+
