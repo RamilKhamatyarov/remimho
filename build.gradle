@@ -29,7 +29,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.testfx:testfx-junit5:4.0.16-alpha")
+    testImplementation("org.testfx:testfx-junit5:4.0.18")
     testImplementation("io.mockk:mockk:1.13.17")
 }
 
