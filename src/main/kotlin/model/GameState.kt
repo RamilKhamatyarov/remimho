@@ -21,6 +21,8 @@ class GameState {
 
     var speedMultiplier = 1.0
 
+    var paused = false
+
     fun reset() {
         puckX = 400.0
         puckY = 300.0
@@ -37,5 +39,9 @@ class GameState {
     fun randomizeBlock() {
         blockX = 300 + Math.random() * 200
         blockY = Math.random() * 500
+    }
+
+    fun togglePause() {
+        paused = !paused
     }
 }
