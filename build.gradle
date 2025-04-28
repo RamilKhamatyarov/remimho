@@ -3,7 +3,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("org.jetbrains.kotlin.jvm") version "2.1.10"
     id("org.jetbrains.kotlin.plugin.spring") version "2.1.10"
-    id("org.openjfx.javafxplugin") version "0.0.14"
+    id("org.openjfx.javafxplugin") version "0.1.0"
     id("org.springframework.boot") version "3.2.3"
 
 }
