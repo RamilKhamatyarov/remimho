@@ -3,6 +3,7 @@ package ru.rkhamatyarov.engine
 import javafx.animation.AnimationTimer
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
+import javafx.scene.text.Font
 import org.springframework.stereotype.Component
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
@@ -18,7 +19,11 @@ class GameLoop(
     var player2Score = 0
 
     override fun handle(now: Long) {
+        if (gameState.paused) {
+            return
+        }
         inputHandler.update()
+
         gc?.let {
             clearCanvas(it)
             renderScore(it)
@@ -31,14 +36,26 @@ class GameLoop(
         applySpeedMultiplier()
     }
 
+    fun togglePause() {
+        gameState.togglePause()
+    }
+
     private fun clearCanvas(gc: GraphicsContext) {
         gc.clearRect(0.0, 0.0, 800.0, 600.0)
     }
 
     private fun renderScore(gc: GraphicsContext) {
+        gc.save()
+
         gc.fill = Color.BLACK
+        gc.stroke = Color.BLACK
+        gc.lineWidth = 1.0
+        gc.font = Font.font(20.0)
+
         gc.fillText("AI: $player1Score", 100.0, 30.0)
         gc.fillText("Player: $player2Score", 700.0, 30.0)
+
+        gc.restore()
     }
 
     private fun renderObjects(gc: GraphicsContext) {

@@ -5,6 +5,7 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
+import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
@@ -38,10 +39,12 @@ class WhiteboardService(
     private fun createCanvas(): Canvas = Canvas(800.0, 600.0)
 
     private fun createControlBox(): VBox {
-        val resetButton = createResetButton()
+        val buttonBox = HBox(createResetButton(), createPauseButton()).apply {
+            spacing = 10.0
+        }
         val (speedLabel, speedSlider) = createSpeedControls()
 
-        return VBox(resetButton, speedLabel, speedSlider).apply {
+        return VBox(buttonBox, speedLabel, speedSlider).apply {
             spacing = 5.0
         }
     }
@@ -50,6 +53,16 @@ class WhiteboardService(
         return Button("Reset").apply {
             setOnAction {
                 gameState.reset()
+                root.requestFocus()
+            }
+        }
+    }
+
+    private fun createPauseButton(): Button {
+        return Button("Pause").apply {
+            setOnAction {
+                gameLoop.togglePause()
+                text = if (gameState.paused) "Resume" else "Pause"
                 root.requestFocus()
             }
         }
