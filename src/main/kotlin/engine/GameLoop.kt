@@ -19,25 +19,39 @@ class GameLoop(
     var player2Score = 0
 
     override fun handle(now: Long) {
-        if (gameState.paused) {
-            return
-        }
         inputHandler.update()
 
         gc?.let {
             clearCanvas(it)
             renderScore(it)
             renderObjects(it)
+
+            if (gameState.paused) {
+                renderPauseOverlay(it)
+                return
+            }
         }
 
-        updatePuckPosition()
-        validateCollisions()
-        updateAI()
-        applySpeedMultiplier()
+        if (!gameState.paused) {
+            updatePuckPosition()
+            validateCollisions()
+            updateAI()
+            applySpeedMultiplier()
+        }
     }
 
     fun togglePause() {
         gameState.togglePause()
+    }
+
+    private fun renderPauseOverlay(gc: GraphicsContext) {
+        gc.save()
+        gc.fill = Color.rgb(0, 0, 0, 0.5)
+        gc.fillRect(0.0, 0.0, 800.0, 600.0)
+        gc.fill = Color.WHITE
+        gc.font = Font.font(48.0)
+        gc.fillText("PAUSED", 350.0, 300.0)
+        gc.restore()
     }
 
     private fun clearCanvas(gc: GraphicsContext) {
@@ -46,15 +60,12 @@ class GameLoop(
 
     private fun renderScore(gc: GraphicsContext) {
         gc.save()
-
         gc.fill = Color.BLACK
         gc.stroke = Color.BLACK
         gc.lineWidth = 1.0
         gc.font = Font.font(20.0)
-
         gc.fillText("AI: $player1Score", 100.0, 30.0)
         gc.fillText("Player: $player2Score", 700.0, 30.0)
-
         gc.restore()
     }
 
@@ -65,7 +76,14 @@ class GameLoop(
         gc.fillOval(gameState.puckX, gameState.puckY, 20.0, 20.0)
 
         gc.fill = Color.DARKGRAY
-        gc.fillRect(gameState.blockX, gameState.blockY, gameState.blockWidth, gameState.blockHeight)
+        gameState.blocks.forEach { block ->
+            gc.fillRect(block.x, block.y, block.width, block.height)
+        }
+
+        gameState.currentBlock?.let { block ->
+            gc.fill = Color.rgb(169, 169, 169, 0.5)
+            gc.fillRect(block.x, block.y, block.width, block.height)
+        }
     }
 
     private fun updatePuckPosition() {
@@ -92,6 +110,7 @@ class GameLoop(
                 player2Score++
                 gameState.reset()
             }
+
             gameState.puckX > 800 -> {
                 player1Score++
                 gameState.reset()
@@ -117,11 +136,14 @@ class GameLoop(
     }
 
     private fun validateBlockCollision() {
-        if (gameState.puckX + 20 >= gameState.blockX &&
-            gameState.puckX <= gameState.blockX + gameState.blockWidth &&
-            gameState.puckY + 20 >= gameState.blockY &&
-            gameState.puckY <= gameState.blockY + gameState.blockHeight) {
-            gameState.puckVX *= -1
+        gameState.blocks.forEach { block ->
+            if (gameState.puckX + 20 >= block.x &&
+                gameState.puckX <= block.x + block.width &&
+                gameState.puckY + 20 >= block.y &&
+                gameState.puckY <= block.y + block.height
+            ) {
+                gameState.puckVX *= -1
+            }
         }
     }
 

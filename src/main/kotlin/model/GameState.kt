@@ -13,15 +13,24 @@ class GameState {
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
-    var blockX = 390.0
-    var blockY = 250.0
-
-    val blockWidth = 20.0
-    val blockHeight = 100.0
+    val blocks = mutableListOf<Block>()
+    var isDrawing = false
+    var currentBlock: Block? = null
 
     var speedMultiplier = 1.0
 
     var paused = false
+
+    data class Block(
+        var x: Double,
+        var y: Double,
+        var width: Double,
+        var height: Double
+    )
+
+    fun togglePause() {
+        paused = !paused
+    }
 
     fun reset() {
         puckX = 400.0
@@ -32,16 +41,40 @@ class GameState {
 
         paddle1Y = 250.0
         paddle2Y = 250.0
-
-        randomizeBlock()
     }
 
-    fun randomizeBlock() {
-        blockX = 300 + Math.random() * 200
-        blockY = Math.random() * 500
+    fun startNewBlock(x: Double, y: Double) {
+        currentBlock = Block(x, y, 0.0, 0.0)
+        isDrawing = true
     }
 
-    fun togglePause() {
-        paused = !paused
+    fun updateCurrentBlock(x: Double, y: Double) {
+        currentBlock?.let {
+            it.width = x - it.x
+            it.height = y - it.y
+        }
+    }
+
+    fun finishCurrentBlock() {
+        currentBlock?.let {
+            if (it.width < 0) {
+                it.x += it.width
+                it.width = -it.width
+            }
+            if (it.height < 0) {
+                it.y += it.height
+                it.height = -it.height
+            }
+
+            if (it.width > 5 && it.height > 5) {
+                blocks.add(it)
+            }
+        }
+        isDrawing = false
+        currentBlock = null
+    }
+
+    fun clearBlocks() {
+        blocks.clear()
     }
 }

@@ -5,7 +5,7 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
-import javafx.scene.layout.HBox
+import javafx.scene.input.MouseButton
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
@@ -36,23 +36,50 @@ class WhiteboardService(
         root.requestFocus()
     }
 
-    private fun createCanvas(): Canvas = Canvas(800.0, 600.0)
+    private fun createCanvas(): Canvas = Canvas(800.0, 600.0).apply {
+        setOnMousePressed { event ->
+            if (event.button == MouseButton.SECONDARY) {
+                gameState.startNewBlock(event.x, event.y)
+            }
+        }
+
+        setOnMouseDragged { event ->
+            if (event.button == MouseButton.SECONDARY) {
+                gameState.updateCurrentBlock(event.x, event.y)
+            }
+        }
+
+        setOnMouseReleased { event ->
+            if (event.button == MouseButton.SECONDARY) {
+                gameState.finishCurrentBlock()
+            }
+        }
+    }
 
     private fun createControlBox(): VBox {
-        val buttonBox = HBox(createResetButton(), createPauseButton()).apply {
-            spacing = 10.0
-        }
+        val resetButton = createResetButton()
+        val clearBlocksButton = createClearBlocksButton()
+        val pauseButton = createPauseButton()
         val (speedLabel, speedSlider) = createSpeedControls()
 
-        return VBox(buttonBox, speedLabel, speedSlider).apply {
+        return VBox(resetButton, clearBlocksButton, pauseButton, speedLabel, speedSlider).apply {
             spacing = 5.0
         }
     }
 
     private fun createResetButton(): Button {
-        return Button("Reset").apply {
+        return Button("Reset Game").apply {
             setOnAction {
                 gameState.reset()
+                root.requestFocus()
+            }
+        }
+    }
+
+    private fun createClearBlocksButton(): Button {
+        return Button("Clear Blocks").apply {
+            setOnAction {
+                gameState.clearBlocks()
                 root.requestFocus()
             }
         }
