@@ -13,20 +13,51 @@ class GameState {
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
-    val blocks = mutableListOf<Block>()
-    var isDrawing = false
-    var currentBlock: Block? = null
-
     var speedMultiplier = 1.0
 
     var paused = false
 
-    data class Block(
-        var x: Double,
-        var y: Double,
-        var width: Double,
-        var height: Double
-    )
+    val lines = mutableListOf<Line>()
+    var currentLine: Line? = null
+    var isDrawing = false
+
+    data class Line(
+        val points: MutableList<Point> = mutableListOf(),
+        var width: Double = 5.0
+    ) {
+        data class Point(val x: Double, val y: Double)
+    }
+
+    fun startNewLine(x: Double, y: Double) {
+        currentLine = Line().apply {
+            points.add(Line.Point(x, y))
+            width = 5.0
+        }
+        isDrawing = true
+    }
+
+    fun updateCurrentLine(x: Double, y: Double) {
+        currentLine?.let {
+            it.points.add(Line.Point(x, y))
+
+            if (it.points.size > 1000) {
+                it.points.removeAt(0)
+            }
+        }
+    }
+
+    fun finishCurrentLine() {
+        currentLine?.let {
+            if (it.points.size > 1) {
+                lines.add(it)
+            }
+        }
+        isDrawing = false
+    }
+
+    fun clearLines() {
+        lines.clear()
+    }
 
     fun togglePause() {
         paused = !paused
@@ -41,40 +72,5 @@ class GameState {
 
         paddle1Y = 250.0
         paddle2Y = 250.0
-    }
-
-    fun startNewBlock(x: Double, y: Double) {
-        currentBlock = Block(x, y, 0.0, 0.0)
-        isDrawing = true
-    }
-
-    fun updateCurrentBlock(x: Double, y: Double) {
-        currentBlock?.let {
-            it.width = x - it.x
-            it.height = y - it.y
-        }
-    }
-
-    fun finishCurrentBlock() {
-        currentBlock?.let {
-            if (it.width < 0) {
-                it.x += it.width
-                it.width = -it.width
-            }
-            if (it.height < 0) {
-                it.y += it.height
-                it.height = -it.height
-            }
-
-            if (it.width > 5 && it.height > 5) {
-                blocks.add(it)
-            }
-        }
-        isDrawing = false
-        currentBlock = null
-    }
-
-    fun clearBlocks() {
-        blocks.clear()
     }
 }

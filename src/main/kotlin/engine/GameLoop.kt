@@ -75,14 +75,30 @@ class GameLoop(
         gc.fillRect(770.0, gameState.paddle2Y, 10.0, 100.0)
         gc.fillOval(gameState.puckX, gameState.puckY, 20.0, 20.0)
 
-        gc.fill = Color.DARKGRAY
-        gameState.blocks.forEach { block ->
-            gc.fillRect(block.x, block.y, block.width, block.height)
+        gc.stroke = Color.DARKGRAY
+
+        gameState.lines.forEach { line ->
+            if (line.points.size > 1) {
+                gc.lineWidth = line.width
+                gc.beginPath()
+                gc.moveTo(line.points[0].x, line.points[0].y)
+                for (i in 1 until line.points.size) {
+                    gc.lineTo(line.points[i].x, line.points[i].y)
+                }
+                gc.stroke()
+            }
         }
 
-        gameState.currentBlock?.let { block ->
-            gc.fill = Color.rgb(169, 169, 169, 0.5)
-            gc.fillRect(block.x, block.y, block.width, block.height)
+        gameState.currentLine?.let { line ->
+            if (line.points.size > 1) {
+                gc.lineWidth = line.width
+                gc.beginPath()
+                gc.moveTo(line.points[0].x, line.points[0].y)
+                for (i in 1 until line.points.size) {
+                    gc.lineTo(line.points[i].x, line.points[i].y)
+                }
+                gc.stroke()
+            }
         }
     }
 
@@ -95,7 +111,7 @@ class GameLoop(
         validateWallCollision()
         validateScore()
         validatePaddleCollision()
-        validateBlockCollision()
+        validateLineCollision()
     }
 
     private fun validateWallCollision() {
@@ -135,16 +151,71 @@ class GameLoop(
         }
     }
 
-    private fun validateBlockCollision() {
-        gameState.blocks.forEach { block ->
-            if (gameState.puckX + 20 >= block.x &&
-                gameState.puckX <= block.x + block.width &&
-                gameState.puckY + 20 >= block.y &&
-                gameState.puckY <= block.y + block.height
-            ) {
-                gameState.puckVX *= -1
+    private fun validateLineCollision() {
+        gameState.lines.forEach { line ->
+            for (i in 0 until line.points.size - 1) {
+                val p1 = line.points[i]
+                val p2 = line.points[i + 1]
+
+                if (checkLineCircleCollision(
+                        p1.x, p1.y,
+                        p2.x, p2.y,
+                        gameState.puckX + 10, gameState.puckY + 10,
+                        line.width
+                    )
+                ) {
+                    val lineAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x)
+                    val normalAngle = lineAngle + Math.PI / 2
+
+                    val dotProduct = gameState.puckVX * Math.cos(normalAngle) +
+                            gameState.puckVY * Math.sin(normalAngle)
+
+                    if (dotProduct < 0) {
+                        gameState.puckVX = Math.cos(normalAngle) * 5.0
+                        gameState.puckVY = Math.sin(normalAngle) * 5.0
+
+                        val speed = Math.hypot(gameState.puckVX, gameState.puckVY)
+                        gameState.puckVX += (Math.random() - 0.5) * 2
+                        gameState.puckVY += (Math.random() - 0.5) * 2
+
+                        val newSpeed = Math.hypot(gameState.puckVX, gameState.puckVY)
+                        gameState.puckVX = gameState.puckVX / newSpeed * speed
+                        gameState.puckVY = gameState.puckVY / newSpeed * speed
+                    }
+                }
             }
         }
+    }
+
+    private fun checkLineCircleCollision(
+        x1: Double, y1: Double,
+        x2: Double, y2: Double,
+        cx: Double, cy: Double,
+        lineWidth: Double
+    ): Boolean {
+        val lineLength = Math.hypot(x2 - x1, y2 - y1)
+        val unitX = (x2 - x1) / lineLength
+        val unitY = (y2 - y1) / lineLength
+
+        val acx = cx - x1
+        val acy = cy - y1
+        val projection = acx * unitX + acy * unitY
+        val closestX: Double
+        val closestY: Double
+
+        if (projection < 0) {
+            closestX = x1
+            closestY = y1
+        } else if (projection > lineLength) {
+            closestX = x2
+            closestY = y2
+        } else {
+            closestX = x1 + projection * unitX
+            closestY = y1 + projection * unitY
+        }
+
+        val distance = Math.hypot(cx - closestX, cy - closestY)
+        return distance < 10.0 + lineWidth / 2
     }
 
     private fun applySpeedMultiplier() {
