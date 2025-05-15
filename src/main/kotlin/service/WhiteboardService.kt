@@ -5,7 +5,7 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
-import javafx.scene.layout.HBox
+import javafx.scene.input.MouseButton
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
@@ -36,23 +36,80 @@ class WhiteboardService(
         root.requestFocus()
     }
 
-    private fun createCanvas(): Canvas = Canvas(800.0, 600.0)
+    private fun createCanvas(): Canvas = Canvas(800.0, 600.0).apply {
+        setOnMousePressed { event ->
+            if (event.button == MouseButton.SECONDARY) {
+                gameState.startNewLine(event.x, event.y)
+
+                gameLoop.gc?.let { gc ->
+                    gc.stroke = Color.DARKGRAY
+                    gc.lineWidth = gameState.currentLine?.width ?: 5.0
+                    gc.beginPath()
+                    gc.moveTo(event.x, event.y)
+                    gc.lineTo(event.x, event.y)
+                    gc.stroke()
+                }
+            }
+        }
+
+        setOnMouseDragged { event ->
+            if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
+                gameState.updateCurrentLine(event.x, event.y)
+
+                gameLoop.gc?.let { gc ->
+                    gc.stroke = Color.DARKGRAY
+                    gc.lineWidth = gameState.currentLine?.width ?: 5.0
+                    val points = gameState.currentLine?.points
+                    if (points != null && points.size > 1) {
+                        gc.beginPath()
+                        gc.moveTo(points[points.size - 2].x, points[points.size - 2].y)
+                        gc.lineTo(points.last().x, points.last().y)
+                        gc.stroke()
+                    }
+                }
+            }
+        }
+
+        setOnMouseReleased { event ->
+            if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
+                gameState.finishCurrentLine()
+            }
+        }
+    }
 
     private fun createControlBox(): VBox {
-        val buttonBox = HBox(createResetButton(), createPauseButton()).apply {
-            spacing = 10.0
-        }
+        val resetButton = createResetButton()
+        val clearBlocksButton = createClearBlocksButton()
+        val pauseButton = createPauseButton()
         val (speedLabel, speedSlider) = createSpeedControls()
+        val (thicknessLabel, thicknessSlider) = createThicknessControls()
 
-        return VBox(buttonBox, speedLabel, speedSlider).apply {
+        return VBox(
+            resetButton,
+            clearBlocksButton,
+            pauseButton,
+            speedLabel,
+            speedSlider,
+            thicknessLabel,
+            thicknessSlider
+        ).apply {
             spacing = 5.0
         }
     }
 
     private fun createResetButton(): Button {
-        return Button("Reset").apply {
+        return Button("Reset Game").apply {
             setOnAction {
                 gameState.reset()
+                root.requestFocus()
+            }
+        }
+    }
+
+    private fun createClearBlocksButton(): Button {
+        return Button("Clear Drawings").apply {
+            setOnAction {
+                gameState.clearLines()
                 root.requestFocus()
             }
         }
@@ -81,6 +138,24 @@ class WhiteboardService(
         bindSpeedSliderToLabel(speedSlider, speedLabel)
 
         return speedLabel to speedSlider
+    }
+
+    private fun createThicknessControls(): Pair<Label, Slider> {
+        val thicknessLabel = Label("Line Thickness: 5")
+        val thicknessSlider = Slider(1.0, 20.0, 5.0).apply {
+            isShowTickLabels = true
+            isShowTickMarks = true
+            majorTickUnit = 5.0
+            blockIncrement = 1.0
+        }
+
+        thicknessSlider.valueProperty().addListener { _, _, newValue ->
+            val thickness = newValue.toDouble()
+            thicknessLabel.text = "Line Thickness: ${thickness.toInt()}"
+            gameState.currentLine?.width = thickness
+        }
+
+        return thicknessLabel to thicknessSlider
     }
 
     private fun bindSpeedSliderToLabel(slider: Slider, label: Label) {

@@ -13,15 +13,55 @@ class GameState {
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
-    var blockX = 390.0
-    var blockY = 250.0
-
-    val blockWidth = 20.0
-    val blockHeight = 100.0
-
     var speedMultiplier = 1.0
 
     var paused = false
+
+    val lines = mutableListOf<Line>()
+    var currentLine: Line? = null
+    var isDrawing = false
+
+    data class Line(
+        val points: MutableList<Point> = mutableListOf(),
+        var width: Double = 5.0
+    ) {
+        data class Point(val x: Double, val y: Double)
+    }
+
+    fun startNewLine(x: Double, y: Double) {
+        currentLine = Line().apply {
+            points.add(Line.Point(x, y))
+            width = 5.0
+        }
+        isDrawing = true
+    }
+
+    fun updateCurrentLine(x: Double, y: Double) {
+        currentLine?.let {
+            it.points.add(Line.Point(x, y))
+
+            if (it.points.size > 1000) {
+                it.points.removeAt(0)
+            }
+        }
+    }
+
+    fun finishCurrentLine() {
+        currentLine?.let {
+            if (it.points.size > 1) {
+                lines.add(it)
+            }
+        }
+        isDrawing = false
+    }
+
+    fun clearLines() {
+        lines.clear()
+    }
+
+    fun togglePause() {
+        paused = !paused
+    }
 
     fun reset() {
         puckX = 400.0
@@ -32,16 +72,5 @@ class GameState {
 
         paddle1Y = 250.0
         paddle2Y = 250.0
-
-        randomizeBlock()
-    }
-
-    fun randomizeBlock() {
-        blockX = 300 + Math.random() * 200
-        blockY = Math.random() * 500
-    }
-
-    fun togglePause() {
-        paused = !paused
     }
 }
