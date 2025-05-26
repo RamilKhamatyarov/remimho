@@ -146,9 +146,12 @@ class GameLoop(
                 val p2 = line.points[i + 1]
 
                 if (checkLineCircleCollision(
-                        p1.x, p1.y,
-                        p2.x, p2.y,
-                        gameState.puckX + 10, gameState.puckY + 10,
+                        p1.x,
+                        p1.y,
+                        p2.x,
+                        p2.y,
+                        gameState.puckX + 10,
+                        gameState.puckY + 10,
                         line.width
                     )
                 ) {
@@ -193,9 +196,12 @@ class GameLoop(
 
 
     private fun checkLineCircleCollision(
-        x1: Double, y1: Double,
-        x2: Double, y2: Double,
-        cx: Double, cy: Double,
+        x1: Double,
+        y1: Double,
+        x2: Double,
+        y2: Double,
+        cx: Double,
+        cy: Double,
         lineWidth: Double
     ): Boolean {
 
