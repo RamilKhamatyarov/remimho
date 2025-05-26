@@ -14,27 +14,27 @@ import ru.rkhamatyarov.service.WhiteboardService
 @ExtendWith(ApplicationExtension::class)
 class WhiteboardTest {
 
- private lateinit var stage: Stage
- private lateinit var whiteboardService: WhiteboardService
+    private lateinit var stage: Stage
+    private lateinit var whiteboardService: WhiteboardService
 
- @SuppressWarnings("unused")
- @Start
- fun start(stage: Stage) {
-  this.stage = stage
-  val app = Whiteboard()
-  app.init()
-  app.start(stage)
-  whiteboardService = app.getWhiteboardService()
- }
+    @SuppressWarnings("unused")
+    @Start
+    fun start(stage: Stage) {
+        this.stage = stage
+        val app = Whiteboard()
+        app.init()
+        app.start(stage)
+        whiteboardService = app.getWhiteboardService()
+    }
 
- @Test
- fun testGameInitialization(robot: FxRobot) {
-  Assertions.assertThat(stage.title).isEqualTo("Whiteboard")
+    @Test
+    fun testGameInitialization(robot: FxRobot) {
+        Assertions.assertThat(stage.title).isEqualTo("Whiteboard")
 
-  val scene = stage.scene
-  Assertions.assertThat(scene).isNotNull()
-  Assertions.assertThat(scene.width).isEqualTo(800.0)
-  Assertions.assertThat(scene.height).isEqualTo(650.0)
-  Assertions.assertThat(scene.fill).isEqualTo(Color.WHITE)
- }
+        val scene = stage.scene
+        Assertions.assertThat(scene).isNotNull()
+        Assertions.assertThat(scene.width).isEqualTo(800.0)
+        Assertions.assertThat(scene.height).isEqualTo(650.0)
+        Assertions.assertThat(scene.fill).isEqualTo(Color.WHITE)
+    }
 }

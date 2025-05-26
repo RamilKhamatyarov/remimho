@@ -77,28 +77,19 @@ class GameLoop(
 
         gc.stroke = Color.DARKGRAY
 
-        gameState.lines.forEach { line ->
-            if (line.points.size > 1) {
-                gc.lineWidth = line.width
-                gc.beginPath()
-                gc.moveTo(line.points[0].x, line.points[0].y)
-                for (i in 1 until line.points.size) {
-                    gc.lineTo(line.points[i].x, line.points[i].y)
-                }
-                gc.stroke()
-            }
-        }
+        gameState.lines.forEach { line -> renderLine(gc, line) }
+        gameState.currentLine?.let { line -> renderLine(gc, line) }
+    }
 
-        gameState.currentLine?.let { line ->
-            if (line.points.size > 1) {
-                gc.lineWidth = line.width
-                gc.beginPath()
-                gc.moveTo(line.points[0].x, line.points[0].y)
-                for (i in 1 until line.points.size) {
-                    gc.lineTo(line.points[i].x, line.points[i].y)
-                }
-                gc.stroke()
+    private fun renderLine(gc: GraphicsContext, line: GameState.Line) {
+        if (line.points.size > 1) {
+            gc.lineWidth = line.width
+            gc.beginPath()
+            gc.moveTo(line.points[0].x, line.points[0].y)
+            for (i in 1 until line.points.size) {
+                gc.lineTo(line.points[i].x, line.points[i].y)
             }
+            gc.stroke()
         }
     }
 
@@ -135,11 +126,8 @@ class GameLoop(
     }
 
     private fun validatePaddleCollision() {
-        val withinPaddle1 = gameState.puckX <= 30 &&
-                gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + 100)
-
-        val withinPaddle2 = gameState.puckX >= 750 &&
-                gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + 100)
+        val withinPaddle1 = gameState.puckX <= 30 && gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + 100)
+        val withinPaddle2 = gameState.puckX >= 750 && gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + 100)
 
         if (withinPaddle1) {
             gameState.puckVX *= -1
