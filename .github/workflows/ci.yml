@@ -28,6 +28,18 @@ jobs:
       - name: Set execute permission for Gradle wrapper
         run: chmod +x ./gradlew
 
+      - name: Run Super-Linter (Kotlin)
+        uses: github/super-linter@v5
+        env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LINTER_RULES_PATH: .
+          KOTLIN_ENABLE: true
+          VALIDATE_ALL_CODEBASE: true
+          VALIDATE_JAVA: false
+          VALIDATE_GROOVY: false
+          VALIDATE_GO: false
+
       - name: Build the project
         run: ./gradlew build -x test
 
