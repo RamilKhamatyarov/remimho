@@ -25,4 +25,3 @@ class Whiteboard() : Application() {
         return whiteboardService
     }
 }
-

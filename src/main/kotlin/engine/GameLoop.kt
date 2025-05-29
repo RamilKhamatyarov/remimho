@@ -77,28 +77,19 @@ class GameLoop(
 
         gc.stroke = Color.DARKGRAY
 
-        gameState.lines.forEach { line ->
-            if (line.points.size > 1) {
-                gc.lineWidth = line.width
-                gc.beginPath()
-                gc.moveTo(line.points[0].x, line.points[0].y)
-                for (i in 1 until line.points.size) {
-                    gc.lineTo(line.points[i].x, line.points[i].y)
-                }
-                gc.stroke()
-            }
-        }
+        gameState.lines.forEach { line -> renderLine(gc, line) }
+        gameState.currentLine?.let { line -> renderLine(gc, line) }
+    }
 
-        gameState.currentLine?.let { line ->
-            if (line.points.size > 1) {
-                gc.lineWidth = line.width
-                gc.beginPath()
-                gc.moveTo(line.points[0].x, line.points[0].y)
-                for (i in 1 until line.points.size) {
-                    gc.lineTo(line.points[i].x, line.points[i].y)
-                }
-                gc.stroke()
+    private fun renderLine(gc: GraphicsContext, line: GameState.Line) {
+        if (line.points.size > 1) {
+            gc.lineWidth = line.width
+            gc.beginPath()
+            gc.moveTo(line.points[0].x, line.points[0].y)
+            for (i in 1 until line.points.size) {
+                gc.lineTo(line.points[i].x, line.points[i].y)
             }
+            gc.stroke()
         }
     }
 
@@ -135,11 +126,8 @@ class GameLoop(
     }
 
     private fun validatePaddleCollision() {
-        val withinPaddle1 = gameState.puckX <= 30 &&
-                gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + 100)
-
-        val withinPaddle2 = gameState.puckX >= 750 &&
-                gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + 100)
+        val withinPaddle1 = gameState.puckX <= 30 && gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + 100)
+        val withinPaddle2 = gameState.puckX >= 750 && gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + 100)
 
         if (withinPaddle1) {
             gameState.puckVX *= -1
@@ -158,9 +146,12 @@ class GameLoop(
                 val p2 = line.points[i + 1]
 
                 if (checkLineCircleCollision(
-                        p1.x, p1.y,
-                        p2.x, p2.y,
-                        gameState.puckX + 10, gameState.puckY + 10,
+                        p1.x,
+                        p1.y,
+                        p2.x,
+                        p2.y,
+                        gameState.puckX + 10,
+                        gameState.puckY + 10,
                         line.width
                     )
                 ) {
@@ -203,14 +194,15 @@ class GameLoop(
         }
     }
 
-
     private fun checkLineCircleCollision(
-        x1: Double, y1: Double,
-        x2: Double, y2: Double,
-        cx: Double, cy: Double,
+        x1: Double,
+        y1: Double,
+        x2: Double,
+        y2: Double,
+        cx: Double,
+        cy: Double,
         lineWidth: Double
     ): Boolean {
-
         val lineVecX = x2 - x1
         val lineVecY = y2 - y1
 
