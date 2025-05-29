@@ -194,7 +194,6 @@ class GameLoop(
         }
     }
 
-
     private fun checkLineCircleCollision(
         x1: Double,
         y1: Double,
@@ -204,7 +203,6 @@ class GameLoop(
         cy: Double,
         lineWidth: Double
     ): Boolean {
-
         val lineVecX = x2 - x1
         val lineVecY = y2 - y1
 
