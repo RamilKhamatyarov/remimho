@@ -110,6 +110,11 @@ class WhiteboardService(
         return Button("Clear Drawings").apply {
             setOnAction {
                 gameState.clearLines()
+                gameLoop.gc?.clearRect(0.0, 0.0, 800.0, 600.0)
+                gameLoop.gc?.let { gc ->
+                    gameLoop.renderScore(gc)
+                    gameLoop.renderObjects(gc)
+                }
                 root.requestFocus()
             }
         }
