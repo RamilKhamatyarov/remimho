@@ -44,6 +44,8 @@ jobs:
       - name: Run Kotlin Linter Only
         uses: super-linter/super-linter@v7.4.0
         env:
+          DEFAULT_BRANCH: main
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DISABLE_ALL_LINTERS: true
           VALIDATE_KOTLIN: true
           DISABLE_GITHUB_STATUS_API: true
