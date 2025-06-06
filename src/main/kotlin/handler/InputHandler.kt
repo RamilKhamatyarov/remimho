@@ -6,7 +6,9 @@ import org.springframework.stereotype.Component
 import ru.rkhamatyarov.model.GameState
 
 @Component
-class InputHandler(private val gameState: GameState) {
+class InputHandler(
+    private val gameState: GameState,
+) {
     private val keysPressed = mutableSetOf<KeyCode>()
     private var spaceWasPressed = false
 
@@ -36,12 +38,15 @@ class InputHandler(private val gameState: GameState) {
 
         keysPressed.forEach { key ->
             when (key) {
-                KeyCode.UP -> gameState.paddle2Y -= 10
-                KeyCode.DOWN -> gameState.paddle2Y += 10
+                KeyCode.UP -> gameState.paddle2Y = (gameState.paddle2Y - 10).coerceAtLeast(0.0)
+                KeyCode.DOWN ->
+                    gameState.paddle2Y =
+                        (gameState.paddle2Y + 10).coerceAtMost(
+                            gameState.canvasHeight - gameState.paddleHeight,
+                        )
                 KeyCode.SPACE -> gameState.togglePause()
                 else -> {}
             }
         }
-        gameState.paddle2Y = gameState.paddle2Y.coerceIn(0.0, 500.0)
     }
 }
