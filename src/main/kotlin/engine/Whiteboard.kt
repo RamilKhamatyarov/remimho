@@ -8,8 +8,7 @@ import ru.rkhamatyarov.WhiteboardApplication
 import ru.rkhamatyarov.service.WhiteboardService
 
 @Component
-class Whiteboard() : Application() {
-
+class Whiteboard : Application() {
     private lateinit var whiteboardService: WhiteboardService
 
     override fun init() {
@@ -21,7 +20,5 @@ class Whiteboard() : Application() {
         whiteboardService.startGame(stage)
     }
 
-    fun getWhiteboardService(): WhiteboardService {
-        return whiteboardService
-    }
+    fun getWhiteboardService(): WhiteboardService = whiteboardService
 }

@@ -13,7 +13,6 @@ import ru.rkhamatyarov.service.WhiteboardService
 
 @ExtendWith(ApplicationExtension::class)
 class WhiteboardTest {
-
     private lateinit var stage: Stage
     private lateinit var whiteboardService: WhiteboardService
 

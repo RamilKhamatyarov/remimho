@@ -18,7 +18,7 @@ import ru.rkhamatyarov.model.GameState
 class WhiteboardService(
     private val inputHandler: InputHandler,
     private val gameLoop: GameLoop,
-    private val gameState: GameState
+    private val gameState: GameState,
 ) {
     lateinit var root: VBox
 
@@ -36,46 +36,55 @@ class WhiteboardService(
         root.requestFocus()
     }
 
-    private fun createCanvas(): Canvas = Canvas(800.0, 600.0).apply {
-        setOnMousePressed { event ->
-            if (event.button == MouseButton.SECONDARY) {
-                gameState.startNewLine(event.x, event.y)
-
-                gameLoop.gc?.let { gc ->
-                    gc.stroke = Color.DARKGRAY
-                    gc.lineWidth = gameState.currentLine?.width ?: 5.0
-                    gc.beginPath()
-                    gc.moveTo(event.x, event.y)
-                    gc.lineTo(event.x, event.y)
-                    gc.stroke()
-                }
+    private fun createCanvas(): Canvas =
+        Canvas(800.0, 600.0).apply {
+            widthProperty().addListener { _, _, newVal ->
+                gameState.canvasWidth = newVal.toDouble()
             }
-        }
 
-        setOnMouseDragged { event ->
-            if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
-                gameState.updateCurrentLine(event.x, event.y)
+            heightProperty().addListener { _, _, newVal ->
+                gameState.canvasHeight = newVal.toDouble()
+            }
 
-                gameLoop.gc?.let { gc ->
-                    gc.stroke = Color.DARKGRAY
-                    gc.lineWidth = gameState.currentLine?.width ?: 5.0
-                    val points = gameState.currentLine?.points
-                    if (points != null && points.size > 1) {
+            setOnMousePressed { event ->
+                if (event.button == MouseButton.SECONDARY) {
+                    gameState.startNewLine(event.x, event.y)
+
+                    gameLoop.gc?.let { gc ->
+                        gc.stroke = Color.DARKGRAY
+                        gc.lineWidth = gameState.currentLine?.width ?: 5.0
                         gc.beginPath()
-                        gc.moveTo(points[points.size - 2].x, points[points.size - 2].y)
-                        gc.lineTo(points.last().x, points.last().y)
+                        gc.moveTo(event.x, event.y)
+                        gc.lineTo(event.x, event.y)
                         gc.stroke()
                     }
                 }
             }
-        }
 
-        setOnMouseReleased { event ->
-            if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
-                gameState.finishCurrentLine()
+            setOnMouseDragged { event ->
+                if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
+                    gameState.updateCurrentLine(event.x, event.y)
+
+                    gameLoop.gc?.let { gc ->
+                        gc.stroke = Color.DARKGRAY
+                        gc.lineWidth = gameState.currentLine?.width ?: 5.0
+                        val points = gameState.currentLine?.points
+                        if (points != null && points.size > 1) {
+                            gc.beginPath()
+                            gc.moveTo(points[points.size - 2].x, points[points.size - 2].y)
+                            gc.lineTo(points.last().x, points.last().y)
+                            gc.stroke()
+                        }
+                    }
+                }
+            }
+
+            setOnMouseReleased { event ->
+                if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
+                    gameState.finishCurrentLine()
+                }
             }
         }
-    }
 
     private fun createControlBox(): VBox {
         val resetButton = createResetButton()
@@ -91,54 +100,52 @@ class WhiteboardService(
             speedLabel,
             speedSlider,
             thicknessLabel,
-            thicknessSlider
+            thicknessSlider,
         ).apply {
             spacing = 5.0
         }
     }
 
-    private fun createResetButton(): Button {
-        return Button("Reset Game").apply {
+    private fun createResetButton(): Button =
+        Button("Reset Game").apply {
             setOnAction {
                 gameState.reset()
                 root.requestFocus()
             }
         }
-    }
 
-    private fun createClearBlocksButton(): Button {
-        return Button("Clear Drawings").apply {
+    private fun createClearBlocksButton(): Button =
+        Button("Clear Drawings").apply {
             setOnAction {
                 gameState.clearLines()
                 gameLoop.gc?.clearRect(0.0, 0.0, 800.0, 600.0)
                 gameLoop.gc?.let { gc ->
-                    gameLoop.renderScore(gc)
-                    gameLoop.renderObjects(gc)
+                    gameLoop.renderScore(gc, width)
+                    gameLoop.renderObjects(gc, width)
                 }
                 root.requestFocus()
             }
         }
-    }
 
-    private fun createPauseButton(): Button {
-        return Button("Pause").apply {
+    private fun createPauseButton(): Button =
+        Button("Pause").apply {
             setOnAction {
                 gameLoop.togglePause()
                 text = if (gameState.paused) "Resume" else "Pause"
                 root.requestFocus()
             }
         }
-    }
 
     private fun createSpeedControls(): Pair<Label, Slider> {
         val speedLabel = Label("Speed: 1.0x")
-        val speedSlider = Slider(0.5, 3.0, 1.0).apply {
-            isShowTickLabels = true
-            isShowTickMarks = true
-            majorTickUnit = 0.5
-            minorTickCount = 4
-            blockIncrement = 0.1
-        }
+        val speedSlider =
+            Slider(0.5, 3.0, 1.0).apply {
+                isShowTickLabels = true
+                isShowTickMarks = true
+                majorTickUnit = 0.5
+                minorTickCount = 4
+                blockIncrement = 0.1
+            }
 
         bindSpeedSliderToLabel(speedSlider, speedLabel)
 
@@ -147,12 +154,13 @@ class WhiteboardService(
 
     private fun createThicknessControls(): Pair<Label, Slider> {
         val thicknessLabel = Label("Line Thickness: 5")
-        val thicknessSlider = Slider(1.0, 20.0, 5.0).apply {
-            isShowTickLabels = true
-            isShowTickMarks = true
-            majorTickUnit = 5.0
-            blockIncrement = 1.0
-        }
+        val thicknessSlider =
+            Slider(1.0, 20.0, 5.0).apply {
+                isShowTickLabels = true
+                isShowTickMarks = true
+                majorTickUnit = 5.0
+                blockIncrement = 1.0
+            }
 
         thicknessSlider.valueProperty().addListener { _, _, newValue ->
             val thickness = newValue.toDouble()
@@ -163,7 +171,10 @@ class WhiteboardService(
         return thicknessLabel to thicknessSlider
     }
 
-    private fun bindSpeedSliderToLabel(slider: Slider, label: Label) {
+    private fun bindSpeedSliderToLabel(
+        slider: Slider,
+        label: Label,
+    ) {
         slider.valueProperty().addListener { _, _, newValue ->
             val speedMultiplier = newValue.toDouble()
             label.text = String.format("Speed: %.1fx", speedMultiplier)
@@ -173,10 +184,14 @@ class WhiteboardService(
 
     private fun createScene(canvas: Canvas): Scene {
         val controlBox = createControlBox()
-        root = VBox(controlBox, canvas).apply {
-            spacing = 10.0
-            isFocusTraversable = true
-        }
+        root =
+            VBox(controlBox, canvas).apply {
+                spacing = 10.0
+                isFocusTraversable = true
+            }
+
+        canvas.widthProperty().bind(root.widthProperty())
+        canvas.heightProperty().bind(root.heightProperty().subtract(controlBox.heightProperty()))
 
         val scene = Scene(root, 800.0, 650.0, Color.WHITE)
 
