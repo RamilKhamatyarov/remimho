@@ -57,6 +57,8 @@ class GameState {
 
     fun clearLines() {
         lines.clear()
+        currentLine = null
+        isDrawing = false
     }
 
     fun togglePause() {

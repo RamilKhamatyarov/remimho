@@ -58,7 +58,7 @@ class GameLoop(
         gc.clearRect(0.0, 0.0, 800.0, 600.0)
     }
 
-    private fun renderScore(gc: GraphicsContext) {
+    fun renderScore(gc: GraphicsContext) {
         gc.save()
         gc.fill = Color.BLACK
         gc.stroke = Color.BLACK
@@ -69,7 +69,7 @@ class GameLoop(
         gc.restore()
     }
 
-    private fun renderObjects(gc: GraphicsContext) {
+    fun renderObjects(gc: GraphicsContext) {
         gc.fill = Color.BLUEVIOLET
         gc.fillRect(20.0, gameState.paddle1Y, 10.0, 100.0)
         gc.fillRect(770.0, gameState.paddle2Y, 10.0, 100.0)
