@@ -4,6 +4,9 @@ import org.springframework.stereotype.Component
 
 @Component
 class GameState {
+    var canvasWidth = 800.0
+    var canvasHeight = 600.0
+
     var puckX = 390.0
     var puckY = 290.0
 
@@ -12,6 +15,9 @@ class GameState {
 
     var paddle1Y = 250.0
     var paddle2Y = 250.0
+
+    val paddleHeight: Double
+        get() = canvasHeight / 6
 
     var speedMultiplier = 1.0
 
@@ -23,20 +29,30 @@ class GameState {
 
     data class Line(
         val points: MutableList<Point> = mutableListOf(),
-        var width: Double = 5.0
+        var width: Double = 5.0,
     ) {
-        data class Point(val x: Double, val y: Double)
+        data class Point(
+            val x: Double,
+            val y: Double,
+        )
     }
 
-    fun startNewLine(x: Double, y: Double) {
-        currentLine = Line().apply {
-            points.add(Line.Point(x, y))
-            width = 5.0
-        }
+    fun startNewLine(
+        x: Double,
+        y: Double,
+    ) {
+        currentLine =
+            Line().apply {
+                points.add(Line.Point(x, y))
+                width = 5.0
+            }
         isDrawing = true
     }
 
-    fun updateCurrentLine(x: Double, y: Double) {
+    fun updateCurrentLine(
+        x: Double,
+        y: Double,
+    ) {
         currentLine?.let {
             it.points.add(Line.Point(x, y))
 
@@ -66,13 +82,13 @@ class GameState {
     }
 
     fun reset() {
-        puckX = 400.0
-        puckY = 300.0
+        puckX = canvasWidth / 2
+        puckY = canvasHeight / 2
 
         puckVX = -3.0
         puckVY = (Math.random() - 0.5) * 5
 
-        paddle1Y = 250.0
-        paddle2Y = 250.0
+        paddle1Y = (canvasHeight - paddleHeight) / 2
+        paddle2Y = (canvasHeight - paddleHeight) / 2
     }
 }
