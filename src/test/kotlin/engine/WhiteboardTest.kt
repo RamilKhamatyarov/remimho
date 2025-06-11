@@ -2,38 +2,64 @@ package engine
 
 import javafx.scene.paint.Color
 import javafx.stage.Stage
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testfx.api.FxRobot
-import org.testfx.assertions.api.Assertions
 import org.testfx.framework.junit5.ApplicationExtension
 import org.testfx.framework.junit5.Start
-import ru.rkhamatyarov.engine.Whiteboard
+import org.testfx.util.WaitForAsyncUtils
+import ru.rkhamatyarov.engine.GameLoop
+import ru.rkhamatyarov.handler.InputHandler
+import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.service.WhiteboardService
+import kotlin.test.assertEquals
 
 @ExtendWith(ApplicationExtension::class)
 class WhiteboardTest {
     private lateinit var stage: Stage
-    private lateinit var whiteboardService: WhiteboardService
+    private val robot = FxRobot()
 
-    @SuppressWarnings("unused")
     @Start
     fun start(stage: Stage) {
         this.stage = stage
-        val app = Whiteboard()
-        app.init()
-        app.start(stage)
-        whiteboardService = app.getWhiteboardService()
     }
 
     @Test
-    fun testGameInitialization(robot: FxRobot) {
-        Assertions.assertThat(stage.title).isEqualTo("Whiteboard")
+    fun testStartGame() {
+        // g
+        val gameState = GameState()
 
-        val scene = stage.scene
-        Assertions.assertThat(scene).isNotNull()
-        Assertions.assertThat(scene.width).isEqualTo(800.0)
-        Assertions.assertThat(scene.height).isEqualTo(650.0)
-        Assertions.assertThat(scene.fill).isEqualTo(Color.WHITE)
+        val inputHandler =
+            InputHandler().apply {
+                this.gameState = gameState
+            }
+
+        val gameLoop =
+            GameLoop().apply {
+                this.gameState = gameState
+                this.inputHandler = inputHandler
+            }
+
+        val service =
+            WhiteboardService().apply {
+                this.inputHandler = inputHandler
+                this.gameLoop = gameLoop
+                this.gameState = gameState
+            }
+
+        robot.interact {
+            service.startGame(stage)
+        }
+
+        WaitForAsyncUtils.waitForFxEvents()
+
+        robot.interact {
+            assertEquals("Whiteboard", stage.title)
+            assertNotNull(stage.scene)
+            assertEquals(800.0, stage.scene.width, 0.01)
+            assertEquals(650.0, stage.scene.height, 0.01)
+            assertEquals(Color.WHITE, stage.scene.fill)
+        }
     }
 }

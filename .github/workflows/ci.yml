@@ -46,7 +46,7 @@ jobs:
         env:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISABLE_ALL_LINTERS: true
+          DISABLE_ALL_LINTERS: false
           VALIDATE_KOTLIN: true
           DISABLE_GITHUB_STATUS_API: true
           VALIDATE_GIT_COMMIT_HISTORY: false

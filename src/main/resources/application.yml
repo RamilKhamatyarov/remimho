@@ -1,0 +1,13 @@
+quarkus:
+  main:
+    launch-mode: dev
+  arc:
+    remove-unused-beans: false
+    detect-unused-false-positives: true
+  log:
+    level: TRACE
+    category:
+      "ru.rkhamatyarov": DEBUG
+  javafx:
+    enabled: true
+    version: auto
