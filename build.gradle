@@ -32,7 +32,7 @@ dependencies {
 }
 
 application {
-    mainClass = 'ru.rkhamatyarov.WhiteboardLauncher'
+    mainClass = 'ru.rkhamatyarov.Main'
 }
 
 tasks.withType(JavaExec).configureEach {

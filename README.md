@@ -29,7 +29,7 @@ A unique twist on classic ping-pong with drawing capabilities
 ### Technical Stack
 
 - **Language**: Kotlin 1.9.22
-- **JVM**: Java 17
+- **JVM**: Java 23
 - **UI Framework**: JavaFX 17.0.8
 - **Dependency Injection**: Quarkus 3.10.0
 - **Build System**: Gradle (Kotlin DSL)
