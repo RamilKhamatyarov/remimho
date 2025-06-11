@@ -2,7 +2,7 @@
 
 ## Whiteboard Pong Game
 
-A unique twist on classic Pong with drawing capabilities
+A unique twist on classic ping-pong with drawing capabilities
 
 ### Features
 
@@ -26,18 +26,26 @@ A unique twist on classic Pong with drawing capabilities
 - **Speed Slider**: Adjusts game speed (0.5x-3.0x)
 - **Thickness Slider**: Changes drawing line width (1-20px)
 
+### Technical Stack
+
+- **Language**: Kotlin 1.9.22
+- **JVM**: Java 17
+- **UI Framework**: JavaFX 17.0.8
+- **Dependency Injection**: Quarkus 3.10.0
+- **Build System**: Gradle (Kotlin DSL)
+
+### Prerequisites
+
+- JDK 17+
+- Gradle 8.0+
+
 ### How to Run
 
 1. Clone the repository
-2. Build with Maven/Gradle
+2. Build with Gradle
 3. Run the main class `WhiteboardApplication`
-
-### Technical Stack
-
-- Java 23+
-- JavaFX
-- Spring Boot
-- Kotlin
+4. ./gradlew build
+5. ./gradlew run
 
 ### Screenshot
 

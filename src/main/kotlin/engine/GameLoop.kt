@@ -1,19 +1,23 @@
 package ru.rkhamatyarov.engine
 
+import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 import javafx.animation.AnimationTimer
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import javafx.scene.text.Font
-import org.springframework.stereotype.Component
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
 import kotlin.math.absoluteValue
 
-@Component
-class GameLoop(
-    private val gameState: GameState,
-    private val inputHandler: InputHandler,
-) : AnimationTimer() {
+@ApplicationScoped
+class GameLoop : AnimationTimer() {
+    @Inject
+    lateinit var gameState: GameState
+
+    @Inject
+    lateinit var inputHandler: InputHandler
+
     var gc: GraphicsContext? = null
     var player1Score = 0
     var player2Score = 0

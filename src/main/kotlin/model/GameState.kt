@@ -1,8 +1,8 @@
 package ru.rkhamatyarov.model
 
-import org.springframework.stereotype.Component
+import jakarta.enterprise.context.ApplicationScoped
 
-@Component
+@ApplicationScoped
 class GameState {
     var canvasWidth = 800.0
     var canvasHeight = 600.0
