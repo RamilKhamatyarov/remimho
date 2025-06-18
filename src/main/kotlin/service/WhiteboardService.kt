@@ -1,5 +1,8 @@
 package ru.rkhamatyarov.service
 
+import io.quarkus.arc.Unremovable
+import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
@@ -9,17 +12,22 @@ import javafx.scene.input.MouseButton
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
-import org.springframework.stereotype.Service
 import ru.rkhamatyarov.engine.GameLoop
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
 
-@Service
-class WhiteboardService(
-    private val inputHandler: InputHandler,
-    private val gameLoop: GameLoop,
-    private val gameState: GameState,
-) {
+@Unremovable
+@ApplicationScoped
+class WhiteboardService {
+    @Inject
+    lateinit var inputHandler: InputHandler
+
+    @Inject
+    lateinit var gameLoop: GameLoop
+
+    @Inject
+    lateinit var gameState: GameState
+
     lateinit var root: VBox
 
     fun startGame(stage: Stage) {

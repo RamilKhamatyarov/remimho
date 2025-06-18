@@ -1,14 +1,16 @@
 package ru.rkhamatyarov.handler
 
+import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
-import org.springframework.stereotype.Component
 import ru.rkhamatyarov.model.GameState
 
-@Component
-class InputHandler(
-    private val gameState: GameState,
-) {
+@ApplicationScoped
+class InputHandler {
+    @Inject
+    lateinit var gameState: GameState
+
     private val keysPressed = mutableSetOf<KeyCode>()
     private var spaceWasPressed = false
 
