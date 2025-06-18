@@ -72,6 +72,9 @@ jobs:
           languages: 'java,kotlin'
           queries: security-extended
 
+      - name: Build the project
+        run: ./gradlew build -x test
+
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
@@ -93,9 +96,6 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review
-
-      - name: Build the project
-        run: ./gradlew build -x test
 
       - name: Run Tests with Xvfb
         run: |
