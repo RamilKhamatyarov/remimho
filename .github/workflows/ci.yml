@@ -88,8 +88,8 @@ jobs:
         if: failure()
         run: ./gradlew spotlessApply
 
-      - name: ReviewDog Linter
-        uses: reviewdog/action-ktlint@v1
+      - name: KTLint with ReviewDog
+        uses: ScaCap/action-ktlint@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           reporter: github-pr-review
