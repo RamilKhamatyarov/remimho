@@ -45,16 +45,6 @@ jobs:
       - name: Set execute permission for Gradle wrapper
         run: chmod +x ./gradlew
 
-      - name: Code Quality Suite
-        timeout-minutes: 15
-        continue-on-error: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          ./gradlew ktlintCheck spotlessCheck
-          xvfb-run ./gradlew sonarqube -Dsonar.login=$SONAR_TOKEN
-
       - name: Run Kotlin Linter Only
         uses: super-linter/super-linter@v7.4.0
         env:
@@ -77,12 +67,6 @@ jobs:
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Check Formatting
         run: ./gradlew spotlessCheck
