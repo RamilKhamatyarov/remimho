@@ -18,7 +18,7 @@ javafx {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.10.0"))
+    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.23.4"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-core")
