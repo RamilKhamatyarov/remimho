@@ -1,6 +1,6 @@
 plugins {
     id("application")
-    id("io.quarkus") version "3.24.0"
+    id("io.quarkus") version "3.23.4"
     id("org.jetbrains.kotlin.jvm") version "2.1.21"
     id("org.openjfx.javafxplugin") version "0.0.13"
     id("com.diffplug.spotless") version "6.25.0"
@@ -19,11 +19,11 @@ javafx {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.10.0"))
-    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
+    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.23.4"))
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-core")
-    implementation("io.quarkus:quarkus-resteasy-reactive")
+    implementation("io.quarkus:quarkus-rest")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.1")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.1")
