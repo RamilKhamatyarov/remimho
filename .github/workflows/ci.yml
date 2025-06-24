@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+env:
+  DISPLAY: ":99"
+  QUARKUS_PROFILE: ci
+
 permissions:
   contents: read
   statuses: write
@@ -16,7 +20,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       statuses: write
@@ -52,13 +56,40 @@ jobs:
           VALIDATE_GIT_COMMIT_HISTORY: false
           HTTP_TIMEOUT: 30
 
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'java,kotlin'
+          queries: security-extended
+
       - name: Build the project
         run: ./gradlew build -x test
 
-      - name: Start Xvfb for tests
-        run: |
-          Xvfb :99 -screen 0 1024x768x24 &
-          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
 
-      - name: Run tests
-        run: ./gradlew test
+      - name: Check Formatting
+        run: ./gradlew spotlessCheck
+
+      - name: Apply Formatting
+        if: failure()
+        run: ./gradlew spotlessApply
+
+      - name: KTLint with ReviewDog
+        uses: ScaCap/action-ktlint@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          reporter: github-pr-review
+
+      - name: Run Tests with Xvfb
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          ./gradlew test --info
+          killall Xvfb  # Cleanup
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: build/reports/tests

@@ -228,21 +228,19 @@ class GameLoop : AnimationTimer() {
 
         val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
 
-        if (dotProduct < 0) {
-            gameState.puckVX -= 2 * dotProduct * normalX
-            gameState.puckVY -= 2 * dotProduct * normalY
+        gameState.puckVX -= 2 * dotProduct * normalX
+        gameState.puckVY -= 2 * dotProduct * normalY
 
-            val speed = Math.hypot(gameState.puckVX, gameState.puckVY)
-            gameState.puckVX += (Math.random() - 0.5) * 0.5
-            gameState.puckVY += (Math.random() - 0.5) * 0.5
+        val speed = Math.hypot(gameState.puckVX, gameState.puckVY)
+        gameState.puckVX += (Math.random() - 0.5) * 0.5
+        gameState.puckVY += (Math.random() - 0.5) * 0.5
 
-            val newSpeed = Math.hypot(gameState.puckVX, gameState.puckVY)
-            gameState.puckVX = gameState.puckVX / newSpeed * speed
-            gameState.puckVY = gameState.puckVY / newSpeed * speed
+        val newSpeed = Math.hypot(gameState.puckVX, gameState.puckVY)
+        gameState.puckVX = gameState.puckVX / newSpeed * speed
+        gameState.puckVY = gameState.puckVY / newSpeed * speed
 
-            gameState.puckX += normalX * 2
-            gameState.puckY += normalY * 2
-        }
+        gameState.puckX += normalX * 2
+        gameState.puckY += normalY * 2
     }
 
     private fun checkLineCircleCollision(
