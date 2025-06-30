@@ -25,8 +25,8 @@ dependencies {
     implementation("io.quarkus:quarkus-rest")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.1.21")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.2")
     testImplementation("org.testfx:testfx-junit5:4.0.18")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.1.21")
     testImplementation("io.quarkus:quarkus-junit5")
