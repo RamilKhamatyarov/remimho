@@ -11,16 +11,3 @@ updates:
     commit-message:
       prefix: "chore"
       include: "scope"
-    ignore:
-      - dependency-name: "io.quarkus.platform:quarkus-bom"
-        update-types: [ "version-update:semver-major" ]
-      - dependency-name: "io.quarkus:quarkus-*"
-        update-types: [ "version-update:semver-major" ]
-      - dependency-name: "org.jetbrains.kotlin:*"
-        versions: [ "2.1.x" ]
-      - dependency-name: "org.openjfx:*"
-        versions: ["[23,24)"]
-      - dependency-name: "org.testfx:testfx-junit5"
-        versions: [ "4.0.x" ]
-      - dependency-name: "org.junit.jupiter:*"
-        versions: [ "5.13.x" ]

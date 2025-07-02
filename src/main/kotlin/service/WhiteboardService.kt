@@ -9,6 +9,7 @@ import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
 import javafx.scene.input.MouseButton
+import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
@@ -94,23 +95,31 @@ class WhiteboardService {
             }
         }
 
-    private fun createControlBox(): VBox {
+    private fun createControlBox(): HBox {
         val resetButton = createResetButton()
         val clearBlocksButton = createClearBlocksButton()
         val pauseButton = createPauseButton()
         val (speedLabel, speedSlider) = createSpeedControls()
         val (thicknessLabel, thicknessSlider) = createThicknessControls()
 
-        return VBox(
-            resetButton,
-            clearBlocksButton,
-            pauseButton,
-            speedLabel,
-            speedSlider,
-            thicknessLabel,
-            thicknessSlider,
+        val buttonBox =
+            HBox(
+                resetButton,
+                clearBlocksButton,
+                pauseButton,
+            ).apply {
+                spacing = 10.0
+            }
+
+        val speedBox = VBox(speedLabel, speedSlider).apply { spacing = 5.0 }
+        val thicknessBox = VBox(thicknessLabel, thicknessSlider).apply { spacing = 5.0 }
+
+        return HBox(
+            buttonBox,
+            speedBox,
+            thicknessBox,
         ).apply {
-            spacing = 5.0
+            spacing = 20.0
         }
     }
 
@@ -147,10 +156,10 @@ class WhiteboardService {
     private fun createSpeedControls(): Pair<Label, Slider> {
         val speedLabel = Label("Speed: 1.0x")
         val speedSlider =
-            Slider(0.5, 3.0, 1.0).apply {
+            Slider(0.1, 10.0, 1.0).apply {
                 isShowTickLabels = true
                 isShowTickMarks = true
-                majorTickUnit = 0.5
+                majorTickUnit = 2.0
                 minorTickCount = 4
                 blockIncrement = 0.1
             }
