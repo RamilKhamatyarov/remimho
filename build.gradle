@@ -2,7 +2,7 @@ plugins {
     id("application")
     id("io.quarkus") version "3.24.2"
     id("org.jetbrains.kotlin.jvm") version "2.2.0"
-    id("org.openjfx.javafxplugin") version "0.0.13"
+    id("org.openjfx.javafxplugin") version "0.1.0"
     id("com.diffplug.spotless") version "7.0.4"
 }
 
