@@ -55,6 +55,10 @@ class WhiteboardService {
                 gameState.canvasHeight = newVal.toDouble()
             }
 
+            setOnMouseMoved { event ->
+                inputHandler.handleMouseMove(event)
+            }
+
             setOnMousePressed { event ->
                 if (event.button == MouseButton.SECONDARY) {
                     gameState.startNewLine(event.x, event.y)
@@ -99,6 +103,7 @@ class WhiteboardService {
         val resetButton = createResetButton()
         val clearBlocksButton = createClearBlocksButton()
         val pauseButton = createPauseButton()
+        val controlModeLabel = Label("Controls: Keyboard (Press M to toggle)")
         val (speedLabel, speedSlider) = createSpeedControls()
         val (thicknessLabel, thicknessSlider) = createThicknessControls()
 
@@ -107,6 +112,7 @@ class WhiteboardService {
                 resetButton,
                 clearBlocksButton,
                 pauseButton,
+                controlModeLabel,
             ).apply {
                 spacing = 10.0
             }

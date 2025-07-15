@@ -17,6 +17,7 @@ permissions:
   statuses: write
   checks: write
   pull-requests: write
+  security-events: write
 
 jobs:
   build-and-test:
@@ -45,7 +46,7 @@ jobs:
       - name: Set execute permission for Gradle wrapper
         run: chmod +x ./gradlew
 
-      - name: Run Kotlin Linter Only
+      - name: Run Linter
         uses: super-linter/super-linter@v7.4.0
         env:
           DEFAULT_BRANCH: main
