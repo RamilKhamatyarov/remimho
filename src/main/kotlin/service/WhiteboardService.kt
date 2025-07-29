@@ -77,7 +77,6 @@ class WhiteboardService {
             setOnMouseDragged { event ->
                 if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
                     gameState.updateCurrentLine(event.x, event.y)
-                    renderCurrentLine()
                 }
             }
 
@@ -87,13 +86,6 @@ class WhiteboardService {
                 }
             }
         }
-
-    private fun renderCurrentLine() {
-        gameLoop.gc?.let { gc ->
-            gc.clearRect(0.0, 0.0, gameState.canvasWidth, gameState.canvasHeight)
-            gameLoop.renderObjects(gc, gameState.canvasWidth)
-        }
-    }
 
     private fun createControlBox(): HBox {
         val resetButton = createResetButton()

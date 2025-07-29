@@ -1,6 +1,9 @@
 package ru.rkhamatyarov.model
 
 import jakarta.enterprise.context.ApplicationScoped
+import java.lang.StrictMath.pow
+import kotlin.math.cos
+import kotlin.math.sin
 
 @ApplicationScoped
 class GameState {
@@ -27,6 +30,10 @@ class GameState {
     var currentLine: Line? = null
     var isDrawing = false
 
+    init {
+        addMathFormulas()
+    }
+
     fun startNewLine(
         x: Double,
         y: Double,
@@ -35,6 +42,7 @@ class GameState {
             Line().apply {
                 controlPoints.add(Point(x, y))
                 width = 5.0
+                isAnimating = false
             }
         isDrawing = true
     }
@@ -51,10 +59,23 @@ class GameState {
         }
     }
 
+    fun updateAnimations() {
+        lines.forEach { line ->
+            if (line.isAnimating) {
+                line.animationProgress += 0.02
+                if (line.animationProgress >= 1.0) {
+                    line.animationProgress = 1.0
+                    line.isAnimating = false
+                }
+            }
+        }
+    }
+
     fun finishCurrentLine() {
         currentLine?.let {
             if (it.controlPoints.size > 1) {
                 it.flattenedPoints = flattenBezierSpline(it.controlPoints)
+                it.isAnimating = true
                 lines.add(it)
             }
         }
@@ -128,5 +149,63 @@ class GameState {
 
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
+    }
+
+    private fun addMathFormulas() {
+        // sine wave: y = A*sin(Bx) + C
+        addSineWave(amplitude = 30.0, frequency = 0.05, yOffset = 300.0)
+
+        // circle: (x-h)^2 + (y-k)^2 = r^2
+        addCircle(centerX = 600.0, centerY = 150.0, radius = 40.0)
+
+        // parabola: y = a(x-h)^2 + k
+        addParabola(vertexX = 200.0, vertexY = 400.0, a = 0.01)
+    }
+
+    private fun addSineWave(
+        amplitude: Double,
+        frequency: Double,
+        yOffset: Double,
+    ) {
+        val sineLine = Line(width = 3.0)
+        for (x in 100..700 step 10) {
+            val y = yOffset + amplitude * sin(frequency * (x - 100))
+            sineLine.controlPoints.add(Point(x.toDouble(), y))
+        }
+        sineLine.flattenedPoints = flattenBezierSpline(sineLine.controlPoints)
+        sineLine.isAnimating = true
+        lines.add(sineLine)
+    }
+
+    private fun addCircle(
+        centerX: Double,
+        centerY: Double,
+        radius: Double,
+    ) {
+        val circleLine = Line(width = 3.0)
+        for (angle in 0..360 step 10) {
+            val rad = Math.toRadians(angle.toDouble())
+            val x = centerX + radius * cos(rad)
+            val y = centerY + radius * sin(rad)
+            circleLine.controlPoints.add(Point(x, y))
+        }
+        circleLine.flattenedPoints = flattenBezierSpline(circleLine.controlPoints)
+        circleLine.isAnimating = true
+        lines.add(circleLine)
+    }
+
+    private fun addParabola(
+        vertexX: Double,
+        vertexY: Double,
+        a: Double,
+    ) {
+        val parabolaLine = Line(width = 3.0)
+        for (x in 100..500 step 10) {
+            val y = vertexY + a * pow(x - vertexX, 2.0)
+            parabolaLine.controlPoints.add(Point(x.toDouble(), y))
+        }
+        parabolaLine.flattenedPoints = flattenBezierSpline(parabolaLine.controlPoints)
+        parabolaLine.isAnimating = true
+        lines.add(parabolaLine)
     }
 }
