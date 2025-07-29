@@ -27,23 +27,13 @@ class GameState {
     var currentLine: Line? = null
     var isDrawing = false
 
-    data class Line(
-        val points: MutableList<Point> = mutableListOf(),
-        var width: Double = 5.0,
-    ) {
-        data class Point(
-            val x: Double,
-            val y: Double,
-        )
-    }
-
     fun startNewLine(
         x: Double,
         y: Double,
     ) {
         currentLine =
             Line().apply {
-                points.add(Line.Point(x, y))
+                controlPoints.add(Point(x, y))
                 width = 5.0
             }
         isDrawing = true
@@ -54,21 +44,69 @@ class GameState {
         y: Double,
     ) {
         currentLine?.let {
-            it.points.add(Line.Point(x, y))
-
-            if (it.points.size > 1000) {
-                it.points.removeAt(0)
+            it.controlPoints.add(Point(x, y))
+            if (it.controlPoints.size > 1000) {
+                it.controlPoints.removeAt(0)
             }
         }
     }
 
     fun finishCurrentLine() {
         currentLine?.let {
-            if (it.points.size > 1) {
+            if (it.controlPoints.size > 1) {
+                it.flattenedPoints = flattenBezierSpline(it.controlPoints)
                 lines.add(it)
             }
         }
         isDrawing = false
+    }
+
+    private fun flattenBezierSpline(
+        controlPoints: List<Point>,
+        stepsPerSegment: Int = 20,
+    ): MutableList<Point> {
+        val flattened = mutableListOf<Point>()
+        if (controlPoints.size < 4) {
+            flattened.addAll(controlPoints)
+            return flattened
+        }
+
+        val tension = 0.5
+        val divisor = 6 * tension
+
+        for (i in 0 until controlPoints.size - 1) {
+            val p0 = if (i == 0) controlPoints[0] else controlPoints[i - 1]
+            val p1 = controlPoints[i]
+            val p2 = controlPoints[i + 1]
+            val p3 = if (i == controlPoints.size - 2) controlPoints.last() else controlPoints[i + 2]
+
+            val dx1 = if (i == 0) 0.0 else (p2.x - p0.x) / divisor
+            val dy1 = if (i == 0) 0.0 else (p2.y - p0.y) / divisor
+            val dx2 = if (i == controlPoints.size - 2) 0.0 else (p3.x - p1.x) / divisor
+            val dy2 = if (i == controlPoints.size - 2) 0.0 else (p3.y - p1.y) / divisor
+
+            val b0 = Point(p1.x, p1.y)
+            val b1 = Point(p1.x + dx1, p1.y + dy1)
+            val b2 = Point(p2.x - dx2, p2.y - dy2)
+            val b3 = Point(p2.x, p2.y)
+
+            for (step in 0..stepsPerSegment) {
+                val t = step.toDouble() / stepsPerSegment
+                val u = 1 - t
+                val x =
+                    u * u * u * b0.x +
+                        3 * u * u * t * b1.x +
+                        3 * u * t * t * b2.x +
+                        t * t * t * b3.x
+                val y =
+                    u * u * u * b0.y +
+                        3 * u * u * t * b1.y +
+                        3 * u * t * t * b2.y +
+                        t * t * t * b3.y
+                flattened.add(Point(x, y))
+            }
+        }
+        return flattened
     }
 
     fun clearLines() {
