@@ -23,6 +23,8 @@ dependencies {
     implementation("io.quarkus:quarkus-core")
     implementation("io.quarkus:quarkus-rest")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx:1.7.3")
+
 
     implementation "org.openjfx:javafx-base:${javafxVersion}:${platform}"
     implementation "org.openjfx:javafx-controls:${javafxVersion}:${platform}"
@@ -31,6 +33,7 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.3")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.3")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:5.13.3")
     testImplementation("org.testfx:testfx-junit5:4.0.18")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.2.0")
     testImplementation("io.quarkus:quarkus-junit5")

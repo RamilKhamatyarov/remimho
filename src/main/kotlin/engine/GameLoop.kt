@@ -25,6 +25,8 @@ class GameLoop : AnimationTimer() {
     var player2Score = 0
 
     override fun handle(now: Long) {
+        gameState.updateAnimations()
+
         inputHandler.update()
 
         val width = gameState.canvasWidth
@@ -113,25 +115,55 @@ class GameLoop : AnimationTimer() {
         gc: GraphicsContext,
         line: Line,
     ) {
-        if (line.controlPoints.size < 4) {
-            renderPolyline(gc, line)
+        if (line.isAnimating) {
+            renderAnimatedLine(gc, line)
+        } else if (line.controlPoints.size < 4) {
+            renderPolyline(gc, line.controlPoints, line.width)
         } else {
             renderBezierSpline(gc, line.controlPoints, line.width)
         }
     }
 
-    private fun renderPolyline(
+    private fun renderAnimatedLine(
         gc: GraphicsContext,
         line: Line,
     ) {
-        if (line.controlPoints.size > 1) {
-            gc.beginPath()
-            gc.moveTo(line.controlPoints[0].x, line.controlPoints[0].y)
-            for (i in 1 until line.controlPoints.size) {
-                gc.lineTo(line.controlPoints[i].x, line.controlPoints[i].y)
-            }
-            gc.stroke()
+        val points = line.flattenedPoints ?: return
+        if (points.isEmpty()) return
+
+        gc.save()
+        gc.stroke = Color.DARKGRAY
+        gc.lineWidth = line.width
+
+        val totalPoints = points.size
+        val pointsToDraw = (totalPoints * line.animationProgress).toInt().coerceAtLeast(1)
+
+        gc.beginPath()
+        gc.moveTo(points[0].x, points[0].y)
+
+        for (i in 1 until pointsToDraw) {
+            gc.lineTo(points[i].x, points[i].y)
         }
+        gc.stroke()
+        gc.restore()
+    }
+
+    private fun renderPolyline(
+        gc: GraphicsContext,
+        points: List<Point>,
+        width: Double,
+    ) {
+        if (points.size < 2) return
+
+        gc.save()
+        gc.lineWidth = width
+        gc.beginPath()
+        gc.moveTo(points[0].x, points[0].y)
+        for (i in 1 until points.size) {
+            gc.lineTo(points[i].x, points[i].y)
+        }
+        gc.stroke()
+        gc.restore()
     }
 
     private fun renderBezierSpline(
@@ -139,6 +171,11 @@ class GameLoop : AnimationTimer() {
         points: List<Point>,
         lineWidth: Double,
     ) {
+        if (points.size < 4) {
+            renderPolyline(gc, points, lineWidth)
+            return
+        }
+
         gc.save()
         gc.lineWidth = lineWidth
         gc.beginPath()
@@ -148,15 +185,17 @@ class GameLoop : AnimationTimer() {
         val divisor = 6 * tension
 
         for (i in 0 until points.size - 1) {
-            val p0 = if (i == 0) points[0] else points[i - 1]
-            val p1 = points[i]
-            val p2 = points[i + 1]
-            val p3 = if (i == points.size - 2) points.last() else points[i + 2]
+            if (i + 3 >= points.size) break
 
-            val dx1 = if (i == 0) 0.0 else (p2.x - p0.x) / divisor
-            val dy1 = if (i == 0) 0.0 else (p2.y - p0.y) / divisor
-            val dx2 = if (i == points.size - 2) 0.0 else (p3.x - p1.x) / divisor
-            val dy2 = if (i == points.size - 2) 0.0 else (p3.y - p1.y) / divisor
+            val p0 = points[i]
+            val p1 = points[i + 1]
+            val p2 = points[i + 2]
+            val p3 = points[i + 3]
+
+            val dx1 = (p2.x - p0.x) / divisor
+            val dy1 = (p2.y - p0.y) / divisor
+            val dx2 = (p3.x - p1.x) / divisor
+            val dy2 = (p3.y - p1.y) / divisor
 
             val b1x = p1.x + dx1
             val b1y = p1.y + dy1
