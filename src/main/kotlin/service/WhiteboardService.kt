@@ -29,6 +29,9 @@ class WhiteboardService {
     @Inject
     lateinit var gameState: GameState
 
+    @Inject
+    lateinit var formulaRegistry: FormulaRegistry
+
     lateinit var root: VBox
 
     fun startGame(stage: Stage) {
@@ -37,6 +40,8 @@ class WhiteboardService {
 
         gameLoop.gc = canvas.graphicsContext2D
         gameLoop.start()
+
+        formulaRegistry.addAllFormulas()
 
         stage.scene = scene
         stage.title = "Whiteboard"

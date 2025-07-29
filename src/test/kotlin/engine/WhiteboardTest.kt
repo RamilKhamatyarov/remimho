@@ -1,5 +1,7 @@
 package engine
 
+import jakarta.enterprise.inject.Instance
+import jakarta.enterprise.util.TypeLiteral
 import javafx.scene.paint.Color
 import javafx.stage.Stage
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -12,6 +14,10 @@ import org.testfx.util.WaitForAsyncUtils
 import ru.rkhamatyarov.engine.GameLoop
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.Line
+import ru.rkhamatyarov.model.Point
+import ru.rkhamatyarov.service.Formula
+import ru.rkhamatyarov.service.FormulaRegistry
 import ru.rkhamatyarov.service.WhiteboardService
 import kotlin.test.assertEquals
 
@@ -26,8 +32,23 @@ class WhiteboardTest {
     }
 
     @Test
-    fun testStartGame() {
+    fun `startGame should initialize whiteboard with correct properties`() {
         // g
+        val (service, gameState) = init()
+
+        // w
+        robot.interact {
+            service.startGame(stage)
+        }
+        WaitForAsyncUtils.waitForFxEvents()
+
+        // t
+        robot.interact {
+            assertWhiteboardInitializedCorrectly()
+        }
+    }
+
+    private fun init(): Pair<WhiteboardService, GameState> {
         val gameState = GameState()
 
         val inputHandler =
@@ -41,25 +62,70 @@ class WhiteboardTest {
                 this.inputHandler = inputHandler
             }
 
+        val formulaRegistry =
+            FormulaRegistry().apply {
+                this.gameState = gameState
+                this.formulas = mockFormulas()
+            }
+
         val service =
             WhiteboardService().apply {
                 this.inputHandler = inputHandler
                 this.gameLoop = gameLoop
                 this.gameState = gameState
+                this.formulaRegistry = formulaRegistry
             }
 
-        robot.interact {
-            service.startGame(stage)
-        }
+        return Pair(service, gameState)
+    }
 
-        WaitForAsyncUtils.waitForFxEvents()
+    private fun mockFormulas(): Instance<Formula> {
+        val mockFormulas =
+            listOf(
+                object : Formula {
+                    override val name = "test"
 
-        robot.interact {
-            assertEquals("Whiteboard", stage.title)
-            assertNotNull(stage.scene)
-            assertEquals(800.0, stage.scene.width, 0.01)
-            assertEquals(650.0, stage.scene.height, 0.01)
-            assertEquals(Color.WHITE, stage.scene.fill)
+                    override fun createLine() =
+                        Line().apply {
+                            controlPoints.addAll(listOf(Point(0.0, 0.0), Point(100.0, 100.0)))
+                        }
+                },
+            )
+
+        return object : Instance<Formula> {
+            override fun iterator(): MutableIterator<Formula?> = mockFormulas.iterator() as MutableIterator<Formula?>
+
+            override fun get() = mockFormulas.first()
+
+            override fun isUnsatisfied() = false
+
+            override fun isAmbiguous() = false
+
+            override fun destroy(instance: Formula) {}
+
+            override fun getHandle() = throw UnsupportedOperationException()
+
+            override fun handles() = throw UnsupportedOperationException()
+
+            override fun select(vararg qualifiers: Annotation) = this
+
+            override fun <U : Formula> select(
+                type: Class<U>,
+                vararg qualifiers: Annotation,
+            ) = this as Instance<U>
+
+            override fun <U : Formula> select(
+                type: TypeLiteral<U>,
+                vararg qualifiers: Annotation,
+            ) = this as Instance<U>
         }
+    }
+
+    private fun assertWhiteboardInitializedCorrectly() {
+        assertEquals("Whiteboard", stage.title)
+        assertNotNull(stage.scene)
+        assertEquals(800.0, stage.scene.width, 0.01)
+        assertEquals(650.0, stage.scene.height, 0.01)
+        assertEquals(Color.WHITE, stage.scene.fill)
     }
 }
