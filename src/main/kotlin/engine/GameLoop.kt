@@ -8,6 +8,8 @@ import javafx.scene.paint.Color
 import javafx.scene.text.Font
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.Line
+import ru.rkhamatyarov.model.Point
 import kotlin.math.absoluteValue
 
 @ApplicationScoped
@@ -109,17 +111,63 @@ class GameLoop : AnimationTimer() {
 
     private fun renderLine(
         gc: GraphicsContext,
-        line: GameState.Line,
+        line: Line,
     ) {
-        if (line.points.size > 1) {
-            gc.lineWidth = line.width
+        if (line.controlPoints.size < 4) {
+            renderPolyline(gc, line)
+        } else {
+            renderBezierSpline(gc, line.controlPoints, line.width)
+        }
+    }
+
+    private fun renderPolyline(
+        gc: GraphicsContext,
+        line: Line,
+    ) {
+        if (line.controlPoints.size > 1) {
             gc.beginPath()
-            gc.moveTo(line.points[0].x, line.points[0].y)
-            for (i in 1 until line.points.size) {
-                gc.lineTo(line.points[i].x, line.points[i].y)
+            gc.moveTo(line.controlPoints[0].x, line.controlPoints[0].y)
+            for (i in 1 until line.controlPoints.size) {
+                gc.lineTo(line.controlPoints[i].x, line.controlPoints[i].y)
             }
             gc.stroke()
         }
+    }
+
+    private fun renderBezierSpline(
+        gc: GraphicsContext,
+        points: List<Point>,
+        lineWidth: Double,
+    ) {
+        gc.save()
+        gc.lineWidth = lineWidth
+        gc.beginPath()
+        gc.moveTo(points[0].x, points[0].y)
+
+        val tension = 0.5
+        val divisor = 6 * tension
+
+        for (i in 0 until points.size - 1) {
+            val p0 = if (i == 0) points[0] else points[i - 1]
+            val p1 = points[i]
+            val p2 = points[i + 1]
+            val p3 = if (i == points.size - 2) points.last() else points[i + 2]
+
+            val dx1 = if (i == 0) 0.0 else (p2.x - p0.x) / divisor
+            val dy1 = if (i == 0) 0.0 else (p2.y - p0.y) / divisor
+            val dx2 = if (i == points.size - 2) 0.0 else (p3.x - p1.x) / divisor
+            val dy2 = if (i == points.size - 2) 0.0 else (p3.y - p1.y) / divisor
+
+            val b1x = p1.x + dx1
+            val b1y = p1.y + dy1
+            val b2x = p2.x - dx2
+            val b2y = p2.y - dy2
+
+            gc.bezierCurveTo(b1x, b1y, b2x, b2y, p2.x, p2.y)
+        }
+
+        gc.stroke()
+        gc.restore()
     }
 
     private fun updatePuckPosition() {
@@ -189,9 +237,10 @@ class GameLoop : AnimationTimer() {
 
     private fun validateLineCollision() {
         gameState.lines.forEach { line ->
-            for (i in 0 until line.points.size - 1) {
-                val p1 = line.points[i]
-                val p2 = line.points[i + 1]
+            val points = line.flattenedPoints ?: line.controlPoints
+            for (i in 0 until points.size - 1) {
+                val p1 = points[i]
+                val p2 = points[i + 1]
 
                 if (checkLineCircleCollision(
                         p1.x,
@@ -211,8 +260,8 @@ class GameLoop : AnimationTimer() {
     }
 
     private fun handleLineCollision(
-        p1: GameState.Line.Point,
-        p2: GameState.Line.Point,
+        p1: Point,
+        p2: Point,
     ) {
         val lineVecX = p2.x - p1.x
         val lineVecY = p2.y - p1.y
