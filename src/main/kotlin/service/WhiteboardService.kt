@@ -41,7 +41,7 @@ class WhiteboardService {
         gameLoop.gc = canvas.graphicsContext2D
         gameLoop.start()
 
-        formulaRegistry.addAllFormulas()
+        formulaRegistry.startRandomCurveScheduler()
 
         stage.scene = scene
         stage.title = "Whiteboard"
@@ -54,10 +54,12 @@ class WhiteboardService {
         Canvas(800.0, 600.0).apply {
             widthProperty().addListener { _, _, newVal ->
                 gameState.canvasWidth = newVal.toDouble()
+                formulaRegistry.handleResize()
             }
 
             heightProperty().addListener { _, _, newVal ->
                 gameState.canvasHeight = newVal.toDouble()
+                formulaRegistry.handleResize()
             }
 
             setOnMouseMoved { event ->
