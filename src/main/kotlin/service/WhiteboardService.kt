@@ -29,6 +29,9 @@ class WhiteboardService {
     @Inject
     lateinit var gameState: GameState
 
+    @Inject
+    lateinit var formulaRegistry: FormulaRegistry
+
     lateinit var root: VBox
 
     fun startGame(stage: Stage) {
@@ -37,6 +40,8 @@ class WhiteboardService {
 
         gameLoop.gc = canvas.graphicsContext2D
         gameLoop.start()
+
+        formulaRegistry.addAllFormulas()
 
         stage.scene = scene
         stage.title = "Whiteboard"
@@ -77,7 +82,6 @@ class WhiteboardService {
             setOnMouseDragged { event ->
                 if (event.button == MouseButton.SECONDARY && gameState.isDrawing) {
                     gameState.updateCurrentLine(event.x, event.y)
-                    renderCurrentLine()
                 }
             }
 
@@ -87,13 +91,6 @@ class WhiteboardService {
                 }
             }
         }
-
-    private fun renderCurrentLine() {
-        gameLoop.gc?.let { gc ->
-            gc.clearRect(0.0, 0.0, gameState.canvasWidth, gameState.canvasHeight)
-            gameLoop.renderObjects(gc, gameState.canvasWidth)
-        }
-    }
 
     private fun createControlBox(): HBox {
         val resetButton = createResetButton()

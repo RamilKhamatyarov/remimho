@@ -35,6 +35,7 @@ class GameState {
             Line().apply {
                 controlPoints.add(Point(x, y))
                 width = 5.0
+                isAnimating = false
             }
         isDrawing = true
     }
@@ -51,17 +52,30 @@ class GameState {
         }
     }
 
+    fun updateAnimations() {
+        lines.forEach { line ->
+            if (line.isAnimating) {
+                line.animationProgress += 0.02
+                if (line.animationProgress >= 1.0) {
+                    line.animationProgress = 1.0
+                    line.isAnimating = false
+                }
+            }
+        }
+    }
+
     fun finishCurrentLine() {
         currentLine?.let {
             if (it.controlPoints.size > 1) {
                 it.flattenedPoints = flattenBezierSpline(it.controlPoints)
+                it.isAnimating = true
                 lines.add(it)
             }
         }
         isDrawing = false
     }
 
-    private fun flattenBezierSpline(
+    fun flattenBezierSpline(
         controlPoints: List<Point>,
         stepsPerSegment: Int = 20,
     ): MutableList<Point> {
