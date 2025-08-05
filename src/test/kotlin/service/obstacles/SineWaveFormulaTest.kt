@@ -8,15 +8,20 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SineWaveFormulaTest : FormulaTestBase<SineWaveFormula>(SineWaveFormula()) {
+    init {
+        testGameState.canvasWidth = 800.0
+        testGameState.canvasHeight = 600.0
+    }
+
     override fun testCases() =
         listOf(
             FormulaTestCase(
                 description = "Sine wave should have correct point count and shape",
                 expectedPoints = 61, // (700-100)/10 + 1
                 validation = { line ->
-                    val amplitude = 30.0
+                    val amplitude = testGameState.canvasHeight * 0.1
                     val frequency = 0.05
-                    val yOffset = 300.0
+                    val yOffset = testGameState.canvasHeight / 2
 
                     line.controlPoints.all { point ->
                         val expectedY = yOffset + amplitude * sin(frequency * (point.x - 100))
@@ -28,12 +33,12 @@ class SineWaveFormulaTest : FormulaTestBase<SineWaveFormula>(SineWaveFormula()) 
 
     @Test
     fun `sine wave should have correct amplitude`() {
-        // g // w
         val line = formula.createLine()
         val yValues = line.controlPoints.map { it.y }
         val maxY = yValues.maxOrNull() ?: 0.0
         val minY = yValues.minOrNull() ?: 0.0
-        // t
-        assertEquals(30.0, (maxY - minY) / 2, 0.1)
+        val expectedAmplitude = testGameState.canvasHeight * 0.1
+
+        assertEquals(expectedAmplitude, (maxY - minY) / 2, 0.1)
     }
 }
