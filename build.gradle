@@ -43,9 +43,12 @@ application {
     mainClass = 'ru.rkhamatyarov.Main'
 }
 
-tasks.withType(JavaExec).configureEach {
+tasks.register('runJavaFx', JavaExec) {
+    group = 'application'
+    mainClass = 'ru.rkhamatyarov.Main'
+    classpath = sourceSets.main.runtimeClasspath
     jvmArgs = [
-            '--module-path', classpath.asPath,
+            '--module-path', configurations.runtimeClasspath.asPath,
             '--add-modules', 'javafx.controls,javafx.fxml,javafx.graphics,javafx.base'
     ]
 }

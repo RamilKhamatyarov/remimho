@@ -18,7 +18,6 @@ class ParabolaFormulaTest : FormulaTestBase<ParabolaFormula>(ParabolaFormula()) 
         listOf(
             FormulaTestCase(
                 description = "Parabola should have correct point count and shape",
-                // Updated to match actual visible points (7 instead of 17)
                 expectedPoints = 7,
                 validation = { line ->
                     val vertexX = testGameState.canvasWidth / 2

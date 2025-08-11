@@ -1,9 +1,13 @@
 package ru.rkhamatyarov.model
 
 import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 
 @ApplicationScoped
 class GameState {
+    @Inject
+    lateinit var lifeGrid: GameOfLifeGrid
+
     var canvasWidth = 800.0
     var canvasHeight = 600.0
 
@@ -142,5 +146,8 @@ class GameState {
 
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
+
+        lifeGrid.reset()
+        lifeGrid.repositionGrid(canvasWidth, canvasHeight)
     }
 }

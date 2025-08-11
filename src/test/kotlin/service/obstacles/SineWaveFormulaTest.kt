@@ -17,7 +17,7 @@ class SineWaveFormulaTest : FormulaTestBase<SineWaveFormula>(SineWaveFormula()) 
         listOf(
             FormulaTestCase(
                 description = "Sine wave should have correct point count and shape",
-                expectedPoints = 61, // (700-100)/10 + 1
+                expectedPoints = 61,
                 validation = { line ->
                     val amplitude = testGameState.canvasHeight * 0.1
                     val frequency = 0.05
