@@ -1,4 +1,4 @@
-package engine
+package ru.rkhamatyarov.engine
 
 import jakarta.enterprise.inject.Instance
 import jakarta.enterprise.util.TypeLiteral
@@ -11,8 +11,8 @@ import org.testfx.api.FxRobot
 import org.testfx.framework.junit5.ApplicationExtension
 import org.testfx.framework.junit5.Start
 import org.testfx.util.WaitForAsyncUtils
-import ru.rkhamatyarov.engine.GameLoop
 import ru.rkhamatyarov.handler.InputHandler
+import ru.rkhamatyarov.model.GameOfLifeGrid
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
@@ -34,7 +34,7 @@ class WhiteboardTest {
     @Test
     fun `startGame should initialize whiteboard with correct properties`() {
         // g
-        val (service, gameState) = init()
+        val (service, _) = init()
 
         // w
         robot.interact {
@@ -49,7 +49,11 @@ class WhiteboardTest {
     }
 
     private fun init(): Pair<WhiteboardService, GameState> {
-        val gameState = GameState()
+        val lifeGrid = GameOfLifeGrid()
+        val gameState =
+            GameState().apply {
+                this.lifeGrid = lifeGrid
+            }
 
         val inputHandler =
             InputHandler().apply {
@@ -60,6 +64,7 @@ class WhiteboardTest {
             GameLoop().apply {
                 this.gameState = gameState
                 this.inputHandler = inputHandler
+                this.lifeGrid = lifeGrid
             }
 
         val formulaRegistry =

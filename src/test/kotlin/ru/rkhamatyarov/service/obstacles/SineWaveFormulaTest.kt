@@ -1,7 +1,6 @@
-package service.obstacles
+package ru.rkhamatyarov.service.obstacles
 
-import ru.rkhamatyarov.service.obstacles.SineWaveFormula
-import service.FormulaTestBase
+import ru.rkhamatyarov.service.FormulaTestBase
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.test.Test

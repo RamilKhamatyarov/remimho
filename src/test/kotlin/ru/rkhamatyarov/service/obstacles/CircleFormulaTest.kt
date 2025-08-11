@@ -1,9 +1,8 @@
-package service.obstacles
+package ru.rkhamatyarov.service.obstacles
 
 import org.junit.jupiter.api.Assertions.assertTrue
 import ru.rkhamatyarov.model.Point
-import ru.rkhamatyarov.service.obstacles.CircleFormula
-import service.FormulaTestBase
+import ru.rkhamatyarov.service.FormulaTestBase
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
