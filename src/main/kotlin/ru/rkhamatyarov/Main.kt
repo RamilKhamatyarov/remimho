@@ -1,4 +1,4 @@
-package ru.rkhamatyarov.ru.rkhamatyarov
+package ru.rkhamatyarov
 
 import io.quarkus.runtime.Quarkus
 import io.quarkus.runtime.QuarkusApplication

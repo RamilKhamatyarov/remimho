@@ -20,6 +20,7 @@ def platform = osName.contains('win') ? 'win' : osName.contains('mac') ? 'mac' :
 dependencies {
     implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.25.4"))
     implementation("io.quarkus:quarkus-arc")
+    implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-core")
     implementation("io.quarkus:quarkus-rest")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
