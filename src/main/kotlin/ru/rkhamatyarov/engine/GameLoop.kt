@@ -7,10 +7,13 @@ import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import javafx.scene.text.Font
 import ru.rkhamatyarov.handler.InputHandler
+import ru.rkhamatyarov.model.GameOfLifeGrid
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import kotlin.math.absoluteValue
+import kotlin.math.hypot
+import kotlin.math.sqrt
 
 @ApplicationScoped
 class GameLoop : AnimationTimer() {
@@ -19,6 +22,9 @@ class GameLoop : AnimationTimer() {
 
     @Inject
     lateinit var inputHandler: InputHandler
+
+    @Inject
+    lateinit var lifeGrid: GameOfLifeGrid
 
     var gc: GraphicsContext? = null
     var player1Score = 0
@@ -44,6 +50,11 @@ class GameLoop : AnimationTimer() {
         }
 
         if (!gameState.paused) {
+            if (now - lifeGrid.lastUpdate > lifeGrid.updateInterval) {
+                lifeGrid.update()
+                lifeGrid.lastUpdate = now
+            }
+
             updatePuckPosition()
             validateCollisions()
             updateAI()
@@ -104,6 +115,17 @@ class GameLoop : AnimationTimer() {
         gc.fillRect(20.0, gameState.paddle1Y, 10.0, gameState.paddleHeight)
         gc.fillRect(width - 30.0, gameState.paddle2Y, 10.0, gameState.paddleHeight)
         gc.fillOval(gameState.puckX, gameState.puckY, 20.0, 20.0)
+
+        for (i in 0 until lifeGrid.rows) {
+            for (j in 0 until lifeGrid.cols) {
+                if (lifeGrid.grid[i][j]) {
+                    val x = lifeGrid.gridX + j * lifeGrid.cellSize
+                    val y = lifeGrid.gridY + i * lifeGrid.cellSize
+                    gc.fill = Color.DARKSLATEGRAY
+                    gc.fillRect(x, y, lifeGrid.cellSize, lifeGrid.cellSize)
+                }
+            }
+        }
 
         gc.stroke = Color.DARKGRAY
 
@@ -219,6 +241,7 @@ class GameLoop : AnimationTimer() {
         validateScore()
         validatePaddleCollision()
         validateLineCollision()
+        validateBlockCollision()
     }
 
     private fun validateWallCollision() {
@@ -305,7 +328,7 @@ class GameLoop : AnimationTimer() {
         val lineVecX = p2.x - p1.x
         val lineVecY = p2.y - p1.y
 
-        val lineLength = Math.hypot(lineVecX, lineVecY)
+        val lineLength = hypot(lineVecX, lineVecY)
         if (lineLength == 0.0) return
 
         val unitLineX = lineVecX / lineLength
@@ -319,11 +342,11 @@ class GameLoop : AnimationTimer() {
         gameState.puckVX -= 2 * dotProduct * normalX
         gameState.puckVY -= 2 * dotProduct * normalY
 
-        val speed = Math.hypot(gameState.puckVX, gameState.puckVY)
+        val speed = hypot(gameState.puckVX, gameState.puckVY)
         gameState.puckVX += (Math.random() - 0.5) * 0.5
         gameState.puckVY += (Math.random() - 0.5) * 0.5
 
-        val newSpeed = Math.hypot(gameState.puckVX, gameState.puckVY)
+        val newSpeed = hypot(gameState.puckVX, gameState.puckVY)
         gameState.puckVX = gameState.puckVX / newSpeed * speed
         gameState.puckVY = gameState.puckVY / newSpeed * speed
 
@@ -399,5 +422,71 @@ class GameLoop : AnimationTimer() {
             current < target - 10 -> gameState.paddle1Y += speed
             current > target + 10 -> gameState.paddle1Y -= speed
         }
+    }
+
+    private fun validateBlockCollision() {
+        for (i in 0 until lifeGrid.rows) {
+            for (j in 0 until lifeGrid.cols) {
+                if (lifeGrid.grid[i][j]) {
+                    val x = lifeGrid.gridX + j * lifeGrid.cellSize
+                    val y = lifeGrid.gridY + i * lifeGrid.cellSize
+                    val size = lifeGrid.cellSize
+
+                    if (checkBlockCollision(x, y, size)) {
+                        handleBlockCollision(i, j)
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private fun checkBlockCollision(
+        blockX: Double,
+        blockY: Double,
+        blockSize: Double,
+    ): Boolean {
+        val puckCenterX = gameState.puckX + 10
+        val puckCenterY = gameState.puckY + 10
+        val puckRadius = 10.0
+
+        val closestX = puckCenterX.coerceIn(blockX, blockX + blockSize)
+        val closestY = puckCenterY.coerceIn(blockY, blockY + blockSize)
+
+        val distanceX = puckCenterX - closestX
+        val distanceY = puckCenterY - closestY
+
+        return (distanceX * distanceX + distanceY * distanceY) < (puckRadius * puckRadius)
+    }
+
+    private fun handleBlockCollision(
+        i: Int,
+        j: Int,
+    ) {
+        val blockCenterX = j * lifeGrid.cellSize + lifeGrid.cellSize / 2
+        val blockCenterY = i * lifeGrid.cellSize + lifeGrid.cellSize / 2
+        val puckCenterX = gameState.puckX + 10
+        val puckCenterY = gameState.puckY + 10
+
+        val dx = puckCenterX - blockCenterX
+        val dy = puckCenterY - blockCenterY
+        val distance = sqrt(dx * dx + dy * dy)
+
+        if (distance == 0.0) return
+
+        val normalX = dx / distance
+        val normalY = dy / distance
+
+        val dot = gameState.puckVX * normalX + gameState.puckVY * normalY
+        gameState.puckVX = gameState.puckVX - 2 * dot * normalX
+        gameState.puckVY = gameState.puckVY - 2 * dot * normalY
+
+        gameState.puckVX += (Math.random() - 0.5) * 0.5
+        gameState.puckVY += (Math.random() - 0.5) * 0.5
+
+        lifeGrid.grid[i][j] = false
+
+        gameState.puckX += normalX * 2
+        gameState.puckY += normalY * 2
     }
 }

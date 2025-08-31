@@ -47,6 +47,8 @@ class WhiteboardService {
         stage.title = "Whiteboard"
         stage.show()
 
+        gameState.lifeGrid.repositionGrid(gameState.canvasWidth, gameState.canvasHeight)
+
         root.requestFocus()
     }
 
@@ -55,11 +57,13 @@ class WhiteboardService {
             widthProperty().addListener { _, _, newVal ->
                 gameState.canvasWidth = newVal.toDouble()
                 formulaRegistry.handleResize()
+                gameState.lifeGrid.repositionGrid(gameState.canvasWidth, gameState.canvasHeight)
             }
 
             heightProperty().addListener { _, _, newVal ->
                 gameState.canvasHeight = newVal.toDouble()
                 formulaRegistry.handleResize()
+                gameState.lifeGrid.repositionGrid(gameState.canvasWidth, gameState.canvasHeight)
             }
 
             setOnMouseMoved { event ->

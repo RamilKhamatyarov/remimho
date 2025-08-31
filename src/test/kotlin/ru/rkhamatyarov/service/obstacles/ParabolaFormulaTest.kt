@@ -1,9 +1,8 @@
-package service.obstacles
+package ru.rkhamatyarov.service.obstacles
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.assertNotNull
-import ru.rkhamatyarov.service.obstacles.ParabolaFormula
-import service.FormulaTestBase
+import ru.rkhamatyarov.service.FormulaTestBase
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.test.Test
@@ -18,7 +17,6 @@ class ParabolaFormulaTest : FormulaTestBase<ParabolaFormula>(ParabolaFormula()) 
         listOf(
             FormulaTestCase(
                 description = "Parabola should have correct point count and shape",
-                // Updated to match actual visible points (7 instead of 17)
                 expectedPoints = 7,
                 validation = { line ->
                     val vertexX = testGameState.canvasWidth / 2

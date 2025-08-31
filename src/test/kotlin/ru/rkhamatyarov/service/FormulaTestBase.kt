@@ -1,4 +1,4 @@
-package service
+package ru.rkhamatyarov.service
 
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertAll
@@ -6,7 +6,6 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Line
-import ru.rkhamatyarov.service.Formula
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 

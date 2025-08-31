@@ -1,7 +1,6 @@
-package service.obstacles
+package ru.rkhamatyarov.service.obstacles
 
-import ru.rkhamatyarov.service.obstacles.SineWaveFormula
-import service.FormulaTestBase
+import ru.rkhamatyarov.service.FormulaTestBase
 import kotlin.math.abs
 import kotlin.math.sin
 import kotlin.test.Test
@@ -17,7 +16,7 @@ class SineWaveFormulaTest : FormulaTestBase<SineWaveFormula>(SineWaveFormula()) 
         listOf(
             FormulaTestCase(
                 description = "Sine wave should have correct point count and shape",
-                expectedPoints = 61, // (700-100)/10 + 1
+                expectedPoints = 61,
                 validation = { line ->
                     val amplitude = testGameState.canvasHeight * 0.1
                     val frequency = 0.05
