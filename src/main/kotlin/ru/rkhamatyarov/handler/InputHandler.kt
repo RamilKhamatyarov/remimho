@@ -1,10 +1,10 @@
 package ru.rkhamatyarov.handler
 
+import io.quarkus.runtime.Quarkus
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
-import javafx.scene.input.MouseEvent
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
 
@@ -15,10 +15,9 @@ class InputHandler {
     @Inject
     lateinit var gameState: GameState
 
-    private val keysPressed = mutableSetOf<KeyCode>()
+    val keysPressed = mutableSetOf<KeyCode>()
+    var useMouseControl = false
     private var spaceWasPressed = false
-    private var useMouseControl = true
-    private var mouseY = 0.0
 
     fun handleKeyPress(event: KeyEvent) {
         when (event.code) {
@@ -32,6 +31,14 @@ class InputHandler {
                 useMouseControl = !useMouseControl
                 log.debug("Control mode changed to: ${if (useMouseControl) "Mouse" else "Keyboard"}")
             }
+            KeyCode.Q -> {
+                if (event.isControlDown) {
+                    exitGame()
+                }
+            }
+            KeyCode.ESCAPE -> {
+                exitGame()
+            }
             else -> keysPressed.add(event.code)
         }
     }
@@ -43,30 +50,37 @@ class InputHandler {
         }
     }
 
-    fun handleMouseMove(event: MouseEvent) {
-        mouseY = event.y
+    fun handleMouseMove(event: javafx.scene.input.MouseEvent) {
+        if (useMouseControl) {
+            gameState.paddle2Y = event.y - gameState.paddleHeight / 2
+        }
     }
 
     fun update() {
-        if (gameState.paused) {
-            return
-        }
-
-        if (useMouseControl) {
-            val targetY = mouseY - gameState.paddleHeight / 2
-            gameState.paddle2Y = targetY.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
-        } else {
-            keysPressed.forEach { key ->
-                when (key) {
-                    KeyCode.UP -> gameState.paddle2Y = (gameState.paddle2Y - 10).coerceAtLeast(0.0)
-                    KeyCode.DOWN ->
-                        gameState.paddle2Y =
-                            (gameState.paddle2Y + 10).coerceAtMost(
-                                gameState.canvasHeight - gameState.paddleHeight,
-                            )
-                    else -> {}
-                }
+        if (!useMouseControl) {
+            if (KeyCode.UP in keysPressed) {
+                gameState.paddle2Y -= 5.0
+            }
+            if (KeyCode.DOWN in keysPressed) {
+                gameState.paddle2Y += 5.0
             }
         }
+
+        gameState.paddle2Y = gameState.paddle2Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
+    }
+
+    fun exitGame() {
+        Thread {
+            try {
+                Thread.sleep(500)
+                Quarkus.asyncExit()
+
+                Thread.sleep(1000)
+                System.exit(0)
+            } catch (e: InterruptedException) {
+                log.error("Error during shutdown", e)
+                System.exit(1)
+            }
+        }.start()
     }
 }
