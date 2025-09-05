@@ -26,6 +26,7 @@ class WhiteboardTest {
     private lateinit var stage: Stage
     private val robot = FxRobot()
 
+    @Suppress("UNUSED")
     @Start
     fun start(stage: Stage) {
         this.stage = stage
@@ -114,11 +115,13 @@ class WhiteboardTest {
 
             override fun select(vararg qualifiers: Annotation) = this
 
+            @Suppress("UNCHECKED_CAST")
             override fun <U : Formula> select(
                 type: Class<U>,
                 vararg qualifiers: Annotation,
             ) = this as Instance<U>
 
+            @Suppress("UNCHECKED_CAST")
             override fun <U : Formula> select(
                 type: TypeLiteral<U>,
                 vararg qualifiers: Annotation,

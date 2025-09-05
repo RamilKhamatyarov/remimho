@@ -5,7 +5,7 @@ quarkus:
     remove-unused-beans: false
     detect-unused-false-positives: true
   log:
-    level: TRACE
+    level: INFO
     category:
       "ru.rkhamatyarov": DEBUG
   javafx:
