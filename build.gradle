@@ -25,7 +25,7 @@ dependencies {
     implementation("io.quarkus:quarkus-rest")
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.2.10")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx:1.10.2")
-    implementation "com.pinterest:ktlint:0.50.0"
+    implementation "com.pinterest:ktlint:0.51.0-FINAL"
 
 
     implementation "org.openjfx:javafx-base:${javafxVersion}:${platform}"
