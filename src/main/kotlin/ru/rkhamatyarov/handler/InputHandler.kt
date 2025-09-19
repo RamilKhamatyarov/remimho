@@ -16,7 +16,7 @@ class InputHandler {
     lateinit var gameState: GameState
 
     val keysPressed = mutableSetOf<KeyCode>()
-    var useMouseControl = false
+    var useMouseControl = true
     private var spaceWasPressed = false
 
     fun handleKeyPress(event: KeyEvent) {
