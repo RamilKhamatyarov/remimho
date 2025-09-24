@@ -3,6 +3,7 @@ plugins {
     id("io.quarkus") version "3.28.0"
     id("org.jetbrains.kotlin.jvm") version "2.2.20"
     id("com.diffplug.spotless") version "7.2.1"
+    id("com.gluonhq.gluonfx-gradle-plugin") version "1.0.27"
 }
 
 group = "ru.rkhamatyarov"
@@ -23,7 +24,6 @@ dependencies {
     implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-core")
     implementation("io.quarkus:quarkus-rest")
-    implementation("org.jetbrains.kotlin:kotlin-stdlib")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx:1.10.2")
     implementation ("com.pinterest:ktlint:0.51.0-FINAL") {
         exclude group: 'ch.qos.logback', module: 'logback-classic'
@@ -34,7 +34,6 @@ dependencies {
     implementation "org.openjfx:javafx-controls:${javafxVersion}:${platform}"
     implementation "org.openjfx:javafx-graphics:${javafxVersion}:${platform}"
     implementation "org.openjfx:javafx-fxml:${javafxVersion}:${platform}"
-
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.13.4")
     testImplementation("org.junit.jupiter:junit-jupiter-engine:5.13.4")
@@ -62,6 +61,12 @@ tasks.register('runJavaFx', JavaExec) {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+gluonfx {
+    release {
+        mainClassName = 'ru.rkhamatyarov.Main'
+    }
 }
 
 kotlin {
