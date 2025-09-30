@@ -6,7 +6,8 @@ import jakarta.inject.Inject
 import javafx.application.Platform
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
-import java.util.*
+import java.util.Timer
+import java.util.TimerTask
 
 @ApplicationScoped
 class FormulaRegistry {
