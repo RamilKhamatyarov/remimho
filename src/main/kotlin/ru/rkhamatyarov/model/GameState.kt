@@ -2,6 +2,7 @@ package ru.rkhamatyarov.model
 
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
+import kotlin.math.absoluteValue
 
 @ApplicationScoped
 class GameState {
@@ -24,12 +25,32 @@ class GameState {
         get() = canvasHeight / 6
 
     var speedMultiplier = 1.0
+    var baseSpeedMultiplier = 1.0
+    var timeSpeedBoost = 1.0
+    var puckMovingTime = 0L
 
     var paused = false
 
     val lines = mutableListOf<Line>()
     var currentLine: Line? = null
     var isDrawing = false
+
+    fun updatePuckMovingTime(deltaTime: Long) {
+        if (!paused && (puckVX.absoluteValue > 0.1 || puckVY.absoluteValue > 0.1)) {
+            puckMovingTime += deltaTime
+
+            if (puckMovingTime > 2_000_000_000L) {
+                timeSpeedBoost = 2.5
+            } else if (puckMovingTime > 1_000_000_000L) {
+                timeSpeedBoost = 1.5
+            }
+        } else {
+            puckMovingTime = 0L
+            timeSpeedBoost = 1.0
+        }
+
+        speedMultiplier = baseSpeedMultiplier * timeSpeedBoost
+    }
 
     fun startNewLine(
         x: Double,
@@ -146,6 +167,11 @@ class GameState {
 
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
+
+        puckMovingTime = 0L
+        timeSpeedBoost = 1.0
+        baseSpeedMultiplier = 1.0
+        speedMultiplier = 1.0
 
         lifeGrid.reset()
         lifeGrid.repositionGrid(canvasWidth, canvasHeight)

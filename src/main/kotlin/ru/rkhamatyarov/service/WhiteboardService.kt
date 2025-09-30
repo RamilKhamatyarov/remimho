@@ -8,11 +8,13 @@ import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
 import javafx.scene.control.Label
 import javafx.scene.control.Slider
+import javafx.scene.image.Image
 import javafx.scene.input.MouseButton
 import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.stage.Stage
+import org.jboss.logging.Logger
 import ru.rkhamatyarov.engine.GameLoop
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
@@ -20,6 +22,8 @@ import ru.rkhamatyarov.model.GameState
 @Unremovable
 @ApplicationScoped
 class WhiteboardService {
+    private val log = Logger.getLogger(javaClass.name)
+
     @Inject
     lateinit var inputHandler: InputHandler
 
@@ -35,6 +39,16 @@ class WhiteboardService {
     lateinit var root: VBox
 
     fun startGame(stage: Stage) {
+        try {
+            val iconStream = javaClass.getResourceAsStream("/images/logo.png")
+            if (iconStream != null) {
+                val icon = Image(iconStream)
+                stage.icons.add(icon)
+            }
+        } catch (e: Exception) {
+            log.error("Logo not found, using default icon;", e)
+        }
+
         val canvas = createCanvas()
         val scene = createScene(canvas)
 
@@ -161,12 +175,12 @@ class WhiteboardService {
     private fun createSpeedControls(): Pair<Label, Slider> {
         val speedLabel = Label("Speed: 1.0x")
         val speedSlider =
-            Slider(0.1, 10.0, 1.0).apply {
+            Slider(0.1, 25.0, 1.0).apply {
                 isShowTickLabels = true
                 isShowTickMarks = true
-                majorTickUnit = 2.0
+                majorTickUnit = 5.0
                 minorTickCount = 4
-                blockIncrement = 0.1
+                blockIncrement = 0.5
             }
 
         bindSpeedSliderToLabel(speedSlider, speedLabel)
@@ -200,7 +214,7 @@ class WhiteboardService {
         slider.valueProperty().addListener { _, _, newValue ->
             val speedMultiplier = newValue.toDouble()
             label.text = String.format("Speed: %.1fx", speedMultiplier)
-            gameState.speedMultiplier = speedMultiplier
+            gameState.baseSpeedMultiplier = speedMultiplier
         }
     }
 

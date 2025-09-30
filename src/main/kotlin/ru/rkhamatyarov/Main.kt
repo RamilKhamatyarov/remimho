@@ -9,7 +9,7 @@ import ru.rkhamatyarov.engine.Whiteboard
 
 @Singleton
 class Main : QuarkusApplication {
-    private val log = Logger.getLogger(Main::class.java)
+    private val log = Logger.getLogger(javaClass.name)
 
     override fun run(vararg args: String?): Int {
         Thread {

@@ -6,12 +6,11 @@ import jakarta.inject.Inject
 import javafx.application.Platform
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
-import java.util.Timer
-import java.util.TimerTask
+import java.util.*
 
 @ApplicationScoped
 class FormulaRegistry {
-    private val log = Logger.getLogger(FormulaRegistry::class.java)
+    private val log = Logger.getLogger(javaClass.name)
 
     @Inject
     lateinit var gameState: GameState
