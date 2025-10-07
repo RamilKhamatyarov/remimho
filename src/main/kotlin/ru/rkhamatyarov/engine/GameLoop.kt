@@ -290,40 +290,56 @@ class GameLoop : AnimationTimer() {
     }
 
     private fun validatePaddleCollision() {
+        data class CollisionCheck(
+            val condition: () -> Boolean,
+            val action: () -> Unit,
+        )
+
         val paddleHeight = gameState.paddleHeight
-        val withinPaddle1 =
-            gameState.puckX <= 30 &&
-                gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + paddleHeight)
 
-        val withinPaddle2 =
-            gameState.puckX >= gameState.canvasWidth - 30 &&
-                gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + paddleHeight)
-
-        if (withinPaddle1) {
-            gameState.puckVX *= -1
-            gameState.puckVY += (Math.random() - 0.5) * 2
-        }
-
-        if (withinPaddle2) {
-            gameState.puckVX *= -1
-        }
-
-        if (gameState.puckX <= 30 &&
-            gameState.puckX >= 20 &&
-            gameState.puckY + 20 >= gameState.paddle1Y &&
-            gameState.puckY <= gameState.paddle1Y + paddleHeight
-        ) {
-            gameState.puckVX = gameState.puckVX.absoluteValue
-            gameState.puckVY += (Math.random() - 0.5) * 2
-        }
-
-        if (gameState.puckX >= gameState.canvasWidth - 30 &&
-            gameState.puckX <= gameState.canvasWidth - 20 &&
-            gameState.puckY + 20 >= gameState.paddle2Y &&
-            gameState.puckY <= gameState.paddle2Y + paddleHeight
-        ) {
-            gameState.puckVX = -gameState.puckVX.absoluteValue
-        }
+        sequenceOf(
+            CollisionCheck(
+                condition = {
+                    gameState.puckX <= 30 &&
+                        gameState.puckY in gameState.paddle1Y..(gameState.paddle1Y + paddleHeight)
+                },
+                action = {
+                    gameState.puckVX *= -1
+                    gameState.puckVY += (Math.random() - 0.5) * 2
+                },
+            ),
+            CollisionCheck(
+                condition = {
+                    gameState.puckX >= gameState.canvasWidth - 30 &&
+                        gameState.puckY in gameState.paddle2Y..(gameState.paddle2Y + paddleHeight)
+                },
+                action = {
+                    gameState.puckVX *= -1
+                },
+            ),
+            CollisionCheck(
+                condition = {
+                    gameState.puckX in 20.0..30.0 &&
+                        gameState.puckY + 20 >= gameState.paddle1Y &&
+                        gameState.puckY <= gameState.paddle1Y + paddleHeight
+                },
+                action = {
+                    gameState.puckVX = gameState.puckVX.absoluteValue
+                    gameState.puckVY += (Math.random() - 0.5) * 2
+                },
+            ),
+            CollisionCheck(
+                condition = {
+                    gameState.puckX in (gameState.canvasWidth - 30)..(gameState.canvasWidth - 20) &&
+                        gameState.puckY + 20 >= gameState.paddle2Y &&
+                        gameState.puckY <= gameState.paddle2Y + paddleHeight
+                },
+                action = {
+                    gameState.puckVX = -gameState.puckVX.absoluteValue
+                },
+            ),
+        ).filter { it.condition() }
+            .forEach { it.action() }
     }
 
     private fun validateLineCollision() {
