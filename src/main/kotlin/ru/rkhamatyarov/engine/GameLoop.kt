@@ -30,8 +30,17 @@ class GameLoop : AnimationTimer() {
     var player1Score = 0
     var player2Score = 0
 
+    private var lastUpdateTime = 0L
+
     override fun handle(now: Long) {
+        val deltaTime = if (lastUpdateTime > 0) now - lastUpdateTime else 0
+        lastUpdateTime = now
+
         gameState.updateAnimations()
+
+        if (deltaTime > 0) {
+            gameState.updatePuckMovingTime(deltaTime)
+        }
 
         inputHandler.update()
 
@@ -41,6 +50,7 @@ class GameLoop : AnimationTimer() {
         gc?.let {
             clearCanvas(it, width, height)
             renderScore(it, width)
+            renderSpeedIndicator(it, width)
             renderObjects(it, width)
 
             if (gameState.paused) {
@@ -58,7 +68,22 @@ class GameLoop : AnimationTimer() {
             updatePuckPosition()
             validateCollisions()
             updateAI()
-            applySpeedMultiplier()
+        }
+    }
+
+    private fun renderSpeedIndicator(
+        gc: GraphicsContext,
+        width: Double,
+    ) {
+        if (gameState.timeSpeedBoost > 1.0) {
+            gc.save()
+            gc.fill = Color.LIME
+            gc.font = Font.font(14.0)
+
+            val speedText = String.format("Speed boost: %.1fx", gameState.timeSpeedBoost)
+            gc.fillText(speedText, width * 0.4, 50.0)
+
+            gc.restore()
         }
     }
 
@@ -104,6 +129,10 @@ class GameLoop : AnimationTimer() {
         gc.font = Font.font(20.0)
         gc.fillText("AI: $player1Score", width * 0.1, 30.0)
         gc.fillText("Player: $player2Score", width * 0.8, 30.0)
+
+        val speedText = String.format("Speed: %.1fx", gameState.speedMultiplier)
+        gc.fillText(speedText, width * 0.45, 30.0)
+
         gc.restore()
     }
 
@@ -232,8 +261,8 @@ class GameLoop : AnimationTimer() {
     }
 
     private fun updatePuckPosition() {
-        gameState.puckX += gameState.puckVX
-        gameState.puckY += gameState.puckVY
+        gameState.puckX += gameState.puckVX * gameState.speedMultiplier
+        gameState.puckY += gameState.puckVY * gameState.speedMultiplier
     }
 
     private fun validateCollisions() {
@@ -393,11 +422,6 @@ class GameLoop : AnimationTimer() {
 
         val totalRadius = 10.0 + lineWidth / 2
         return distanceSquared < totalRadius * totalRadius
-    }
-
-    private fun applySpeedMultiplier() {
-        gameState.puckX += gameState.puckVX * (gameState.speedMultiplier - 1)
-        gameState.puckY += gameState.puckVY * (gameState.speedMultiplier - 1)
     }
 
     private fun updateAI() {

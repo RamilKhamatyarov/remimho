@@ -11,7 +11,7 @@ import java.util.TimerTask
 
 @ApplicationScoped
 class FormulaRegistry {
-    private val log = Logger.getLogger(FormulaRegistry::class.java)
+    private val log = Logger.getLogger(javaClass.name)
 
     @Inject
     lateinit var gameState: GameState

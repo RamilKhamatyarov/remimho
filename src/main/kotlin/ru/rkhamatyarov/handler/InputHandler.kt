@@ -10,7 +10,7 @@ import ru.rkhamatyarov.model.GameState
 
 @ApplicationScoped
 class InputHandler {
-    private val log = Logger.getLogger(InputHandler::class.java)
+    private val log = Logger.getLogger(javaClass.name)
 
     @Inject
     lateinit var gameState: GameState
