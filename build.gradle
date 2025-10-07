@@ -19,7 +19,7 @@ def osName = System.getProperty('os.name').toLowerCase()
 def platform = osName.contains('win') ? 'win' : osName.contains('mac') ? 'mac' : 'linux'
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.28.1"))
+    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.28.2"))
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-core")
