@@ -238,38 +238,6 @@ class GameLoopTest {
     }
 
     @Test
-    fun `checkLineCircleCollision returns false when far away`() {
-        // g
-        val method =
-            GameLoop::class.java.getDeclaredMethod(
-                "checkLineCircleCollision",
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-            )
-        method.isAccessible = true
-
-        // w
-        val result =
-            method.invoke(
-                gameLoop,
-                0.0,
-                0.0,
-                100.0,
-                0.0,
-                50.0,
-                30.0,
-                4.0,
-            ) as Boolean
-        // t
-        assertFalse(result)
-    }
-
-    @Test
     fun `handle method updates game state and renders when not paused`() {
         // g
         val now = 1_000_000_000L
@@ -442,7 +410,7 @@ class GameLoopTest {
         every { gameState.canvasHeight } returns 600.0
 
         // w
-        val method = GameLoop::class.java.getDeclaredMethod("updateAI")
+        val method = GameLoop::class.java.getDeclaredMethod("updateAIPaddle")
         method.isAccessible = true
         method.invoke(gameLoop)
 
@@ -459,7 +427,7 @@ class GameLoopTest {
         every { gameState.canvasHeight } returns 600.0
 
         // w
-        val method = GameLoop::class.java.getDeclaredMethod("updateAI")
+        val method = GameLoop::class.java.getDeclaredMethod("updateAIPaddle")
         method.isAccessible = true
         method.invoke(gameLoop)
 
@@ -597,7 +565,7 @@ class GameLoopTest {
         every { gameState.paddleHeight } returns 100.0
 
         // w
-        val method = GameLoop::class.java.getDeclaredMethod("updateAI")
+        val method = GameLoop::class.java.getDeclaredMethod("updateAIPaddle")
         method.isAccessible = true
         method.invoke(gameLoop)
 
