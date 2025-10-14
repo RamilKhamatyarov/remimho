@@ -127,8 +127,11 @@ class GameLoop : AnimationTimer() {
     private fun handleAdditionalPuckPaddleCollision(puck: AdditionalPuck) {
         val paddleWidth = 20.0
 
-        if (puck.x <= paddleWidth + 10 && puck.x >= paddleWidth - 10 &&
-            puck.y >= gameState.paddle1Y && puck.y <= gameState.paddle1Y + gameState.paddleHeight
+        if (
+            puck.x <= paddleWidth + 10 &&
+            puck.x >= paddleWidth - 10 &&
+            puck.y >= gameState.paddle1Y &&
+            puck.y <= gameState.paddle1Y + gameState.paddleHeight
         ) {
             puck.vx = abs(puck.vx)
             puck.x = paddleWidth + 10
@@ -137,8 +140,11 @@ class GameLoop : AnimationTimer() {
             puck.vy += angleVariation
         }
 
-        if (puck.x >= gameState.canvasWidth - paddleWidth - 10 && puck.x <= gameState.canvasWidth - paddleWidth + 10 &&
-            puck.y >= gameState.paddle2Y && puck.y <= gameState.paddle2Y + gameState.paddleHeight
+        if (
+            puck.x >= gameState.canvasWidth - paddleWidth - 10 &&
+            puck.x <= gameState.canvasWidth - paddleWidth + 10 &&
+            puck.y >= gameState.paddle2Y &&
+            puck.y <= gameState.paddle2Y + gameState.paddleHeight
         ) {
             puck.vx = -abs(puck.vx)
             puck.x = gameState.canvasWidth - paddleWidth - 10
@@ -177,8 +183,11 @@ class GameLoop : AnimationTimer() {
     private fun handlePaddleCollision() {
         val paddleWidth = 20.0
 
-        if (gameState.puckX <= paddleWidth + 10 && gameState.puckX >= paddleWidth - 10 &&
-            gameState.puckY >= gameState.paddle1Y && gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
+        if (
+            gameState.puckX <= paddleWidth + 10 &&
+            gameState.puckX >= paddleWidth - 10 &&
+            gameState.puckY >= gameState.paddle1Y &&
+            gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
         ) {
             gameState.puckVX = abs(gameState.puckVX)
             gameState.puckX = paddleWidth + 10
@@ -187,9 +196,11 @@ class GameLoop : AnimationTimer() {
             gameState.puckVY += angleVariation
         }
 
-        if (gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
+        if (
+            gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
             gameState.puckX <= gameState.canvasWidth - paddleWidth + 10 &&
-            gameState.puckY >= gameState.paddle2Y && gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
+            gameState.puckY >= gameState.paddle2Y &&
+            gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
         ) {
             gameState.puckVX = -abs(gameState.puckVX)
             gameState.puckX = gameState.canvasWidth - paddleWidth - 10
@@ -511,8 +522,11 @@ class GameLoop : AnimationTimer() {
                     val cellY = lifeGrid.gridY + i * lifeGrid.cellSize
                     val cx = gameState.puckX
                     val cy = gameState.puckY
-                    if (cx >= cellX && cx <= cellX + lifeGrid.cellSize &&
-                        cy >= cellY && cy <= cellY + lifeGrid.cellSize
+                    if (
+                        cx >= cellX &&
+                        cx <= cellX + lifeGrid.cellSize &&
+                        cy >= cellY &&
+                        cy <= cellY + lifeGrid.cellSize
                     ) {
                         lifeGrid.grid[i][j] = false
                         gameState.puckVX = -gameState.puckVX
@@ -551,8 +565,11 @@ class GameLoop : AnimationTimer() {
 
     private fun validatePaddleCollision() {
         val paddleWidth = 20.0
-        if (gameState.puckX <= paddleWidth + 10 && gameState.puckX >= paddleWidth - 10 &&
-            gameState.puckY >= gameState.paddle1Y && gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
+        if (
+            gameState.puckX <= paddleWidth + 10 &&
+            gameState.puckX >= paddleWidth - 10 &&
+            gameState.puckY >= gameState.paddle1Y &&
+            gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
         ) {
             gameState.puckVX = abs(gameState.puckVX)
             gameState.puckX = paddleWidth + 10
@@ -561,9 +578,11 @@ class GameLoop : AnimationTimer() {
             gameState.puckVY += angleVariation
         }
 
-        if (gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
+        if (
+            gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
             gameState.puckX <= gameState.canvasWidth - paddleWidth + 10 &&
-            gameState.puckY >= gameState.paddle2Y && gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
+            gameState.puckY >= gameState.paddle2Y &&
+            gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
         ) {
             gameState.puckVX = -abs(gameState.puckVX)
             gameState.puckX = gameState.canvasWidth - paddleWidth - 10

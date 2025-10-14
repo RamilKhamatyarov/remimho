@@ -74,15 +74,19 @@ class PowerUpManager {
         val paddleWidth = 20.0
 
         val distanceToPlayer = abs(x - (gameState.canvasWidth - paddleWidth))
-        if (distanceToPlayer < minSpawnDistance &&
-            y >= gameState.paddle2Y && y <= gameState.paddle2Y + gameState.paddleHeight
+        if (
+            distanceToPlayer < minSpawnDistance &&
+            y >= gameState.paddle2Y &&
+            y <= gameState.paddle2Y + gameState.paddleHeight
         ) {
             return true
         }
 
         val distanceToAI = abs(x - paddleWidth)
-        if (distanceToAI < minSpawnDistance &&
-            y >= gameState.paddle1Y && y <= gameState.paddle1Y + gameState.paddleHeight
+        if (
+            distanceToAI < minSpawnDistance &&
+            y >= gameState.paddle1Y &&
+            y <= gameState.paddle1Y + gameState.paddleHeight
         ) {
             return true
         }
@@ -130,18 +134,22 @@ class PowerUpManager {
                 val effect = ActivePowerUpEffect(type, duration = 5_000_000_000L)
                 gameState.activePowerUpEffects.add(effect)
             }
+
             PowerUpType.MAGNET_BALL -> {
                 val effect = ActivePowerUpEffect(type, duration = 8_000_000_000L)
                 gameState.activePowerUpEffects.add(effect)
             }
+
             PowerUpType.GHOST_MODE -> {
                 val effect = ActivePowerUpEffect(type, duration = 6_000_000_000L)
                 gameState.activePowerUpEffects.add(effect)
                 gameState.isGhostMode = true
             }
+
             PowerUpType.MULTI_BALL -> {
                 spawnAdditionalPucks()
             }
+
             PowerUpType.PADDLE_SHIELD -> {
                 val effect = ActivePowerUpEffect(type, duration = 10_000_000_000L)
                 gameState.activePowerUpEffects.add(effect)
@@ -159,14 +167,18 @@ class PowerUpManager {
                 PowerUpType.SPEED_BOOST -> {
                     hasSpeedBoost = true
                 }
+
                 PowerUpType.MAGNET_BALL -> {
                     hasMagnetEffect = true
                     applyMagnetEffect()
                 }
+
                 PowerUpType.GHOST_MODE -> {
                 }
+
                 PowerUpType.MULTI_BALL -> {
                 }
+
                 PowerUpType.PADDLE_SHIELD -> {
                 }
             }
@@ -245,9 +257,11 @@ class PowerUpManager {
             PowerUpType.GHOST_MODE -> {
                 gameState.isGhostMode = false
             }
+
             PowerUpType.PADDLE_SHIELD -> {
                 gameState.hasPaddleShield = false
             }
+
             else -> {
             }
         }
