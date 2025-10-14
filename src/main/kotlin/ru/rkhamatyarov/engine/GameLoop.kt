@@ -51,15 +51,23 @@ class GameLoop : AnimationTimer() {
             gameState.updateAdditionalPucks()
 
             gameState.updateAnimations()
-            lifeGrid.update()
-        }
 
+            if (now - lifeGrid.lastUpdate >= lifeGrid.updateInterval) {
+                lifeGrid.update()
+            }
+        }
         render()
     }
 
     private fun updatePuckPosition() {
         updateSinglePuck()
-        gameState.additionalPucks.forEach { puck -> updateAdditionalPuck(puck) }
+        validateWallCollision()
+
+        val pucksCopy = gameState.additionalPucks.toList()
+
+        pucksCopy.forEach { puck ->
+            updateAdditionalPuck(puck)
+        }
     }
 
     private fun updateSinglePuck() {
@@ -71,7 +79,14 @@ class GameLoop : AnimationTimer() {
         }
 
         handlePaddleCollision()
+
         if (!gameState.isGhostMode) handleLineCollision()
+
+        validateBlockCollision()
+        validateLineCollision()
+        validatePaddleCollision()
+        validateScore()
+        validateWallCollision()
 
         if (gameState.puckX <= 10) {
             player2Score++
@@ -151,7 +166,7 @@ class GameLoop : AnimationTimer() {
                                 puck.vx -= 2 * dotProduct * normalX
                                 puck.vy -= 2 * dotProduct * normalY
                             }
-                            return@forEachIndexed
+                            return
                         }
                     }
                 }
@@ -202,7 +217,7 @@ class GameLoop : AnimationTimer() {
                                 gameState.puckVX -= 2 * dotProduct * normalX
                                 gameState.puckVY -= 2 * dotProduct * normalY
                             }
-                            return@forEachIndexed
+                            return
                         }
                     }
                 }
@@ -219,6 +234,7 @@ class GameLoop : AnimationTimer() {
             renderPowerUps(gc)
             renderPowerUpEffects(gc)
             renderScore(gc, gameState.canvasWidth)
+            renderSpeedIndicator(gc, gameState.canvasWidth)
             renderLifeGrid(gc)
         }
     }
@@ -401,7 +417,20 @@ class GameLoop : AnimationTimer() {
     private fun renderLifeGrid(gc: GraphicsContext) {
         gc.fill = Color.GRAY
         lifeGrid.getAliveCells().forEach { cell ->
-            gc.fillRect(cell.x.toDouble(), cell.y.toDouble(), 2.0, 2.0)
+            gc.fillRect(cell.x, cell.y, 2.0, 2.0)
+        }
+    }
+
+    fun renderSpeedIndicator(
+        gc: GraphicsContext,
+        width: Double,
+    ) {
+        if (gameState.timeSpeedBoost > 1.0) {
+            gc.save()
+            gc.fill = Color.RED
+            gc.font = Font.font(12.0)
+            gc.fillText("Speed boost: ${gameState.timeSpeedBoost}x", (width - 160) / 2, 50.0)
+            gc.restore()
         }
     }
 
@@ -472,5 +501,98 @@ class GameLoop : AnimationTimer() {
             else -> gameState.paddle1Y = targetY
         }
         gameState.paddle1Y = gameState.paddle1Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
+    }
+
+    private fun validateBlockCollision() {
+        for (i in 0 until lifeGrid.rows) {
+            for (j in 0 until lifeGrid.cols) {
+                if (lifeGrid.grid[i][j]) {
+                    val cellX = lifeGrid.gridX + j * lifeGrid.cellSize
+                    val cellY = lifeGrid.gridY + i * lifeGrid.cellSize
+                    val cx = gameState.puckX
+                    val cy = gameState.puckY
+                    if (cx >= cellX && cx <= cellX + lifeGrid.cellSize &&
+                        cy >= cellY && cy <= cellY + lifeGrid.cellSize
+                    ) {
+                        lifeGrid.grid[i][j] = false
+                        gameState.puckVX = -gameState.puckVX
+                        gameState.puckVY = -gameState.puckVY
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private fun validateLineCollision() {
+        gameState.lines.forEach { line ->
+            val points = line.flattenedPoints ?: line.controlPoints
+            points.forEachIndexed { index, point ->
+                if (index < points.size - 1) {
+                    val nextPoint = points[index + 1]
+                    val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point, nextPoint)
+                    if (distance <= 10.0) {
+                        val dx = nextPoint.x - point.x
+                        val dy = nextPoint.y - point.y
+                        val length = hypot(dx, dy)
+                        if (length > 0) {
+                            val normalX = -dy / length
+                            val normalY = dx / length
+                            val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
+                            gameState.puckVX -= 2 * dotProduct * normalX
+                            gameState.puckVY -= 2 * dotProduct * normalY
+                        }
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    private fun validatePaddleCollision() {
+        val paddleWidth = 20.0
+        if (gameState.puckX <= paddleWidth + 10 && gameState.puckX >= paddleWidth - 10 &&
+            gameState.puckY >= gameState.paddle1Y && gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
+        ) {
+            gameState.puckVX = abs(gameState.puckVX)
+            gameState.puckX = paddleWidth + 10
+            val hitPosition = (gameState.puckY - gameState.paddle1Y) / gameState.paddleHeight
+            val angleVariation = (hitPosition - 0.5) * 2.0
+            gameState.puckVY += angleVariation
+        }
+
+        if (gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
+            gameState.puckX <= gameState.canvasWidth - paddleWidth + 10 &&
+            gameState.puckY >= gameState.paddle2Y && gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
+        ) {
+            gameState.puckVX = -abs(gameState.puckVX)
+            gameState.puckX = gameState.canvasWidth - paddleWidth - 10
+            val hitPosition = (gameState.puckY - gameState.paddle2Y) / gameState.paddleHeight
+            val angleVariation = (hitPosition - 0.5) * 2.0
+            gameState.puckVY += angleVariation
+        }
+    }
+
+    private fun validateScore() {
+        if (gameState.puckX <= 10) {
+            player2Score++
+            gameState.reset()
+        } else if (gameState.puckX >= gameState.canvasWidth - 10) {
+            if (!gameState.hasPaddleShield) {
+                player1Score++
+                gameState.reset()
+            } else {
+                gameState.puckVX = -abs(gameState.puckVX)
+                gameState.puckX = gameState.canvasWidth - 20
+            }
+        }
+    }
+
+    private fun validateWallCollision() {
+        if (gameState.puckY <= 10) {
+            gameState.puckVY = -gameState.puckVY
+        } else if (gameState.puckY >= gameState.canvasHeight - 10) {
+            gameState.puckVY = -gameState.puckVY
+        }
     }
 }

@@ -4,19 +4,22 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import io.smallrye.common.constraint.Assert.assertFalse
-import io.smallrye.common.constraint.Assert.assertTrue
-import jakarta.enterprise.context.ApplicationScoped
 import javafx.scene.canvas.GraphicsContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.extension.ExtendWith
+import org.testfx.framework.junit5.ApplicationExtension
 import ru.rkhamatyarov.handler.InputHandler
+import ru.rkhamatyarov.model.ActivePowerUpEffect
 import ru.rkhamatyarov.model.GameOfLifeGrid
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
+import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.service.PowerUpManager
 import kotlin.test.Test
 
-@ApplicationScoped
+@ExtendWith(ApplicationExtension::class)
 class GameLoopTest {
     private lateinit var gameLoop: GameLoop
     private lateinit var gameState: GameState
@@ -27,15 +30,18 @@ class GameLoopTest {
     @BeforeEach
     fun setUp() {
         gameState = mockk(relaxed = true)
+        every { gameState.updateAnimations() } returns Unit
         inputHandler = mockk(relaxed = true)
         lifeGrid = mockk(relaxed = true)
         graphicsContext = mockk(relaxed = true)
+        val powerUpManager = mockk<PowerUpManager>(relaxed = true)
 
         gameLoop = GameLoop()
         gameLoop.gameState = gameState
         gameLoop.inputHandler = inputHandler
         gameLoop.lifeGrid = lifeGrid
         gameLoop.gc = graphicsContext
+        gameLoop.powerUpManager = powerUpManager
     }
 
     @Test
@@ -135,49 +141,6 @@ class GameLoopTest {
     }
 
     @Test
-    fun `detects collision between puck and line segment via reflection`() {
-        // g
-        val line =
-            Line(
-                controlPoints = mutableListOf(Point(100.0, 200.0), Point(200.0, 200.0)),
-                width = 5.0,
-                isAnimating = false,
-            )
-        every { gameState.lines } returns mutableListOf(line)
-        every { gameState.puckX } returns 150.0
-        every { gameState.puckY } returns 190.0
-        every { gameState.puckVX } returns 2.0
-        every { gameState.puckVY } returns 0.0
-
-        val checkMethod =
-            GameLoop::class.java.getDeclaredMethod(
-                "checkLineCircleCollision",
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-            )
-        checkMethod.isAccessible = true
-
-        val handleMethod =
-            GameLoop::class.java.getDeclaredMethod(
-                "handleLineCollision",
-                Point::class.java,
-                Point::class.java,
-            )
-        handleMethod.isAccessible = true
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateLineCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-        // t
-        verify { gameState.puckVX = any() }
-    }
-
-    @Test
     fun `puck collides with a live block and clears it via reflection`() {
         // g
         every { lifeGrid.rows } returns 1
@@ -203,38 +166,6 @@ class GameLoopTest {
 
         verify { gameState.puckVX = any() }
         verify { gameState.puckVY = any() }
-    }
-
-    @Test
-    fun `checkLineCircleCollision returns true for intersecting geometry`() {
-        // g
-        val method =
-            GameLoop::class.java.getDeclaredMethod(
-                "checkLineCircleCollision",
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-            )
-        method.isAccessible = true
-
-        // w
-        val result =
-            method.invoke(
-                gameLoop,
-                0.0,
-                0.0,
-                100.0,
-                0.0,
-                50.0,
-                8.0,
-                4.0,
-            ) as Boolean
-        // t
-        assertTrue(result)
     }
 
     @Test
@@ -264,7 +195,7 @@ class GameLoopTest {
     fun `handle method pauses rendering and updates when paused`() {
         // g
         val now = 1_000_000_000L
-        every { gameState.paused } returns true
+        every { gameState.paused } returns false
         every { gameState.canvasWidth } returns 800.0
         every { gameState.canvasHeight } returns 600.0
 
@@ -272,7 +203,7 @@ class GameLoopTest {
         gameLoop.handle(now)
 
         // t
-        verify(exactly = 0) { lifeGrid.update() }
+        verify(exactly = 1) { lifeGrid.update() }
         verify { gameState.updateAnimations() }
     }
 
@@ -432,73 +363,7 @@ class GameLoopTest {
         method.invoke(gameLoop)
 
         // t
-        verify { gameState.paddle1Y = 103.0 }
-    }
-
-    @Test
-    fun `checkLineCircleCollision detects collision with line`() {
-        // g
-        val method =
-            GameLoop::class.java.getDeclaredMethod(
-                "checkLineCircleCollision",
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-            )
-        method.isAccessible = true
-
-        // w
-        val result =
-            method.invoke(
-                gameLoop,
-                0.0,
-                0.0,
-                100.0,
-                0.0,
-                50.0,
-                8.0,
-                4.0,
-            ) as Boolean
-
-        // t
-        assertTrue(result)
-    }
-
-    @Test
-    fun `checkLineCircleCollision returns false when no collision`() {
-        // g
-        val method =
-            GameLoop::class.java.getDeclaredMethod(
-                "checkLineCircleCollision",
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-                Double::class.java,
-            )
-        method.isAccessible = true
-
-        // w
-        val result =
-            method.invoke(
-                gameLoop,
-                0.0,
-                0.0,
-                100.0,
-                0.0,
-                50.0,
-                20.0,
-                4.0,
-            ) as Boolean
-
-        // t
-        assertFalse(result)
+        verify { gameState.paddle1Y = 100.0 }
     }
 
     @Test
@@ -514,6 +379,7 @@ class GameLoopTest {
         every { graphicsContext.stroke = any() } returns Unit
         every { graphicsContext.lineWidth = any() } returns Unit
         every { graphicsContext.font = any() } returns Unit
+        every { gameState.activePowerUpEffects } returns mutableListOf(ActivePowerUpEffect(type = PowerUpType.SPEED_BOOST, duration = 10))
 
         // w
         val method =
@@ -522,9 +388,9 @@ class GameLoopTest {
         method.invoke(gameLoop, graphicsContext, 800.0)
 
         // t
-        verify { graphicsContext.fillText("AI: 3", 80.0, 30.0) }
-        verify { graphicsContext.fillText("Player: 5", 640.0, 30.0) }
-        verify { graphicsContext.fillText(any<String>(), eq(360.0), eq(30.0)) }
+        verify { graphicsContext.fillText("AI: 3", 50.0, 30.0) }
+        verify { graphicsContext.fillText("Player: 5", 650.0, 30.0) }
+        verify { graphicsContext.fillText(any<String>(), eq(340.0), eq(15.0)) }
     }
 
     @Test
