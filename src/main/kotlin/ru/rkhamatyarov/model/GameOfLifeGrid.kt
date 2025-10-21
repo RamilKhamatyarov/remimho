@@ -62,4 +62,21 @@ class GameOfLifeGrid {
         }
         grid = nextGrid
     }
+
+    fun getAliveCells(): List<Cell> {
+        val cells = mutableListOf<Cell>()
+        for (i in 0 until rows) {
+            for (j in 0 until cols) {
+                if (grid[i][j]) {
+                    cells.add(
+                        Cell(
+                            x = gridX + j * cellSize,
+                            y = gridY + i * cellSize,
+                        ),
+                    )
+                }
+            }
+        }
+        return cells
+    }
 }

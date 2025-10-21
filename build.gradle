@@ -64,7 +64,7 @@ gluonfx {
     compilerArgs = [
             '--initialize-at-build-time=org.jboss.logmanager',
             '--initialize-at-build-time=org.jboss.logging',
-//            '--initialize-at-build-time=io.quarkus.bootstrap',
+            '--initialize-at-build-time=io.quarkus.bootstrap',
             '--initialize-at-build-time=io.quarkus.bootstrap.logging.',
             '--initialize-at-build-time=io.quarkus.runtime.logging',
             '--initialize-at-build-time=io.smallrye.common',

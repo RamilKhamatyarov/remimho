@@ -11,13 +11,10 @@ class GameState {
 
     var canvasWidth = 800.0
     var canvasHeight = 600.0
-
     var puckX = 390.0
     var puckY = 290.0
-
     var puckVX = 3.0
     var puckVY = (Math.random() - 0.5) * 5
-
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
@@ -27,18 +24,23 @@ class GameState {
     var speedMultiplier = 1.0
     var baseSpeedMultiplier = 1.0
     var timeSpeedBoost = 1.0
+    var powerUpSpeedMultiplier = 1.0
     var puckMovingTime = 0L
-
     var paused = false
 
     val lines = mutableListOf<Line>()
     var currentLine: Line? = null
     var isDrawing = false
 
+    val powerUps = mutableListOf<PowerUp>()
+    val activePowerUpEffects = mutableListOf<ActivePowerUpEffect>()
+    val additionalPucks = mutableListOf<AdditionalPuck>()
+    var isGhostMode = false
+    var hasPaddleShield = false
+
     fun updatePuckMovingTime(deltaTime: Long) {
         if (!paused && (puckVX.absoluteValue > 0.1 || puckVY.absoluteValue > 0.1)) {
             puckMovingTime += deltaTime
-
             if (puckMovingTime > 2_000_000_000L) {
                 timeSpeedBoost = 2.5
             } else if (puckMovingTime > 1_000_000_000L) {
@@ -49,7 +51,22 @@ class GameState {
             timeSpeedBoost = 1.0
         }
 
-        speedMultiplier = baseSpeedMultiplier * timeSpeedBoost
+        speedMultiplier = baseSpeedMultiplier * timeSpeedBoost * powerUpSpeedMultiplier
+    }
+
+    fun updateAdditionalPucks() {
+        additionalPucks.forEach { puck ->
+            puck.update(speedMultiplier)
+
+            if (puck.x <= 10 || puck.x >= canvasWidth - 10) {
+                puck.vx = -puck.vx
+            }
+            if (puck.y <= 10 || puck.y >= canvasHeight - 10) {
+                puck.vy = -puck.vy
+            }
+        }
+
+        additionalPucks.removeAll { it.isExpired() }
     }
 
     fun startNewLine(
@@ -112,7 +129,6 @@ class GameState {
 
         val tension = 0.5
         val divisor = 6 * tension
-
         for (i in 0 until controlPoints.size - 1) {
             val p0 = if (i == 0) controlPoints[0] else controlPoints[i - 1]
             val p1 = controlPoints[i]
@@ -161,17 +177,21 @@ class GameState {
     fun reset() {
         puckX = canvasWidth / 2
         puckY = canvasHeight / 2
-
         puckVX = -3.0
         puckVY = (Math.random() - 0.5) * 5
-
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
-
         puckMovingTime = 0L
         timeSpeedBoost = 1.0
         baseSpeedMultiplier = 1.0
+        powerUpSpeedMultiplier = 1.0
         speedMultiplier = 1.0
+
+        powerUps.clear()
+        activePowerUpEffects.clear()
+        additionalPucks.clear()
+        isGhostMode = false
+        hasPaddleShield = false
 
         lifeGrid.reset()
         lifeGrid.repositionGrid(canvasWidth, canvasHeight)

@@ -18,6 +18,7 @@ import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.service.Formula
 import ru.rkhamatyarov.service.FormulaRegistry
+import ru.rkhamatyarov.service.PowerUpManager
 import ru.rkhamatyarov.service.WhiteboardService
 import kotlin.test.assertEquals
 
@@ -51,28 +52,23 @@ class WhiteboardTest {
 
     private fun init(): Pair<WhiteboardService, GameState> {
         val lifeGrid = GameOfLifeGrid()
-        val gameState =
-            GameState().apply {
-                this.lifeGrid = lifeGrid
-            }
-
-        val inputHandler =
-            InputHandler().apply {
-                this.gameState = gameState
-            }
-
+        val gameState = GameState().apply { this.lifeGrid = lifeGrid }
+        val inputHandler = InputHandler().apply { this.gameState = gameState }
         val gameLoop =
             GameLoop().apply {
                 this.gameState = gameState
                 this.inputHandler = inputHandler
                 this.lifeGrid = lifeGrid
+                // PowerUpManager will be injected manually below
             }
-
         val formulaRegistry =
             FormulaRegistry().apply {
                 this.gameState = gameState
                 this.formulas = mockFormulas()
             }
+        val powerUpManager = PowerUpManager().apply { this.gameState = gameState }
+
+        gameLoop.powerUpManager = powerUpManager
 
         val service =
             WhiteboardService().apply {
@@ -80,6 +76,7 @@ class WhiteboardTest {
                 this.gameLoop = gameLoop
                 this.gameState = gameState
                 this.formulaRegistry = formulaRegistry
+                this.powerUpManager = powerUpManager
             }
 
         return Pair(service, gameState)

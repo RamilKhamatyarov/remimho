@@ -36,6 +36,9 @@ class WhiteboardService {
     @Inject
     lateinit var formulaRegistry: FormulaRegistry
 
+    @Inject
+    lateinit var powerUpManager: PowerUpManager
+
     lateinit var root: VBox
 
     fun startGame(stage: Stage) {
@@ -51,18 +54,14 @@ class WhiteboardService {
 
         val canvas = createCanvas()
         val scene = createScene(canvas)
-
         gameLoop.gc = canvas.graphicsContext2D
         gameLoop.start()
-
         formulaRegistry.startRandomCurveScheduler()
 
         stage.scene = scene
         stage.title = "Whiteboard"
         stage.show()
-
         gameState.lifeGrid.repositionGrid(gameState.canvasWidth, gameState.canvasHeight)
-
         root.requestFocus()
     }
 
@@ -87,7 +86,6 @@ class WhiteboardService {
             setOnMousePressed { event ->
                 if (event.button == MouseButton.SECONDARY) {
                     gameState.startNewLine(event.x, event.y)
-
                     gameLoop.gc?.let { gc ->
                         gc.stroke = Color.DARKGRAY
                         gc.lineWidth = gameState.currentLine?.width ?: 5.0
@@ -117,6 +115,7 @@ class WhiteboardService {
         val clearBlocksButton = createClearBlocksButton()
         val pauseButton = createPauseButton()
         val controlModeLabel = Label("Controls: Keyboard (Press M to toggle)")
+        val powerUpLabel = createPowerUpLabel()
         val (speedLabel, speedSlider) = createSpeedControls()
         val (thicknessLabel, thicknessSlider) = createThicknessControls()
 
@@ -132,15 +131,22 @@ class WhiteboardService {
 
         val speedBox = VBox(speedLabel, speedSlider).apply { spacing = 5.0 }
         val thicknessBox = VBox(thicknessLabel, thicknessSlider).apply { spacing = 5.0 }
+        val powerUpBox = VBox(powerUpLabel).apply { spacing = 5.0 }
 
         return HBox(
             buttonBox,
             speedBox,
             thicknessBox,
+            powerUpBox,
         ).apply {
             spacing = 20.0
         }
     }
+
+    private fun createPowerUpLabel(): Label =
+        Label("Power-ups: Enabled").apply {
+            style = "-fx-font-weight: bold; -fx-text-fill: #4CAF50;"
+        }
 
     private fun createResetButton(): Button =
         Button("Reset Game").apply {
@@ -184,7 +190,6 @@ class WhiteboardService {
             }
 
         bindSpeedSliderToLabel(speedSlider, speedLabel)
-
         return speedLabel to speedSlider
     }
 
@@ -230,7 +235,6 @@ class WhiteboardService {
         canvas.heightProperty().bind(root.heightProperty().subtract(controlBox.heightProperty()))
 
         val scene = Scene(root, 800.0, 650.0, Color.WHITE)
-
         scene.setOnKeyPressed { event -> inputHandler.handleKeyPress(event) }
         scene.setOnKeyReleased { event -> inputHandler.handleKeyRelease(event) }
 

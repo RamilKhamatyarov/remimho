@@ -7,6 +7,8 @@ import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.PowerUp
+import ru.rkhamatyarov.model.PowerUpType
 
 @ApplicationScoped
 class InputHandler {
@@ -39,8 +41,44 @@ class InputHandler {
             KeyCode.ESCAPE -> {
                 exitGame()
             }
+            KeyCode.DIGIT1 -> {
+                if (event.isControlDown) {
+                    spawnTestPowerUp(PowerUpType.SPEED_BOOST)
+                }
+            }
+            KeyCode.DIGIT2 -> {
+                if (event.isControlDown) {
+                    spawnTestPowerUp(PowerUpType.MAGNET_BALL)
+                }
+            }
+            KeyCode.DIGIT3 -> {
+                if (event.isControlDown) {
+                    spawnTestPowerUp(PowerUpType.GHOST_MODE)
+                }
+            }
+            KeyCode.DIGIT4 -> {
+                if (event.isControlDown) {
+                    spawnTestPowerUp(PowerUpType.MULTI_BALL)
+                }
+            }
+            KeyCode.DIGIT5 -> {
+                if (event.isControlDown) {
+                    spawnTestPowerUp(PowerUpType.PADDLE_SHIELD)
+                }
+            }
             else -> keysPressed.add(event.code)
         }
+    }
+
+    private fun spawnTestPowerUp(type: PowerUpType) {
+        val powerUp =
+            PowerUp(
+                x = gameState.canvasWidth / 2,
+                y = gameState.canvasHeight / 2,
+                type = type,
+            )
+        gameState.powerUps.add(powerUp)
+        log.debug("Test power-up spawned: $type")
     }
 
     fun handleKeyRelease(event: KeyEvent) {
@@ -65,7 +103,6 @@ class InputHandler {
                 gameState.paddle2Y += 5.0
             }
         }
-
         gameState.paddle2Y = gameState.paddle2Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
     }
 
@@ -74,7 +111,6 @@ class InputHandler {
             try {
                 Thread.sleep(500)
                 Quarkus.asyncExit()
-
                 Thread.sleep(1000)
                 System.exit(0)
             } catch (e: InterruptedException) {
