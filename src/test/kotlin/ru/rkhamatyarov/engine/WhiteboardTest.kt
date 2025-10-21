@@ -59,7 +59,6 @@ class WhiteboardTest {
                 this.gameState = gameState
                 this.inputHandler = inputHandler
                 this.lifeGrid = lifeGrid
-                // PowerUpManager will be injected manually below
             }
         val formulaRegistry =
             FormulaRegistry().apply {
