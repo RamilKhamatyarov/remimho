@@ -40,43 +40,52 @@ class GameOfLifeGrid {
     }
 
     fun update() {
-        val nextGrid = Array(rows) { BooleanArray(cols) }
-        for (i in 0 until rows) {
-            for (j in 0 until cols) {
-                var neighbors = 0
-                for (di in -1..1) {
-                    for (dj in -1..1) {
-                        if (di == 0 && dj == 0) continue
-                        val ni = (i + di + rows) % rows
-                        val nj = (j + dj + cols) % cols
-                        if (grid[ni][nj]) neighbors++
-                    }
+        val nextGrid =
+            Array(rows) { i ->
+                BooleanArray(cols) { j ->
+                    calculateNextCellState(i, j)
                 }
-                nextGrid[i][j] =
-                    when {
-                        grid[i][j] && neighbors in 2..3 -> true
-                        !grid[i][j] && neighbors == 3 -> true
-                        else -> false
-                    }
             }
-        }
         grid = nextGrid
     }
 
-    fun getAliveCells(): List<Cell> {
-        val cells = mutableListOf<Cell>()
-        for (i in 0 until rows) {
-            for (j in 0 until cols) {
-                if (grid[i][j]) {
-                    cells.add(
-                        Cell(
-                            x = gridX + j * cellSize,
-                            y = gridY + i * cellSize,
-                        ),
+    fun getAliveCells(): List<Cell> =
+        grid.flatMapIndexed { i, row ->
+            row
+                .withIndex()
+                .filter { it.value }
+                .map { (j, _) ->
+                    Cell(
+                        x = gridX + j * cellSize,
+                        y = gridY + i * cellSize,
                     )
                 }
-            }
         }
-        return cells
+
+    private fun calculateNextCellState(
+        i: Int,
+        j: Int,
+    ): Boolean {
+        val neighbors = countNeighbors(i, j)
+        return when {
+            grid[i][j] && neighbors in 2..3 -> true
+            !grid[i][j] && neighbors == 3 -> true
+            else -> false
+        }
     }
+
+    private fun countNeighbors(
+        i: Int,
+        j: Int,
+    ): Int =
+        (-1..1)
+            .flatMap { di ->
+                (-1..1).map { dj -> di to dj }
+            }.filter { (di, dj) ->
+                !(di == 0 && dj == 0)
+            }.count { (di, dj) ->
+                val ni = (i + di + rows) % rows
+                val nj = (j + dj + cols) % cols
+                grid[ni][nj]
+            }
 }

@@ -80,24 +80,26 @@ class GameLoop : AnimationTimer() {
 
         handlePaddleCollision()
 
-        if (!gameState.isGhostMode) handleLineCollision()
+        if (!gameState.isGhostMode) {
+            handleLineCollision()
+        }
 
         validateBlockCollision()
-        validateLineCollision()
-        validatePaddleCollision()
-        validateScore()
-        validateWallCollision()
 
-        if (gameState.puckX <= 10) {
-            player2Score++
-            resetPuck()
-        } else if (gameState.puckX >= gameState.canvasWidth - 10) {
-            if (!gameState.hasPaddleShield) {
-                player1Score++
+        when {
+            gameState.puckX <= 10 -> {
+                player2Score++
                 resetPuck()
-            } else {
-                gameState.puckVX = -abs(gameState.puckVX)
-                gameState.puckX = gameState.canvasWidth - 20
+            }
+
+            gameState.puckX >= gameState.canvasWidth - 10 -> {
+                if (!gameState.hasPaddleShield) {
+                    player1Score++
+                    resetPuck()
+                } else {
+                    gameState.puckVX = -abs(gameState.puckVX)
+                    gameState.puckX = gameState.canvasWidth - 20
+                }
             }
         }
     }
@@ -157,26 +159,49 @@ class GameLoop : AnimationTimer() {
     private fun handleAdditionalPuckLineCollision(puck: AdditionalPuck) {
         gameState.lines.forEach { line ->
             line.flattenedPoints?.let { points ->
-                points.forEachIndexed { index, point ->
-                    if (index < points.size - 1) {
-                        val nextPoint = points[index + 1]
-                        val distance = distanceToLineSegment(puck.x, puck.y, point, nextPoint)
-                        if (distance <= 10.0) {
-                            val dx = nextPoint.x - point.x
-                            val dy = nextPoint.y - point.y
-                            val length = hypot(dx, dy)
-                            if (length > 0) {
-                                val normalX = -dy / length
-                                val normalY = dx / length
-                                val dotProduct = puck.vx * normalX + puck.vy * normalY
-                                puck.vx -= 2 * dotProduct * normalX
-                                puck.vy -= 2 * dotProduct * normalY
-                            }
-                            return
-                        }
-                    }
-                }
+                points
+                    .windowed(2) { segment ->
+                        val (point1, point2) = segment
+                        checkAndHandleAdditionalPuckLineCollision(puck, point1, point2)
+                    }.firstOrNull { it }
+                    ?.let { return }
             }
+        }
+    }
+
+    private fun checkAndHandleAdditionalPuckLineCollision(
+        puck: AdditionalPuck,
+        point1: Point,
+        point2: Point,
+    ): Boolean {
+        val distance = distanceToLineSegment(puck.x, puck.y, point1, point2)
+        val collisionThreshold = 8.0 + (gameState.currentLine?.width ?: 5.0) / 2
+
+        return (distance <= collisionThreshold).takeIf { it }?.let { isColliding ->
+            calculateAdditionalPuckLineReflection(puck, point1, point2)
+            true
+        } ?: false
+    }
+
+    private fun calculateAdditionalPuckLineReflection(
+        puck: AdditionalPuck,
+        point1: Point,
+        point2: Point,
+    ) {
+        val dx = point2.x - point1.x
+        val dy = point2.y - point1.y
+        val length = hypot(dx, dy)
+
+        if (length > 0) {
+            val normalX = -dy / length
+            val normalY = dx / length
+            val dotProduct = puck.vx * normalX + puck.vy * normalY
+
+            puck.vx -= 2 * dotProduct * normalX
+            puck.vy -= 2 * dotProduct * normalY
+
+            puck.vx *= 1.05
+            puck.vy *= 1.05
         }
     }
 
@@ -213,26 +238,58 @@ class GameLoop : AnimationTimer() {
     private fun handleLineCollision() {
         gameState.lines.forEach { line ->
             line.flattenedPoints?.let { points ->
-                points.forEachIndexed { index, point ->
-                    if (index < points.size - 1) {
-                        val nextPoint = points[index + 1]
-                        val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point, nextPoint)
-                        if (distance <= 10.0) {
-                            val dx = nextPoint.x - point.x
-                            val dy = nextPoint.y - point.y
-                            val length = hypot(dx, dy)
-                            if (length > 0) {
-                                val normalX = -dy / length
-                                val normalY = dx / length
-                                val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
-                                gameState.puckVX -= 2 * dotProduct * normalX
-                                gameState.puckVY -= 2 * dotProduct * normalY
-                            }
-                            return
-                        }
-                    }
-                }
+                points
+                    .windowed(2) { segment ->
+                        val (point1, point2) = segment
+                        checkAndHandleLineCollision(point1, point2)
+                    }.firstOrNull { it }
+                    ?.let { return }
             }
+        }
+
+        gameState.currentLine?.let { currentLine ->
+            currentLine.controlPoints
+                .windowed(2) { segment ->
+                    val (point1, point2) = segment
+                    checkAndHandleLineCollision(point1, point2)
+                }.firstOrNull { it }
+                ?.let { return }
+        }
+    }
+
+    private fun checkAndHandleLineCollision(
+        point1: Point,
+        point2: Point,
+    ): Boolean {
+        val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point1, point2)
+
+        val collisionThreshold = 10.0 + (gameState.currentLine?.width ?: 5.0) / 2
+
+        return (distance <= collisionThreshold).takeIf { it }?.let { _ ->
+            calculateLineReflection(point1, point2)
+            true
+        } ?: false
+    }
+
+    private fun calculateLineReflection(
+        point1: Point,
+        point2: Point,
+    ) {
+        val dx = point2.x - point1.x
+        val dy = point2.y - point1.y
+        val length = hypot(dx, dy)
+
+        if (length > 0) {
+            val normalX = -dy / length
+            val normalY = dx / length
+
+            val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
+
+            gameState.puckVX -= 2 * dotProduct * normalX
+            gameState.puckVY -= 2 * dotProduct * normalY
+
+            gameState.puckVX *= 1.05
+            gameState.puckVY *= 1.05
         }
     }
 
@@ -462,12 +519,17 @@ class GameLoop : AnimationTimer() {
     ): Double {
         val dx = p2.x - p1.x
         val dy = p2.y - p1.y
-        if (dx == 0.0 && dy == 0.0) return hypot(px - p1.x, py - p1.y)
-        val t = ((px - p1.x) * dx + (py - p1.y) * dy) / (dx * dx + dy * dy)
-        val clampedT = t.coerceIn(0.0, 1.0)
-        val closestX = p1.x + clampedT * dx
-        val closestY = p1.y + clampedT * dy
-        return hypot(px - closestX, py - closestY)
+
+        return (dx to dy)
+            .takeIf { (dxVal, dyVal) ->
+                dxVal != 0.0 || dyVal != 0.0
+            }?.let { (dxVal, dyVal) ->
+                val t = ((px - p1.x) * dxVal + (py - p1.y) * dyVal) / (dxVal * dxVal + dyVal * dyVal)
+                val clampedT = t.coerceIn(0.0, 1.0)
+                val closestX = p1.x + clampedT * dxVal
+                val closestY = p1.y + clampedT * dyVal
+                hypot(px - closestX, py - closestY)
+            } ?: hypot(px - p1.x, py - p1.y)
     }
 
     fun togglePause() {
