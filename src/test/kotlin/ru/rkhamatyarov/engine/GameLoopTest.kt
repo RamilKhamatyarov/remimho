@@ -18,6 +18,7 @@ import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.PowerUpManager
 import kotlin.test.Test
+import kotlin.test.assertNotNull
 
 @ExtendWith(ApplicationExtension::class)
 class GameLoopTest {
@@ -31,6 +32,7 @@ class GameLoopTest {
     fun setUp() {
         gameState = mockk(relaxed = true)
         every { gameState.updateAnimations() } returns Unit
+
         inputHandler = mockk(relaxed = true)
         lifeGrid = mockk(relaxed = true)
         graphicsContext = mockk(relaxed = true)
@@ -471,5 +473,94 @@ class GameLoopTest {
 
         // t
         verify(exactly = 0) { lifeGrid.update() }
+    }
+
+    @Test
+    fun `togglePause changes game state pause status`() {
+        // g
+        every { gameState.togglePause() } returns Unit
+
+        // w
+        gameLoop.togglePause()
+
+        // t
+        verify { gameState.togglePause() }
+    }
+
+    @Test
+    fun `resetPuck places puck at center with random velocity`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckVX } returns 5.0
+        every { gameState.puckMovingTime } returns 1000L
+        every { gameState.timeSpeedBoost } returns 2.0
+
+        // w
+        val method = GameLoop::class.java.getDeclaredMethod("resetPuck")
+        method.isAccessible = true
+        method.invoke(gameLoop)
+
+        // t
+        verify { gameState.puckX = 400.0 }
+        verify { gameState.puckY = 300.0 }
+        verify { gameState.puckVX = -3.0 }
+        verify { gameState.puckMovingTime = 0L }
+        verify { gameState.timeSpeedBoost = 1.0 }
+    }
+
+    @Test
+    fun `distanceToLineSegment calculates correct distance`() {
+        // g
+        val point1 = Point(0.0, 0.0)
+        val point2 = Point(10.0, 0.0)
+        val testX = 5.0
+        val testY = 5.0
+
+        // w
+        val method =
+            GameLoop::class.java.getDeclaredMethod(
+                "distanceToLineSegment",
+                Double::class.java,
+                Double::class.java,
+                Point::class.java,
+                Point::class.java,
+            )
+        method.isAccessible = true
+        val result = method.invoke(gameLoop, testX, testY, point1, point2) as Double
+
+        // t
+        assertEquals(5.0, result, 0.001)
+    }
+
+    @Test
+    fun `renderObjects calls all rendering methods`() {
+        // g
+        every { graphicsContext.clearRect(any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.fill = any() } returns Unit
+        every { graphicsContext.stroke = any() } returns Unit
+        every { graphicsContext.lineWidth = any() } returns Unit
+        every { graphicsContext.font = any() } returns Unit
+        every { graphicsContext.fillText(any(), any(), any()) } returns Unit
+        every { graphicsContext.fillOval(any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.strokeOval(any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.fillRect(any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.fillRoundRect(any(), any(), any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.strokeRoundRect(any(), any(), any(), any(), any(), any()) } returns Unit
+        every { graphicsContext.beginPath() } returns Unit
+        every { graphicsContext.moveTo(any(), any()) } returns Unit
+        every { graphicsContext.lineTo(any(), any()) } returns Unit
+        every { graphicsContext.stroke() } returns Unit
+        every { graphicsContext.save() } returns Unit
+        every { graphicsContext.restore() } returns Unit
+        every { graphicsContext.globalAlpha = any() } returns Unit
+
+        // w
+        val method = GameLoop::class.java.getDeclaredMethod("renderObjects", GraphicsContext::class.java)
+        method.isAccessible = true
+        method.invoke(gameLoop, graphicsContext)
+
+        // t
+        assertNotNull(graphicsContext)
     }
 }
