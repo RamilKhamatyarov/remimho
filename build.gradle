@@ -1,7 +1,7 @@
 plugins {
     id("application")
     id("io.quarkus") version "3.29.0"
-    id("org.jetbrains.kotlin.jvm") version "2.2.20"
+    id("org.jetbrains.kotlin.jvm") version "2.2.21"
     id("com.diffplug.spotless") version "8.0.0"
     id("com.gluonhq.gluonfx-gradle-plugin") version "1.0.28"
 }
