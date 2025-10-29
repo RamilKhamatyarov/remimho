@@ -9,6 +9,20 @@ import ru.rkhamatyarov.model.GameState
 import java.util.Timer
 import java.util.TimerTask
 
+/**
+ * Manages the scheduling and display of random mathematical curves in the application.
+ *
+ * This service is responsible for:
+ * - Scheduling random curve displays at intervals between 5-15 seconds
+ * - Managing the lifecycle of curve animations
+ * - Handling screen resize events for curve re-rendering
+ * - Coordinating with the game state and available formula implementations
+ *
+ * @property gameState The current state container for game lines and rendering data
+ * @property formulas Injectable collection of available formula implementations
+ * @property timer Scheduler for random curve display tasks
+ * @property currentFormula The currently active formula being displayed
+ */
 @ApplicationScoped
 class FormulaRegistry {
     private val log = Logger.getLogger(javaClass.name)
@@ -22,6 +36,12 @@ class FormulaRegistry {
     private var timer: Timer? = null
     private var currentFormula: Formula? = null
 
+    /**
+     * Starts the random curve scheduling system.
+     *
+     * Clears existing lines and initializes a new timer that will
+     * display random curves at random intervals between 5-15 seconds.
+     */
     fun startRandomCurveScheduler() {
         gameState.clearLines()
 
@@ -61,14 +81,22 @@ class FormulaRegistry {
 
         currentFormula = availableFormulas.random()
 
-        val line =
-            currentFormula!!.createLine().apply {
-                flattenedPoints = gameState.flattenBezierSpline(controlPoints)
-                isAnimating = true
-            }
-        gameState.lines.add(line)
+        currentFormula?.let { formula ->
+            val line =
+                formula.createLine().apply {
+                    flattenedPoints = gameState.flattenBezierSpline(controlPoints)
+                    isAnimating = true
+                }
+            gameState.lines.add(line)
+        }
     }
 
+    /**
+     * Handles application resize events for the current curve.
+     *
+     * Re-renders the currently active formula with updated dimensions
+     * while preserving the curve type but disabling animation.
+     */
     fun handleResize() {
         currentFormula?.let {
             gameState.clearLines()
