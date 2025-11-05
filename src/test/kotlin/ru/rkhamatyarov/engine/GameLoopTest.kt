@@ -13,7 +13,6 @@ import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.ActivePowerUpEffect
 import ru.rkhamatyarov.model.GameOfLifeGrid
 import ru.rkhamatyarov.model.GameState
-import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.PowerUpManager
@@ -78,71 +77,6 @@ class GameLoopTest {
     }
 
     @Test
-    fun `score increments when puck passes left edge`() {
-        // g
-        every { gameState.puckX } returns -5.0
-        every { gameState.canvasWidth } returns 800.0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateScore")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        assertEquals(1, gameLoop.player2Score)
-        verify { gameState.reset() }
-    }
-
-    @Test
-    fun `score increments when puck passes right edge`() {
-        // g
-        every { gameState.puckX } returns 805.0
-        every { gameState.canvasWidth } returns 800.0
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateScore")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-        // t
-        assertEquals(1, gameLoop.player1Score)
-        verify { gameState.reset() }
-    }
-
-    @Test
-    fun `puck reflects off left paddle`() {
-        // g
-        every { gameState.puckX } returns 25.0
-        every { gameState.puckY } returns 150.0
-        every { gameState.paddle1Y } returns 100.0
-        every { gameState.paddleHeight } returns 100.0
-        every { gameState.puckVX } returns -4.0
-        every { gameState.puckVY } returns 0.0
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validatePaddleCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-        // t
-        verify { gameState.puckVX = 4.0 }
-        verify { gameState.puckVY = any() }
-    }
-
-    @Test
-    fun `puck reflects off right paddle`() {
-        // g
-        every { gameState.canvasWidth } returns 800.0
-        every { gameState.puckX } returns 775.0
-        every { gameState.puckY } returns 300.0
-        every { gameState.paddle2Y } returns 250.0
-        every { gameState.paddleHeight } returns 100.0
-        every { gameState.puckVX } returns 5.0
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validatePaddleCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-        // t
-        verify { gameState.puckVX = -5.0 }
-    }
-
-    @Test
     fun `puck collides with a live block and clears it via reflection`() {
         // g
         every { lifeGrid.rows } returns 1
@@ -194,7 +128,7 @@ class GameLoopTest {
     }
 
     @Test
-    fun `handle method pauses rendering and updates when paused`() {
+    fun `handle method pauses rendering and updates w paused`() {
         // g
         val now = 1_000_000_000L
         every { gameState.paused } returns false
@@ -207,104 +141,6 @@ class GameLoopTest {
         // t
         verify(exactly = 1) { lifeGrid.update() }
         verify { gameState.updateAnimations() }
-    }
-
-    @Test
-    fun `player2 scores when puck passes left edge`() {
-        // g
-        every { gameState.puckX } returns -10.0
-        every { gameState.canvasWidth } returns 800.0
-        gameLoop.player2Score = 0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateScore")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        assertEquals(1, gameLoop.player2Score)
-        verify { gameState.reset() }
-    }
-
-    @Test
-    fun `player1 scores when puck passes right edge`() {
-        // g
-        every { gameState.puckX } returns 810.0
-        every { gameState.canvasWidth } returns 800.0
-        gameLoop.player1Score = 0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateScore")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        assertEquals(1, gameLoop.player1Score)
-        verify { gameState.reset() }
-    }
-
-    @Test
-    fun `puck reflects off left paddle with velocity reversal`() {
-        // g
-        every { gameState.puckX } returns 25.0
-        every { gameState.puckY } returns 150.0
-        every { gameState.paddle1Y } returns 100.0
-        every { gameState.paddleHeight } returns 100.0
-        every { gameState.puckVX } returns -4.0
-        every { gameState.puckVY } returns 2.0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validatePaddleCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        verify { gameState.puckVX = 4.0 }
-        verify { gameState.puckVY = any() }
-    }
-
-    @Test
-    fun `puck reflects off right paddle with velocity reversal`() {
-        // g
-        every { gameState.canvasWidth } returns 800.0
-        every { gameState.puckX } returns 775.0
-        every { gameState.puckY } returns 300.0
-        every { gameState.paddle2Y } returns 250.0
-        every { gameState.paddleHeight } returns 100.0
-        every { gameState.puckVX } returns 4.0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validatePaddleCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        verify { gameState.puckVX = -4.0 }
-    }
-
-    @Test
-    fun `line collision changes puck direction`() {
-        // g
-        val line =
-            Line(
-                controlPoints = mutableListOf(Point(100.0, 100.0), Point(200.0, 100.0)),
-                width = 5.0,
-                isAnimating = false,
-            )
-        every { gameState.lines } returns mutableListOf(line)
-        every { gameState.puckX } returns 150.0
-        every { gameState.puckY } returns 95.0
-        every { gameState.puckVX } returns 3.0
-        every { gameState.puckVY } returns 2.0
-
-        // w
-        val method = GameLoop::class.java.getDeclaredMethod("validateLineCollision")
-        method.isAccessible = true
-        method.invoke(gameLoop)
-
-        // t
-        verify { gameState.puckVX = any() }
-        verify { gameState.puckVY = any() }
     }
 
     @Test
@@ -352,7 +188,7 @@ class GameLoopTest {
     }
 
     @Test
-    fun `AI moves paddle to center when puck moving away`() {
+    fun `AI moves paddle to center w puck moving away`() {
         // g
         every { gameState.puckVX } returns 5.0
         every { gameState.paddle1Y } returns 100.0
@@ -396,7 +232,7 @@ class GameLoopTest {
     }
 
     @Test
-    fun `renderSpeedIndicator shows boost when timeSpeedBoost more than one`() {
+    fun `renderSpeedIndicator shows boost w timeSpeedBoost more than one`() {
         // g
         every { gameState.timeSpeedBoost } returns 2.5
         every { graphicsContext.save() } returns Unit
@@ -442,7 +278,7 @@ class GameLoopTest {
     }
 
     @Test
-    fun `life grid updates only when interval elapsed`() {
+    fun `life grid updates only w interval elapsed`() {
         // g
         val now = 1_000_000_000L
         every { gameState.paused } returns false
@@ -459,7 +295,7 @@ class GameLoopTest {
     }
 
     @Test
-    fun `life grid does not update when interval not elapsed`() {
+    fun `life grid does not update w interval not elapsed`() {
         // g
         val now = 1_000_000_000L
         every { gameState.paused } returns false
@@ -562,5 +398,192 @@ class GameLoopTest {
 
         // t
         assertNotNull(graphicsContext)
+    }
+
+    @Test
+    fun `updateSinglePuck - puck bounces off top wall`() {
+        // g
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 400.0
+        every { gameState.puckY } returns 5.0 // near top wall
+        every { gameState.puckVX } returns 3.0
+        every { gameState.puckVY } returns -2.0 // moving up
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+        every { gameState.canvasWidth } returns 800.0
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        verify { gameState.puckVY = 2.0 }
+    }
+
+    @Test
+    fun `updateSinglePuck - puck bounces off bottom wall`() {
+        // g
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 400.0
+        every { gameState.puckY } returns 595.0
+        every { gameState.puckVX } returns 3.0
+        every { gameState.puckVY } returns 2.0
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+        every { gameState.canvasWidth } returns 800.0
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        verify { gameState.puckVY = -2.0 }
+    }
+
+    @Test
+    fun `updateSinglePuck - player2 scores w puck passes left edge`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 5.0
+        every { gameState.puckY } returns 300.0
+        every { gameState.puckVX } returns -3.0
+        every { gameState.puckVY } returns 0.0
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+
+        val initialScore = gameLoop.player2Score
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        assertEquals(initialScore + 1, gameLoop.player2Score)
+    }
+
+    @Test
+    fun `updateSinglePuck - player1 scores w puck passes right edge without shield`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 795.0
+        every { gameState.puckY } returns 300.0
+        every { gameState.puckVX } returns 3.0
+        every { gameState.puckVY } returns 0.0
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+
+        val initialScore = gameLoop.player1Score
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        assertEquals(initialScore + 1, gameLoop.player1Score)
+    }
+
+    @Test
+    fun `updateSinglePuck - puck bounces w hitting right edge with shield active`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 795.0
+        every { gameState.puckY } returns 300.0
+        every { gameState.puckVX } returns 3.0
+        every { gameState.puckVY } returns 0.0
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns true
+
+        val initialScore = gameLoop.player1Score
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        assertEquals(initialScore, gameLoop.player1Score)
+        verify { gameState.puckVX = any() }
+        verify { gameState.puckX = 780.0 }
+    }
+
+    @Test
+    fun `updateSinglePuck - puck position updated with speed multiplier`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 400.0
+        every { gameState.puckY } returns 300.0
+        every { gameState.puckVX } returns 5.0
+        every { gameState.puckVY } returns 3.0
+        every { gameState.speedMultiplier } returns 2.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+        every { gameState.paddle1Y } returns 100.0
+        every { gameState.paddle2Y } returns 100.0
+        every { gameState.paddleHeight } returns 100.0
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        verify { gameState.puckX = 410.0 }
+        verify { gameState.puckY = 306.0 }
+    }
+
+    @Test
+    fun `updateSinglePuck - puck in middle of field continues moving`() {
+        // g
+        every { gameState.canvasWidth } returns 800.0
+        every { gameState.canvasHeight } returns 600.0
+        every { gameState.puckX } returns 400.0
+        every { gameState.puckY } returns 300.0
+        every { gameState.puckVX } returns 3.0
+        every { gameState.puckVY } returns 2.0
+        every { gameState.speedMultiplier } returns 1.0
+        every { gameState.isGhostMode } returns false
+        every { gameState.lines } returns mutableListOf()
+        every { gameState.hasPaddleShield } returns false
+        every { gameState.paddle1Y } returns 100.0
+        every { gameState.paddle2Y } returns 100.0
+        every { gameState.paddleHeight } returns 100.0
+
+        val initialPlayer1Score = gameLoop.player1Score
+        val initialPlayer2Score = gameLoop.player2Score
+
+        val method = GameLoop::class.java.getDeclaredMethod("updateSinglePuck")
+        method.isAccessible = true
+
+        // w
+        method.invoke(gameLoop)
+
+        // t
+        assertEquals(initialPlayer1Score, gameLoop.player1Score)
+        assertEquals(initialPlayer2Score, gameLoop.player2Score)
     }
 }
