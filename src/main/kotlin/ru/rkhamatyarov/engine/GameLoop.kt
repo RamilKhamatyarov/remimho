@@ -17,6 +17,19 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.sin
 
+/**
+ * Main game loop handling physics, rendering, and game state updates.
+ *
+ * Manages puck movement, collisions, power-ups, AI paddle, and rendering of all game elements.
+ * Extends JavaFX AnimationTimer for frame-based updates.
+ *
+ * @property gc Graphics context for rendering game elements
+ * @property player1Score AI player score
+ * @property player2Score Human player score
+ *
+ * @see AnimationTimer
+ * @see GameState
+ */
 @ApplicationScoped
 class GameLoop : AnimationTimer() {
     @Inject
@@ -36,8 +49,14 @@ class GameLoop : AnimationTimer() {
     var player2Score = 0
     private var lastUpdateTime = 0L
 
+    /**
+     * Main game loop called each frame.
+     * Updates game state, physics, and renders all elements.
+     *
+     * @param now Current timestamp in nanoseconds
+     */
     override fun handle(now: Long) {
-        val deltaTime = if (lastUpdateTime > 0) now - lastUpdateTime else 0
+        val deltaTime = lastUpdateTime.takeIf { it > 0 }?.let { now - it } ?: 0
         lastUpdateTime = now
 
         gameState.updatePuckMovingTime(deltaTime)
@@ -49,16 +68,18 @@ class GameLoop : AnimationTimer() {
 
             powerUpManager.update(deltaTime)
             gameState.updateAdditionalPucks()
-
             gameState.updateAnimations()
 
-            if (now - lifeGrid.lastUpdate >= lifeGrid.updateInterval) {
-                lifeGrid.update()
-            }
+            (now - lifeGrid.lastUpdate)
+                .takeIf { it >= lifeGrid.updateInterval }
+                ?.let { lifeGrid.update() }
         }
         render()
     }
 
+    /**
+     * Updates main puck and additional pucks positions and collisions
+     */
     private fun updatePuckPosition() {
         updateSinglePuck()
         validateWallCollision()
@@ -70,6 +91,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Updates main puck physics, collisions, and scoring
+     */
     private fun updateSinglePuck() {
         gameState.puckX += gameState.puckVX * gameState.speedMultiplier
         gameState.puckY += gameState.puckVY * gameState.speedMultiplier
@@ -104,6 +128,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Updates additional puck physics and collisions
+     *
+     * @param puck Additional puck to update
+     */
     private fun updateAdditionalPuck(puck: AdditionalPuck) {
         puck.x += puck.vx * gameState.speedMultiplier
         puck.y += puck.vy * gameState.speedMultiplier
@@ -126,6 +155,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Handles collision between additional puck and paddles
+     *
+     * @param puck Additional puck to check collision for
+     */
     private fun handleAdditionalPuckPaddleCollision(puck: AdditionalPuck) {
         val paddleWidth = 20.0
 
@@ -156,6 +190,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Handles collision between additional puck and game lines
+     *
+     * @param puck Additional puck to check collision for
+     */
     private fun handleAdditionalPuckLineCollision(puck: AdditionalPuck) {
         gameState.lines.forEach { line ->
             line.flattenedPoints?.let { points ->
@@ -169,6 +208,14 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Checks and handles collision between additional puck and line segment
+     *
+     * @param puck Additional puck
+     * @param point1 First point of line segment
+     * @param point2 Second point of line segment
+     * @return true if collision occurred
+     */
     private fun checkAndHandleAdditionalPuckLineCollision(
         puck: AdditionalPuck,
         point1: Point,
@@ -177,12 +224,19 @@ class GameLoop : AnimationTimer() {
         val distance = distanceToLineSegment(puck.x, puck.y, point1, point2)
         val collisionThreshold = 8.0 + (gameState.currentLine?.width ?: 5.0) / 2
 
-        return (distance <= collisionThreshold).takeIf { it }?.let { isColliding ->
+        return (distance <= collisionThreshold).takeIf { it }?.let { _ ->
             calculateAdditionalPuckLineReflection(puck, point1, point2)
             true
         } ?: false
     }
 
+    /**
+     * Calculates reflection for additional puck after line collision
+     *
+     * @param puck Additional puck
+     * @param point1 First point of line segment
+     * @param point2 Second point of line segment
+     */
     private fun calculateAdditionalPuckLineReflection(
         puck: AdditionalPuck,
         point1: Point,
@@ -205,6 +259,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Handles collision between main puck and paddles
+     */
     private fun handlePaddleCollision() {
         val paddleWidth = 20.0
 
@@ -235,6 +292,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Handles collision between main puck and game lines
+     */
     private fun handleLineCollision() {
         gameState.lines.forEach { line ->
             line.flattenedPoints?.let { points ->
@@ -257,6 +317,13 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Checks and handles collision between main puck and line segment
+     *
+     * @param point1 First point of line segment
+     * @param point2 Second point of line segment
+     * @return true if collision occurred
+     */
     private fun checkAndHandleLineCollision(
         point1: Point,
         point2: Point,
@@ -271,6 +338,12 @@ class GameLoop : AnimationTimer() {
         } ?: false
     }
 
+    /**
+     * Calculates reflection for main puck after line collision
+     *
+     * @param point1 First point of line segment
+     * @param point2 Second point of line segment
+     */
     private fun calculateLineReflection(
         point1: Point,
         point2: Point,
@@ -293,6 +366,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders all game elements to the graphics context
+     */
     private fun render() {
         gc?.let { gc ->
             gc.clearRect(0.0, 0.0, gameState.canvasWidth, gameState.canvasHeight)
@@ -307,6 +383,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders main and additional pucks
+     *
+     * @param gc Graphics context
+     */
     private fun renderPucks(gc: GraphicsContext) {
         val puckColor = if (gameState.isGhostMode) Color.LIGHTBLUE else Color.RED
         gc.fill = puckColor
@@ -318,6 +399,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders active power-ups on the field
+     *
+     * @param gc Graphics context
+     */
     private fun renderPowerUps(gc: GraphicsContext) {
         gameState.powerUps.forEach { powerUp ->
             if (powerUp.isActive) {
@@ -365,6 +451,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders active power-up effects UI indicators
+     *
+     * @param gc Graphics context
+     */
     private fun renderPowerUpEffects(gc: GraphicsContext) {
         var indicatorX = 20.0
         val indicatorY = 20.0
@@ -408,6 +499,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders player paddles with shield effects
+     *
+     * @param gc Graphics context
+     */
     private fun renderPaddles(gc: GraphicsContext) {
         val paddleWidth = 20.0
         if (gameState.hasPaddleShield) {
@@ -445,6 +541,11 @@ class GameLoop : AnimationTimer() {
         gc.fillRoundRect(0.0, gameState.paddle1Y, paddleWidth, gameState.paddleHeight, 5.0, 5.0)
     }
 
+    /**
+     * Renders game lines with animation support
+     *
+     * @param gc Graphics context
+     */
     private fun renderLines(gc: GraphicsContext) {
         gameState.lines.forEach { line ->
             line.flattenedPoints?.let { points ->
@@ -482,6 +583,11 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders Game of Life grid cells
+     *
+     * @param gc Graphics context
+     */
     private fun renderLifeGrid(gc: GraphicsContext) {
         gc.fill = Color.GRAY
         lifeGrid.getAliveCells().forEach { cell ->
@@ -489,6 +595,12 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Renders speed boost indicator
+     *
+     * @param gc Graphics context
+     * @param width Canvas width for positioning
+     */
     fun renderSpeedIndicator(
         gc: GraphicsContext,
         width: Double,
@@ -502,6 +614,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Resets puck to center with random velocity
+     */
     private fun resetPuck() {
         gameState.puckX = gameState.canvasWidth / 2
         gameState.puckY = gameState.canvasHeight / 2
@@ -511,6 +626,15 @@ class GameLoop : AnimationTimer() {
         gameState.timeSpeedBoost = 1.0
     }
 
+    /**
+     * Calculates distance from point to line segment
+     *
+     * @param px Point X coordinate
+     * @param py Point Y coordinate
+     * @param p1 Line segment start point
+     * @param p2 Line segment end point
+     * @return Distance to the closest point on the segment
+     */
     private fun distanceToLineSegment(
         px: Double,
         py: Double,
@@ -532,10 +656,17 @@ class GameLoop : AnimationTimer() {
             } ?: hypot(px - p1.x, py - p1.y)
     }
 
+    /** Toggles game pause state */
     fun togglePause() {
         gameState.togglePause()
     }
 
+    /**
+     * Renders score and active power-ups count
+     *
+     * @param gc Graphics context
+     * @param width Canvas width for positioning
+     */
     fun renderScore(
         gc: GraphicsContext,
         width: Double,
@@ -552,10 +683,12 @@ class GameLoop : AnimationTimer() {
         }
     }
 
-    fun renderObjects(
-        gc: GraphicsContext,
-        width: Double,
-    ) {
+    /**
+     * Renders all game objects (paddles, pucks, lines, power-ups, effects, grid)
+     *
+     * @param gc Graphics context
+     */
+    fun renderObjects(gc: GraphicsContext) {
         renderPaddles(gc)
         renderPucks(gc)
         renderLines(gc)
@@ -564,6 +697,9 @@ class GameLoop : AnimationTimer() {
         renderLifeGrid(gc)
     }
 
+    /**
+     * Updates AI paddle position to track the puck
+     */
     private fun updateAIPaddle() {
         val targetY = gameState.puckY - gameState.paddleHeight / 2
         val aiSpeed = 4.0
@@ -576,6 +712,9 @@ class GameLoop : AnimationTimer() {
         gameState.paddle1Y = gameState.paddle1Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
     }
 
+    /**
+     * Validates collision between puck and Game of Life blocks
+     */
     private fun validateBlockCollision() {
         for (i in 0 until lifeGrid.rows) {
             for (j in 0 until lifeGrid.cols) {
@@ -600,6 +739,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Validates collision between puck and game lines
+     */
     private fun validateLineCollision() {
         gameState.lines.forEach { line ->
             val points = line.flattenedPoints ?: line.controlPoints
@@ -625,6 +767,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Validates collision between puck and paddles
+     */
     private fun validatePaddleCollision() {
         val paddleWidth = 20.0
         if (
@@ -654,6 +799,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Validates scoring conditions
+     */
     private fun validateScore() {
         if (gameState.puckX <= 10) {
             player2Score++
@@ -669,6 +817,9 @@ class GameLoop : AnimationTimer() {
         }
     }
 
+    /**
+     * Validates collision between puck and walls
+     */
     private fun validateWallCollision() {
         if (gameState.puckY <= 10) {
             gameState.puckVY = -gameState.puckVY
