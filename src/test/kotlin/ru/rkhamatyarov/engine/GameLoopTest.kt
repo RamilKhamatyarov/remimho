@@ -57,7 +57,7 @@ class GameLoopTest {
         method.invoke(gameLoop)
 
         // t
-        verify { gameState.puckVY = -5.0 }
+        verify { gameState.puckVY = 5.0 }
     }
 
     @Test
@@ -73,7 +73,7 @@ class GameLoopTest {
         method.invoke(gameLoop)
 
         // t
-        verify { gameState.puckVY = 3.0 }
+        verify { gameState.puckVY = -3.0 }
     }
 
     @Test

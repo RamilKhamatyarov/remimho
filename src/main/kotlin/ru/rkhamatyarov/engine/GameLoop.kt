@@ -789,10 +789,15 @@ class GameLoop : AnimationTimer() {
      * Validates collision between puck and walls
      */
     private fun validateWallCollision() {
-        if (gameState.puckY <= 10) {
-            gameState.puckVY = -gameState.puckVY
-        } else if (gameState.puckY >= gameState.canvasHeight - 10) {
-            gameState.puckVY = -gameState.puckVY
+        when {
+            gameState.puckY <= 10 -> {
+                gameState.puckVY = abs(gameState.puckVY)
+                gameState.puckY = 10.0
+            }
+            gameState.puckY >= gameState.canvasHeight - 10 -> {
+                gameState.puckVY = -abs(gameState.puckVY)
+                gameState.puckY = gameState.canvasHeight - 10.0
+            }
         }
     }
 }
