@@ -43,8 +43,6 @@ class FormulaRegistry {
      * display random curves at random intervals between 5-15 seconds.
      */
     fun startRandomCurveScheduler() {
-        gameState.clearLines()
-
         timer?.cancel()
 
         timer = Timer()
@@ -73,8 +71,6 @@ class FormulaRegistry {
     }
 
     private fun showRandomCurve() {
-        gameState.clearLines()
-
         val availableFormulas = formulas?.toList() ?: return
 
         if (availableFormulas.isEmpty()) return

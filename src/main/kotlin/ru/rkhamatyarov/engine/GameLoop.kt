@@ -95,34 +95,80 @@ class GameLoop : AnimationTimer() {
      * Updates main puck physics, collisions, and scoring
      */
     private fun updateSinglePuck() {
-        gameState.puckX += gameState.puckVX * gameState.speedMultiplier
-        gameState.puckY += gameState.puckVY * gameState.speedMultiplier
+        updatePuckPositionCoordinates()
 
+        listOf(
+            ::handleVerticalBoundary,
+            ::handlePaddleCollision,
+            ::handleLineCollisionIfNotGhost,
+            ::validateBlockCollision,
+            ::handleHorizontalBoundary,
+        ).forEach { it() }
+    }
+
+    /**
+     * When the puck reaches the top wall (Y <= 10) or the bottom wall (Y >= canvasHeight - 10),
+     * its vertical velocity is reversed to simulate a realistic bounce-back effect.
+     *
+     * **Example:**
+     * - Puck at Y=8 moving upward (VY=-3) → reversed to VY=3 (bounces down)
+     * - Puck at Y=592 moving downward (VY=3) on 600px canvas → reversed to VY=-3 (bounces up)
+     */
+    private fun handleVerticalBoundary() {
         if (gameState.puckY <= 10 || gameState.puckY >= gameState.canvasHeight - 10) {
             gameState.puckVY = -gameState.puckVY
         }
+    }
 
-        handlePaddleCollision()
+    /**
+     *
+     * The speed multiplier allows for temporary speed boosts (e.g., power-ups) without modifying
+     * the base velocity. This method applies physics-based position updates:
+     *
+     * ```
+     * puckX += puckVX * speedMultiplier
+     * puckY += puckVY * speedMultiplier
+     * ```
+     */
+    private fun updatePuckPositionCoordinates() {
+        gameState.puckX += gameState.puckVX * gameState.speedMultiplier
+        gameState.puckY += gameState.puckVY * gameState.speedMultiplier
+    }
 
+    /**
+     * Handles collision between the puck and the vertical boundaries (top and bottom walls).
+     *
+     * When the puck reaches the top wall (Y <= 10) or the bottom wall (Y >= canvasHeight - 10),
+     * its vertical velocity is reversed to simulate a realistic bounce-back effect.
+     *
+     */
+    private fun handleLineCollisionIfNotGhost() {
         if (!gameState.isGhostMode) {
             handleLineCollision()
         }
+    }
 
-        validateBlockCollision()
-
+    /**
+     * Handles line collision detection only if the puck is not in ghost mode.
+     *
+     * When ghost mode is inactive (`!gameState.isGhostMode`), this method delegates to
+     * [handleLineCollision] which performs the full collision detection and reflection
+     * calculations against all game lines.
+     *
+     */
+    private fun handleHorizontalBoundary() {
         when {
             gameState.puckX <= 10 -> {
                 player2Score++
                 resetPuck()
             }
-
             gameState.puckX >= gameState.canvasWidth - 10 -> {
-                if (!gameState.hasPaddleShield) {
-                    player1Score++
-                    resetPuck()
-                } else {
+                if (gameState.hasPaddleShield) {
                     gameState.puckVX = -abs(gameState.puckVX)
                     gameState.puckX = gameState.canvasWidth - 20
+                } else {
+                    player1Score++
+                    resetPuck()
                 }
             }
         }
@@ -735,84 +781,6 @@ class GameLoop : AnimationTimer() {
                         return
                     }
                 }
-            }
-        }
-    }
-
-    /**
-     * Validates collision between puck and game lines
-     */
-    private fun validateLineCollision() {
-        gameState.lines.forEach { line ->
-            val points = line.flattenedPoints ?: line.controlPoints
-            points.forEachIndexed { index, point ->
-                if (index < points.size - 1) {
-                    val nextPoint = points[index + 1]
-                    val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point, nextPoint)
-                    if (distance <= 10.0) {
-                        val dx = nextPoint.x - point.x
-                        val dy = nextPoint.y - point.y
-                        val length = hypot(dx, dy)
-                        if (length > 0) {
-                            val normalX = -dy / length
-                            val normalY = dx / length
-                            val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
-                            gameState.puckVX -= 2 * dotProduct * normalX
-                            gameState.puckVY -= 2 * dotProduct * normalY
-                        }
-                        return
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Validates collision between puck and paddles
-     */
-    private fun validatePaddleCollision() {
-        val paddleWidth = 20.0
-        if (
-            gameState.puckX <= paddleWidth + 10 &&
-            gameState.puckX >= paddleWidth - 10 &&
-            gameState.puckY >= gameState.paddle1Y &&
-            gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
-        ) {
-            gameState.puckVX = abs(gameState.puckVX)
-            gameState.puckX = paddleWidth + 10
-            val hitPosition = (gameState.puckY - gameState.paddle1Y) / gameState.paddleHeight
-            val angleVariation = (hitPosition - 0.5) * 2.0
-            gameState.puckVY += angleVariation
-        }
-
-        if (
-            gameState.puckX >= gameState.canvasWidth - paddleWidth - 10 &&
-            gameState.puckX <= gameState.canvasWidth - paddleWidth + 10 &&
-            gameState.puckY >= gameState.paddle2Y &&
-            gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
-        ) {
-            gameState.puckVX = -abs(gameState.puckVX)
-            gameState.puckX = gameState.canvasWidth - paddleWidth - 10
-            val hitPosition = (gameState.puckY - gameState.paddle2Y) / gameState.paddleHeight
-            val angleVariation = (hitPosition - 0.5) * 2.0
-            gameState.puckVY += angleVariation
-        }
-    }
-
-    /**
-     * Validates scoring conditions
-     */
-    private fun validateScore() {
-        if (gameState.puckX <= 10) {
-            player2Score++
-            gameState.reset()
-        } else if (gameState.puckX >= gameState.canvasWidth - 10) {
-            if (!gameState.hasPaddleShield) {
-                player1Score++
-                gameState.reset()
-            } else {
-                gameState.puckVX = -abs(gameState.puckVX)
-                gameState.puckX = gameState.canvasWidth - 20
             }
         }
     }

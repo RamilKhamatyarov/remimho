@@ -80,12 +80,11 @@ class FormulaRegistryTest {
     }
 
     @Test
-    fun `should clear lines and initialize timer when starting scheduler`() {
+    fun `should initialize timer when starting scheduler`() {
         // w
         formulaRegistry.startRandomCurveScheduler()
 
         // t
-        verify { mockGameState.clearLines() }
         assertNotNull(formulaRegistry.getPrivateTimer())
     }
 
@@ -116,15 +115,6 @@ class FormulaRegistryTest {
     }
 
     @Test
-    fun `should clear lines before showing new curve`() {
-        // w
-        formulaRegistry.callPrivateShowRandomCurve()
-
-        // t
-        verify { mockGameState.clearLines() }
-    }
-
-    @Test
     fun `should create line with animation when showing random curve`() {
         // w
         formulaRegistry.callPrivateShowRandomCurve()
@@ -149,7 +139,7 @@ class FormulaRegistryTest {
             mockFormula1.createLine()
             mockFormula2.createLine()
         }
-        verify(exactly = 1) { mockGameState.clearLines() }
+        verify(exactly = 0) { mockGameState.clearLines() }
     }
 
     @Test
@@ -165,7 +155,7 @@ class FormulaRegistryTest {
             mockFormula1.createLine()
             mockFormula2.createLine()
         }
-        verify(exactly = 1) { mockGameState.clearLines() }
+        verify(exactly = 0) { mockGameState.clearLines() }
     }
 
     @Test
