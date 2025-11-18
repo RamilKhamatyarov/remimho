@@ -3,12 +3,14 @@ package ru.rkhamatyarov.handler
 import io.quarkus.runtime.Quarkus
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
+import javafx.application.Platform
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
+import kotlin.system.exitProcess
 
 @ApplicationScoped
 class InputHandler {
@@ -31,11 +33,13 @@ class InputHandler {
             }
             KeyCode.M -> {
                 useMouseControl = !useMouseControl
-                log.debug("Control mode changed to: ${if (useMouseControl) "Mouse" else "Keyboard"}")
+                log.debug("Control mode changed to: ${if (useMouseControl) "Mouse" else "Keyboard"};")
             }
             KeyCode.Q -> {
                 if (event.isControlDown) {
                     exitGame()
+                } else {
+                    keysPressed.add(event.code)
                 }
             }
             KeyCode.ESCAPE -> {
@@ -78,7 +82,7 @@ class InputHandler {
                 type = type,
             )
         gameState.powerUps.add(powerUp)
-        log.debug("Test power-up spawned: $type")
+        log.debug("Test power-up spawned: $type;")
     }
 
     fun handleKeyRelease(event: KeyEvent) {
@@ -107,15 +111,19 @@ class InputHandler {
     }
 
     fun exitGame() {
+        log.debug("Shutting down application...;")
+
+        Platform.exit()
+
         Thread {
             try {
-                Thread.sleep(500)
+                Thread.sleep(200)
                 Quarkus.asyncExit()
-                Thread.sleep(1000)
-                System.exit(0)
+                Thread.sleep(500)
+                exitProcess(0)
             } catch (e: InterruptedException) {
-                log.error("Error during shutdown", e)
-                System.exit(1)
+                log.error("Error during shutdown;", e)
+                exitProcess(1)
             }
         }.start()
     }

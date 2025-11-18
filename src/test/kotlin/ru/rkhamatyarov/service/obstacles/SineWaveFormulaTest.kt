@@ -1,9 +1,9 @@
 package ru.rkhamatyarov.service.obstacles
 
+import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.service.FormulaTestBase
 import kotlin.math.abs
 import kotlin.math.sin
-import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SineWaveFormulaTest : FormulaTestBase<SineWaveFormula>(SineWaveFormula()) {
