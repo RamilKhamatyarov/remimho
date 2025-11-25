@@ -7,6 +7,7 @@ import io.smallrye.common.constraint.Assert.assertFalse
 import javafx.scene.canvas.GraphicsContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testfx.framework.junit5.ApplicationExtension
 import ru.rkhamatyarov.handler.InputHandler
@@ -16,7 +17,6 @@ import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.PowerUpManager
-import kotlin.test.Test
 import kotlin.test.assertNotNull
 
 @ExtendWith(ApplicationExtension::class)
