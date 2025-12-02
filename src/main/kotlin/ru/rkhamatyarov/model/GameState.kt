@@ -24,7 +24,7 @@ class GameState {
     var speedMultiplier = 1.0
     var baseSpeedMultiplier = 1.0
     var timeSpeedBoost = 1.0
-    var powerUpSpeedMultiplier = 1.0
+    var powerUpSpeedMultiplier = 10.0
     var puckMovingTime = 0L
     var paused = false
 

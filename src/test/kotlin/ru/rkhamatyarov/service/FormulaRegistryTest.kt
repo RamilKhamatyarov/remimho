@@ -228,7 +228,7 @@ class FormulaRegistryTest {
 
         every { mockTimer.schedule(any(), any<Long>()) } throws IllegalStateException("Timer cancelled")
 
-        // w & Then
+        // w // t
         assertDoesNotThrow {
             formulaRegistry.callPrivateScheduleNextCurve()
         }
@@ -242,7 +242,7 @@ class FormulaRegistryTest {
 
         every { mockTimer.schedule(any(), any<Long>()) } throws IllegalArgumentException("Invalid delay")
 
-        // w & Then
+        // w // t
         assertDoesNotThrow {
             formulaRegistry.callPrivateScheduleNextCurve()
         }
@@ -266,7 +266,7 @@ class FormulaRegistryTest {
         formulaRegistry.setPrivateFormulas(listOf(mockFormula1))
         every { mockFormula1.createLine() } throws RuntimeException("Creation failed")
 
-        // w & Then
+        // w // t
         val exception =
             assertThrows(RuntimeException::class.java) {
                 formulaRegistry.callPrivateShowRandomCurveNoReflection()

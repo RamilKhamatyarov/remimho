@@ -1,7 +1,10 @@
+import org.jlleitschuh.gradle.ktlint.reporter.ReporterType
+
 plugins {
     id("application")
     id("io.quarkus") version "3.30.1"
     id("org.jetbrains.kotlin.jvm") version "2.2.21"
+    id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.1.0"
     id("com.gluonhq.gluonfx-gradle-plugin") version "1.0.28"
 }
@@ -93,6 +96,16 @@ gluonfx {
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xjvm-default=all")
+    }
+}
+
+ktlint {
+    version.set("1.0.1")
+    android.set(false)
+    ignoreFailures.set(false)
+    reporters {
+        reporter(ReporterType.PLAIN)
+        reporter(ReporterType.CHECKSTYLE)
     }
 }
 
