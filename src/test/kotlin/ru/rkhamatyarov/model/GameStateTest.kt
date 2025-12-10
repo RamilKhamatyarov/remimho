@@ -454,7 +454,7 @@ class GameStateTest {
         assertEquals(1.0, gameState.speedMultiplier)
         assertEquals(1.0, gameState.baseSpeedMultiplier)
         assertEquals(1.0, gameState.timeSpeedBoost)
-        assertEquals(1.0, gameState.powerUpSpeedMultiplier)
+        assertEquals(10.0, gameState.powerUpSpeedMultiplier)
         assertEquals(0L, gameState.puckMovingTime)
         assertFalse(gameState.paused)
         assertTrue(gameState.lines.isEmpty())
