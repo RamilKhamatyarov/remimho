@@ -6,7 +6,6 @@ plugins {
     id("org.jetbrains.kotlin.jvm") version "2.2.21"
     id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.1.0"
-    id("com.gluonhq.gluonfx-gradle-plugin") version "1.0.28"
 }
 
 group = "ru.rkhamatyarov"
@@ -17,7 +16,6 @@ repositories {
 }
 
 def javafxVersion = '17.0.8'
-
 def osName = System.getProperty('os.name').toLowerCase()
 def platform = osName.contains('win') ? 'win' : osName.contains('mac') ? 'mac' : 'linux'
 
@@ -49,6 +47,7 @@ application {
 
 tasks.register('runJavaFx', JavaExec) {
     group = 'application'
+    description = 'Run Remimho with JavaFX'
     mainClass = 'ru.rkhamatyarov.Main'
     classpath = sourceSets.main.runtimeClasspath
     jvmArgs = [
@@ -61,36 +60,89 @@ tasks.test {
     useJUnitPlatform()
 }
 
-gluonfx {
-    target = 'host'
+tasks.register('createFatJar', Jar) {
+    group = 'build'
 
-    compilerArgs = [
-            '--initialize-at-build-time=org.jboss.logmanager',
-            '--initialize-at-build-time=org.jboss.logging',
-            '--initialize-at-build-time=io.quarkus.bootstrap',
-            '--initialize-at-build-time=io.quarkus.bootstrap.logging.',
-            '--initialize-at-build-time=io.quarkus.runtime.logging',
-            '--initialize-at-build-time=io.smallrye.common',
-            '-H:+UnlockExperimentalVMOptions'
-    ]
+    manifest {
+        attributes(
+                'Main-Class': 'ru.rkhamatyarov.Main',
+                'Implementation-Title': 'Remimho',
+                'Implementation-Version': version,
+                'Implementation-Vendor': 'Ramil Khamatyarov'
+        )
+    }
 
-    reflectionList = [
-            'ru.rkhamatyarov.Main',
-            'ru.rkhamatyarov.engine.GameLoop',
-            'ru.rkhamatyarov.model.GameState',
-            'ru.rkhamatyarov.model.GameOfLifeGrid',
-            'ru.rkhamatyarov.engine.Whiteboard'
-    ]
+    from sourceSets.main.output
+    from configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
 
-    resourcesList = [
-            'META-INF/.*',
-            'application.properties',
-            '.*\\\\.properties'
-    ]
+    exclude 'META-INF/MANIFEST.MF'
+    exclude 'META-INF/versions/**'
 
-    bundlesList = [
-            'com.sun.javafx.scene.control.skin.resources.controls'
-    ]
+    archiveFileName = "remimho-${version}-all.jar"
+    destinationDirectory = file("$buildDir/jpackage-libs")
+}
+
+tasks.register('packageWithJpackage') {
+    group = 'build'
+    dependsOn createFatJar
+
+    doLast {
+        def javaHome = System.getProperty("java.home")
+        def jpackage = "${javaHome}${File.separator}bin${File.separator}jpackage"
+
+        if (!file(jpackage).exists()) {
+            throw new GradleException("jpackage not found at $jpackage - requires JDK 16+")
+        }
+
+        exec {
+            commandLine = [
+                    jpackage,
+                    '--input', file("$buildDir/jpackage-libs").absolutePath,
+                    '--dest', file("$buildDir/installers").absolutePath,
+                    '--name', 'Remimho',
+                    '--main-jar', "remimho-${version}-all.jar",
+                    '--main-class', 'ru.rkhamatyarov.Main',
+                    '--app-version', version,
+                    '--vendor', 'Ramil Khamatyarov',
+                    '--description', 'Conway\'s Game of Life Explorer',
+                    '--icon', file('src/main/resources/remimho.ico').absolutePath,
+                    '--type', 'exe',
+                    '--win-menu',
+                    '--win-shortcut',
+                    '--win-per-user-install',
+                    '--license-file', file('LICENSE.txt').absolutePath
+            ]
+        }
+    }
+}
+
+tasks.register('cleanJpackage') {
+    group = 'build'
+    doLast {
+        file("$buildDir/jpackage-libs").deleteDir()
+        file("$buildDir/installers").deleteDir()
+    }
+}
+
+tasks.register('buildFullInstaller') {
+    group = 'build'
+    dependsOn cleanJpackage, 'assemble', packageWithJpackage
+}
+
+tasks.register('checkJpackageReadiness') {
+    group = 'verification'
+
+    doLast {
+        def javaHome = System.getProperty("java.home")
+        def jpackage = file("${javaHome}${File.separator}bin${File.separator}jpackage")
+        def icon = file('src/main/resources/remimho.ico')
+        def license = file('LICENSE.txt')
+
+        println "\nChecking jpackage prerequisites:"
+        println jpackage.exists() ? "OK: jpackage found" : "ERROR: jpackage not found (requires JDK 16+)"
+        println icon.exists() ? "OK: Icon found" : "WARNING: Icon not found"
+        println license.exists() ? "OK: License found" : "WARNING: License not found"
+    }
 }
 
 kotlin {
