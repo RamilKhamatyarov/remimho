@@ -14,17 +14,27 @@ class Whiteboard : Application() {
     }
 
     override fun init() {
-        val cdiContainer = CDI.current()
-        whiteboardService = cdiContainer.select(WhiteboardService::class.java).get()
+        try {
+            // Get CDI container and inject the service
+            val cdiContainer = CDI.current()
+            whiteboardService = cdiContainer.select(WhiteboardService::class.java).get()
+        } catch (e: Exception) {
+            throw RuntimeException("Failed to initialize WhiteboardService via CDI", e)
+        }
     }
 
     override fun start(stage: Stage) {
-        stage.setOnCloseRequest { _: WindowEvent? ->
-            Platform.exit()
-            Thread {
-                Quarkus.asyncExit()
-            }.start()
+        try {
+            stage.setOnCloseRequest { _: WindowEvent? ->
+                Platform.exit()
+                Thread {
+                    Quarkus.asyncExit()
+                }.start()
+            }
+
+            whiteboardService.startGame(stage)
+        } catch (e: Exception) {
+            throw RuntimeException("Failed to start game", e)
         }
-        whiteboardService.startGame(stage)
     }
 }
