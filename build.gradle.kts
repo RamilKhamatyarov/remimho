@@ -36,7 +36,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx:1.10.2")
 
     implementation("org.slf4j:slf4j-simple:2.0.9")
-    implementation("org.jboss.logging:jboss-logging:3.5.3.Final")
+    implementation("org.jboss.logging:jboss-logging:3.6.1.Final")
     implementation("org.jboss.slf4j:slf4j-jboss-logmanager:2.0.0.Final")
 
     implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.22")
