@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("application")
-    id("io.quarkus") version "3.30.2"
+    id("io.quarkus") version "3.30.4"
     id("org.jetbrains.kotlin.jvm") version "2.2.21"
     id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.1.0"
