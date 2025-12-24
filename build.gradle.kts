@@ -2,7 +2,7 @@ plugins {
     id("java")
     id("application")
     id("io.quarkus") version "3.30.4"
-    id("org.jetbrains.kotlin.jvm") version "2.2.21"
+    id("org.jetbrains.kotlin.jvm") version "2.3.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.1.0"
 }
@@ -45,8 +45,8 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter-engine:6.0.1")
     testImplementation("org.junit.jupiter:junit-jupiter-params:6.0.1")
     testImplementation("org.testfx:testfx-junit5:4.0.18")
-    testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.2.21")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.2.21")
+    testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.3.0")
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.3.0")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.mockk:mockk:1.14.7")
 }
