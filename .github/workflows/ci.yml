@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         java-version: [17, 21]
       fail-fast: false
 
@@ -39,20 +39,25 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 
-      - name: Run Gradle build
-        uses: gradle/gradle-build-action@v3
-        with:
-          arguments: clean build
+      - name: Install virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libx11-dev libxrender-dev libxrandr-dev
 
-      - name: Run tests
-        run: gradle test
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Run tests with Xvfb
+        run: xvfb-run -a ./gradlew build
+        env:
+          DISPLAY: :99
 
       - name: Run lint check
-        run: gradle ktlintCheck
+        run: ./gradlew ktlintCheck
         continue-on-error: true
 
       - name: Build fat JAR
-        run: gradle createFatJar
+        run: ./gradlew createFatJar
 
       - name: Check build artifacts
         run: |
@@ -103,17 +108,26 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Install virtual display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libx11-dev libxrender-dev libxrandr-dev
+
       - name: Run ktlint
-        run: gradle ktlintCheck
+        run: ./gradlew ktlintCheck
         continue-on-error: true
 
       - name: Run spotless check
-        run: gradle spotlessCheck
+        run: ./gradlew spotlessCheck
         continue-on-error: true
 
       - name: Generate code coverage
-        run: gradle test jacocoTestReport
-        continue-on-error: true
+        run: xvfb-run -a ./gradlew test jacocoTestReport
+        env:
+          DISPLAY: :99
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
@@ -139,12 +153,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Check jpackage readiness
-        run: gradle checkJpackageReadiness
+        run: ./gradlew checkJpackageReadiness
         continue-on-error: true
 
       - name: Build full installer
-        run: gradle buildFullInstaller
+        run: ./gradlew buildFullInstaller
         continue-on-error: true
 
       - name: Verify installer
