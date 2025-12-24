@@ -2,7 +2,7 @@ package ru.rkhamatyarov.model
 
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 
@@ -10,7 +10,7 @@ import org.junit.jupiter.api.TestInstance
 class GameOfLifeGridTest {
     private lateinit var grid: GameOfLifeGrid
 
-    @BeforeAll
+    @BeforeEach
     fun setup() {
         grid = GameOfLifeGrid()
     }

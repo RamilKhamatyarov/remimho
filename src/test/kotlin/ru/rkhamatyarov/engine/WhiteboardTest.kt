@@ -6,6 +6,7 @@ import javafx.scene.paint.Color
 import javafx.stage.Stage
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.extension.ExtendWith
 import org.testfx.api.FxRobot
 import org.testfx.framework.junit5.ApplicationExtension
@@ -23,6 +24,7 @@ import ru.rkhamatyarov.service.WhiteboardService
 import kotlin.test.assertEquals
 
 @ExtendWith(ApplicationExtension::class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class WhiteboardTest {
     private lateinit var stage: Stage
     private val robot = FxRobot()

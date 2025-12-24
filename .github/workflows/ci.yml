@@ -166,12 +166,14 @@ jobs:
 
       - name: Verify installer
         run: |
-          if exist "build\installers\Remimho-*.exe" (
-            echo "Windows installer created successfully"
-            dir /B build\installers\*.exe
-          ) else (
-            echo "Installer not found, but build succeeded"
-          )
+          $installerPath = Get-Item -Path "build/installers/Remimho-*.exe" -ErrorAction SilentlyContinue
+          if ($installerPath) {
+            Write-Host "Windows installer created successfully"
+            Get-Item -Path "build/installers/Remimho-*.exe" | Select-Object -ExpandProperty FullName
+          } else {
+            Write-Host "Installer not found, but build succeeded"
+          }
+        shell: pwsh
 
       - name: Upload installer
         if: always()

@@ -6,6 +6,12 @@ import javafx.animation.AnimationTimer
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.paint.Color
 import javafx.scene.text.Font
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.javafx.JavaFx
+import kotlinx.coroutines.launch
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.AdditionalPuck
 import ru.rkhamatyarov.model.GameOfLifeGrid
@@ -32,6 +38,8 @@ import kotlin.math.sin
  */
 @ApplicationScoped
 class GameLoop : AnimationTimer() {
+    private val coroutineScope = CoroutineScope(Dispatchers.JavaFx + Job())
+
     @Inject
     lateinit var gameState: GameState
 
@@ -72,7 +80,7 @@ class GameLoop : AnimationTimer() {
 
             (now - lifeGrid.lastUpdate)
                 .takeIf { it >= lifeGrid.updateInterval }
-                ?.let { lifeGrid.update() }
+                ?.let { launchAsync { lifeGrid.update() } }
         }
         render()
     }
@@ -162,6 +170,7 @@ class GameLoop : AnimationTimer() {
                 player2Score++
                 resetPuck()
             }
+
             gameState.puckX >= gameState.canvasWidth - 10 -> {
                 if (gameState.hasPaddleShield) {
                     gameState.puckVX = -abs(gameState.puckVX)
@@ -794,10 +803,24 @@ class GameLoop : AnimationTimer() {
                 gameState.puckVY = abs(gameState.puckVY)
                 gameState.puckY = 10.0
             }
+
             gameState.puckY >= gameState.canvasHeight - 10 -> {
                 gameState.puckVY = -abs(gameState.puckVY)
                 gameState.puckY = gameState.canvasHeight - 10.0
             }
         }
+    }
+
+    private fun launchAsync(block: suspend () -> Unit) {
+        coroutineScope.launch { block() }
+    }
+
+    fun cleanup() {
+        coroutineScope.cancel()
+    }
+
+    override fun stop() {
+        super.stop()
+        cleanup()
     }
 }
