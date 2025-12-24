@@ -7,10 +7,9 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.testfx.framework.junit5.ApplicationExtension
+import org.junit.jupiter.api.TestInstance
 
-@ExtendWith(ApplicationExtension::class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GameStateTest {
     private lateinit var gameState: GameState
     private lateinit var lifeGrid: GameOfLifeGrid

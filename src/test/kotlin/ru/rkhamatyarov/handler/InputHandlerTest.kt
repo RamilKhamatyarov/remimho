@@ -13,12 +13,11 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.testfx.framework.junit5.ApplicationExtension
+import org.junit.jupiter.api.TestInstance
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.PowerUpType
 
-@ExtendWith(ApplicationExtension::class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class InputHandlerTest {
     private lateinit var inputHandler: InputHandler
     private lateinit var gameState: GameState
