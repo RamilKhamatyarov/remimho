@@ -8,8 +8,7 @@ import javafx.scene.canvas.GraphicsContext
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
-import org.testfx.framework.junit5.ApplicationExtension
+import org.junit.jupiter.api.TestInstance
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.ActivePowerUpEffect
 import ru.rkhamatyarov.model.GameOfLifeGrid
@@ -19,7 +18,7 @@ import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.PowerUpManager
 import kotlin.test.assertNotNull
 
-@ExtendWith(ApplicationExtension::class)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class GameLoopTest {
     private lateinit var gameLoop: GameLoop
     private lateinit var gameState: GameState
