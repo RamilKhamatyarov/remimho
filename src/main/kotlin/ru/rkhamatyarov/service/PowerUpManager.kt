@@ -129,33 +129,14 @@ class PowerUpManager {
     }
 
     private fun activatePowerUp(type: PowerUpType) {
-        when (type) {
-            PowerUpType.SPEED_BOOST -> {
-                val effect = ActivePowerUpEffect(type, duration = 5_000_000_000L)
-                gameState.activePowerUpEffects.add(effect)
-            }
-
-            PowerUpType.MAGNET_BALL -> {
-                val effect = ActivePowerUpEffect(type, duration = 8_000_000_000L)
-                gameState.activePowerUpEffects.add(effect)
-            }
-
-            PowerUpType.GHOST_MODE -> {
-                val effect = ActivePowerUpEffect(type, duration = 6_000_000_000L)
-                gameState.activePowerUpEffects.add(effect)
-                gameState.isGhostMode = true
-            }
-
-            PowerUpType.MULTI_BALL -> {
-                spawnAdditionalPucks()
-            }
-
-            PowerUpType.PADDLE_SHIELD -> {
-                val effect = ActivePowerUpEffect(type, duration = 10_000_000_000L)
-                gameState.activePowerUpEffects.add(effect)
-                gameState.hasPaddleShield = true
-            }
-        }
+        val duration = PowerUpType.getDuration(type)
+        val effect =
+            ActivePowerUpEffect(
+                type = type,
+                duration = duration,
+                activationTime = System.nanoTime(),
+            )
+        gameState.activePowerUpEffects.add(effect)
     }
 
     private fun applyActivePowerUpEffects() {

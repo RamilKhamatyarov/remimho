@@ -3,6 +3,7 @@ package ru.rkhamatyarov.service
 import io.quarkus.arc.Unremovable
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
+import javafx.animation.AnimationTimer
 import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.control.Button
@@ -18,6 +19,7 @@ import org.jboss.logging.Logger
 import ru.rkhamatyarov.engine.GameLoop
 import ru.rkhamatyarov.handler.InputHandler
 import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.PowerUpType
 
 @Unremovable
 @ApplicationScoped
@@ -39,7 +41,9 @@ class WhiteboardService {
     @Inject
     lateinit var powerUpManager: PowerUpManager
 
-    lateinit var root: VBox
+    private lateinit var root: VBox
+    private lateinit var powerUpDescLabel: Label
+    private var descriptionUpdateTimer: AnimationTimer? = null
 
     fun startGame(stage: Stage) {
         try {
@@ -63,6 +67,8 @@ class WhiteboardService {
         stage.show()
         gameState.lifeGrid.repositionGrid(gameState.canvasWidth, gameState.canvasHeight)
         root.requestFocus()
+
+        startPowerUpDescriptionUpdater()
     }
 
     private fun createCanvas(): Canvas =
@@ -119,6 +125,8 @@ class WhiteboardService {
         val (speedLabel, speedSlider) = createSpeedControls()
         val (thicknessLabel, thicknessSlider) = createThicknessControls()
 
+        powerUpDescLabel = createPowerUpDescriptionsLabel()
+
         val buttonBox =
             HBox(
                 resetButton,
@@ -131,7 +139,7 @@ class WhiteboardService {
 
         val speedBox = VBox(speedLabel, speedSlider).apply { spacing = 5.0 }
         val thicknessBox = VBox(thicknessLabel, thicknessSlider).apply { spacing = 5.0 }
-        val powerUpBox = VBox(powerUpLabel).apply { spacing = 5.0 }
+        val powerUpBox = VBox(Label("Power-ups"), powerUpDescLabel).apply { spacing = 5.0 }
 
         return HBox(
             buttonBox,
@@ -239,5 +247,44 @@ class WhiteboardService {
         scene.setOnKeyReleased { event -> inputHandler.handleKeyRelease(event) }
 
         return scene
+    }
+
+    private fun createPowerUpDescriptionsLabel(): Label =
+        Label("None active").apply {
+            style = "-fx-font-family: 'Courier New'; -fx-font-size: 11; -fx-text-fill: #999999;"
+            isWrapText = true
+            minHeight = 60.0
+            maxHeight = 60.0
+        }
+
+    private fun startPowerUpDescriptionUpdater() {
+        descriptionUpdateTimer =
+            object : AnimationTimer() {
+                override fun handle(now: Long) {
+                    updatePowerUpDescriptions()
+                }
+            }
+        descriptionUpdateTimer?.start()
+    }
+
+    private fun updatePowerUpDescriptions() {
+        val activeEffects = gameState.activePowerUpEffects
+
+        if (activeEffects.isEmpty()) {
+            powerUpDescLabel.text = "None active"
+            powerUpDescLabel.style = "-fx-font-family: 'Courier New'; -fx-font-size: 11; -fx-text-fill: #999999;"
+        } else {
+            val descriptions =
+                activeEffects.map { effect ->
+                    val remaining = (effect.remainingTime() / 1_000_000_000).toInt()
+                    val type = effect.type
+                    "${type.emoji} ${type.description} - ${remaining}s"
+                }
+
+            powerUpDescLabel.text = descriptions.joinToString("\n")
+
+            val firstColor = PowerUpType.getColorCode(activeEffects.first().type)
+            powerUpDescLabel.style = "-fx-font-family: 'Courier New'; -fx-font-size: 11; -fx-text-fill: $firstColor;"
+        }
     }
 }

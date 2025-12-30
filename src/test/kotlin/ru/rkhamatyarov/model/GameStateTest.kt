@@ -190,7 +190,7 @@ class GameStateTest {
                 PowerUpType.SPEED_BOOST,
                 10_000_000_000L,
                 System.nanoTime(),
-                true,
+                System.nanoTime(),
             )
         gameState.activePowerUpEffects.add(activeEffect)
 
