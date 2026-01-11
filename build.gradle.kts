@@ -53,6 +53,7 @@ application {
 }
 
 tasks.test {
+    jvmArgs = listOf("-XX:+EnableDynamicAgentLoading")
     useJUnitPlatform()
 }
 
