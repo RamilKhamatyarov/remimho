@@ -66,22 +66,25 @@ class GameLoop : AnimationTimer() {
     override fun handle(now: Long) {
         val deltaTime = lastUpdateTime.takeIf { it > 0 }?.let { now - it } ?: 0
         lastUpdateTime = now
-
         gameState.updatePuckMovingTime(deltaTime)
 
         if (!gameState.paused) {
             inputHandler.update()
             updatePuckPosition()
             updateAIPaddle()
-
             powerUpManager.update(deltaTime)
             gameState.updateAdditionalPucks()
             gameState.updateAnimations()
 
+            if (now % 10_000_000 == 0L) {
+                gameState.cleanupCollisionCooldowns()
+            }
+
             (now - lifeGrid.lastUpdate)
                 .takeIf { it >= lifeGrid.updateInterval }
-                ?.let { launchAsync { lifeGrid.update() } }
+                ?.let { lifeGrid.update() }
         }
+
         render()
     }
 
@@ -276,10 +279,15 @@ class GameLoop : AnimationTimer() {
         point1: Point,
         point2: Point,
     ): Boolean {
+        if (gameState.isLineSegmentInCooldown(point1, point2)) {
+            return false
+        }
+
         val distance = distanceToLineSegment(puck.x, puck.y, point1, point2)
         val collisionThreshold = 8.0 + (gameState.currentLine?.width ?: 5.0) / 2
 
         return (distance <= collisionThreshold).takeIf { it }?.let { _ ->
+            gameState.recordLineSegmentCollision(point1, point2)
             calculateAdditionalPuckLineReflection(puck, point1, point2)
             true
         } ?: false
@@ -309,8 +317,17 @@ class GameLoop : AnimationTimer() {
             puck.vx -= 2 * dotProduct * normalX
             puck.vy -= 2 * dotProduct * normalY
 
-            puck.vx *= 1.05
-            puck.vy *= 1.05
+            val currentMagnitude = hypot(puck.vx, puck.vy)
+            if (currentMagnitude < 6.0) {
+                puck.vx *= 1.02
+                puck.vy *= 1.02
+            }
+
+            val cappedMagnitude = minOf(currentMagnitude * 1.02, 6.0)
+            if (currentMagnitude > 0) {
+                puck.vx = (puck.vx / currentMagnitude) * cappedMagnitude
+                puck.vy = (puck.vy / currentMagnitude) * cappedMagnitude
+            }
         }
     }
 
@@ -383,12 +400,18 @@ class GameLoop : AnimationTimer() {
         point1: Point,
         point2: Point,
     ): Boolean {
-        val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point1, point2)
+        if (gameState.isLineSegmentInCooldown(point1, point2)) {
+            return false
+        }
 
+        val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, point1, point2)
         val collisionThreshold = 10.0 + (gameState.currentLine?.width ?: 5.0) / 2
 
         return (distance <= collisionThreshold).takeIf { it }?.let { _ ->
+            gameState.recordLineSegmentCollision(point1, point2)
+
             calculateLineReflection(point1, point2)
+
             true
         } ?: false
     }
@@ -410,14 +433,20 @@ class GameLoop : AnimationTimer() {
         if (length > 0) {
             val normalX = -dy / length
             val normalY = dx / length
-
             val dotProduct = gameState.puckVX * normalX + gameState.puckVY * normalY
 
             gameState.puckVX -= 2 * dotProduct * normalX
             gameState.puckVY -= 2 * dotProduct * normalY
 
-            gameState.puckVX *= 1.05
-            gameState.puckVY *= 1.05
+            val currentMagnitude = hypot(gameState.puckVX, gameState.puckVY)
+            val powerUpMultiplier = gameState.powerUpSpeedMultiplier
+
+            if (currentMagnitude < gameState.maxVelocityMagnitude && powerUpMultiplier <= 1.1) {
+                gameState.puckVX *= 1.02
+                gameState.puckVY *= 1.02
+            }
+
+            gameState.capPuckVelocity()
         }
     }
 

@@ -44,6 +44,7 @@ dependencies {
     testImplementation("org.testfx:testfx-junit5:4.0.18")
     testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.3.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.3.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.mockk:mockk:1.14.7")
 }
@@ -189,18 +190,5 @@ spotless {
     kotlinGradle {
         target("*.gradle.kts")
         ktlint()
-    }
-}
-
-jacoco {
-    toolVersion = "0.8.11"
-}
-
-tasks.jacocoTestReport {
-    dependsOn(tasks.test)
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-        csv.required.set(false)
     }
 }

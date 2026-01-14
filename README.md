@@ -6,11 +6,11 @@ A unique twist on classic ping-pong with drawing capabilities
 
 ### Features
 
-- Classic Pong gameplay with AI opponent
-- Interactive whiteboard to draw obstacles
-- Adjustable game speed and line thickness
-- Score tracking for both players
-- Pause/resume functionality
+- Classic Pong gameplay
+- Draw obstacles
+- Speed and line thickness
+- Score tracking
+- Pause/resume
 
 ### Controls
 
@@ -37,14 +37,14 @@ A unique twist on classic ping-pong with drawing capabilities
 
 ### Prerequisites
 
-- JDK 17+
+- JDK 21+
 - Gradle 8.0+
 
 ### How to Run
 
 1. Clone the repository
 2. Build with Gradle
-3. Run the main class `WhiteboardApplication`
+3. Run the main class
 4. ./gradlew build
 5. ./gradlew run
 
