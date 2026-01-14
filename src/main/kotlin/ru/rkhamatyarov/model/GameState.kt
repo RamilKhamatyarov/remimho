@@ -3,6 +3,7 @@ package ru.rkhamatyarov.model
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import kotlin.math.absoluteValue
+import kotlin.math.hypot
 
 @ApplicationScoped
 class GameState {
@@ -11,10 +12,12 @@ class GameState {
 
     var canvasWidth = 800.0
     var canvasHeight = 600.0
+
     var puckX = 390.0
     var puckY = 290.0
     var puckVX = 3.0
     var puckVY = (Math.random() - 0.5) * 5
+
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
@@ -25,6 +28,7 @@ class GameState {
     var baseSpeedMultiplier = 1.0
     var timeSpeedBoost = 1.0
     var powerUpSpeedMultiplier = 10.0
+
     var puckMovingTime = 0L
     var paused = false
 
@@ -35,12 +39,95 @@ class GameState {
     val powerUps = mutableListOf<PowerUp>()
     val activePowerUpEffects = mutableListOf<ActivePowerUpEffect>()
     val additionalPucks = mutableListOf<AdditionalPuck>()
+
     var isGhostMode = false
     var hasPaddleShield = false
+
+    /** Track line segments currently colliding with puck */
+    val puckLineCollisionCooldown = mutableMapOf<String, Long>()
+
+    /** Cooldown duration in nanoseconds (100ms = safe zone) */
+    val collisionCooldownDuration = 100_000_000L
+
+    /** Maximum velocity cap to prevent runaway acceleration */
+    val maxVelocityMagnitude = 8.0
+
+    /** Additional pucks velocity cap */
+    val additionalPuckMaxVelocity = 6.0
+
+    /** Curren time in nanoseconds */
+    var getTimeNs: () -> Long = { System.nanoTime() }
+
+    /**
+     * Generate unique ID for line segment collision tracking
+     * Prevents same segment from causing multiple collision responses
+     */
+    private fun getLineSegmentId(
+        point1: Point,
+        point2: Point,
+    ): String = "${point1.x.toInt()}_${point1.y.toInt()}_${point2.x.toInt()}_${point2.y.toInt()}"
+
+    /**
+     * Check if collision with this line segment is in cooldown
+     * @return true if collision happened recently (skip this one)
+     */
+    fun isLineSegmentInCooldown(
+        point1: Point,
+        point2: Point,
+    ): Boolean {
+        val segmentId = getLineSegmentId(point1, point2)
+        val lastCollisionTime = puckLineCollisionCooldown[segmentId] ?: return false
+
+        return (getTimeNs() - lastCollisionTime) < collisionCooldownDuration
+    }
+
+    /**
+     * Record line segment collision for cooldown tracking
+     */
+    fun recordLineSegmentCollision(
+        point1: Point,
+        point2: Point,
+    ) {
+        val segmentId = getLineSegmentId(point1, point2)
+        puckLineCollisionCooldown[segmentId] = getTimeNs()
+    }
+
+    /**
+     * Cap velocity magnitude to prevent runaway acceleration
+     */
+    fun capPuckVelocity() {
+        val magnitude = hypot(puckVX, puckVY)
+        if (magnitude > maxVelocityMagnitude) {
+            puckVX = (puckVX / magnitude) * maxVelocityMagnitude
+            puckVY = (puckVY / magnitude) * maxVelocityMagnitude
+        }
+    }
+
+    /**
+     * Cap additional puck velocity magnitude
+     */
+    fun capAdditionalPuckVelocity(puck: AdditionalPuck) {
+        val magnitude = hypot(puck.vx, puck.vy)
+        if (magnitude > additionalPuckMaxVelocity) {
+            puck.vx = (puck.vx / magnitude) * additionalPuckMaxVelocity
+            puck.vy = (puck.vy / magnitude) * additionalPuckMaxVelocity
+        }
+    }
+
+    /**
+     * Clean up old collision entries (garbage collection)
+     */
+    fun cleanupCollisionCooldowns() {
+        val now = getTimeNs()
+        puckLineCollisionCooldown.entries.removeAll { (_, time) ->
+            (now - time) > collisionCooldownDuration * 2
+        }
+    }
 
     fun updatePuckMovingTime(deltaTime: Long) {
         if (!paused && (puckVX.absoluteValue > 0.1 || puckVY.absoluteValue > 0.1)) {
             puckMovingTime += deltaTime
+
             if (puckMovingTime > 2_000_000_000L) {
                 timeSpeedBoost = 2.5
             } else if (puckMovingTime > 1_000_000_000L) {
@@ -61,6 +148,7 @@ class GameState {
             if (puck.x <= 10 || puck.x >= canvasWidth - 10) {
                 puck.vx = -puck.vx
             }
+
             if (puck.y <= 10 || puck.y >= canvasHeight - 10) {
                 puck.vy = -puck.vy
             }
@@ -79,6 +167,7 @@ class GameState {
                 width = 5.0
                 isAnimating = false
             }
+
         isDrawing = true
     }
 
@@ -88,6 +177,7 @@ class GameState {
     ) {
         currentLine?.let {
             it.controlPoints.add(Point(x, y))
+
             if (it.controlPoints.size > 1000) {
                 it.controlPoints.removeAt(0)
             }
@@ -98,6 +188,7 @@ class GameState {
         lines.forEach { line ->
             if (line.isAnimating) {
                 line.animationProgress += 0.02
+
                 if (line.animationProgress >= 1.0) {
                     line.animationProgress = 1.0
                     line.isAnimating = false
@@ -114,6 +205,7 @@ class GameState {
                 lines.add(it)
             }
         }
+
         isDrawing = false
     }
 
@@ -122,6 +214,7 @@ class GameState {
         stepsPerSegment: Int = 20,
     ): MutableList<Point> {
         val flattened = mutableListOf<Point>()
+
         if (controlPoints.size < 4) {
             flattened.addAll(controlPoints)
             return flattened
@@ -129,6 +222,7 @@ class GameState {
 
         val tension = 0.5
         val divisor = 6 * tension
+
         for (i in 0 until controlPoints.size - 1) {
             val p0 = if (i == 0) controlPoints[0] else controlPoints[i - 1]
             val p1 = controlPoints[i]
@@ -148,19 +242,23 @@ class GameState {
             for (step in 0..stepsPerSegment) {
                 val t = step.toDouble() / stepsPerSegment
                 val u = 1 - t
+
                 val x =
                     u * u * u * b0.x +
                         3 * u * u * t * b1.x +
                         3 * u * t * t * b2.x +
                         t * t * t * b3.x
+
                 val y =
                     u * u * u * b0.y +
                         3 * u * u * t * b1.y +
                         3 * u * t * t * b2.y +
                         t * t * t * b3.y
+
                 flattened.add(Point(x, y))
             }
         }
+
         return flattened
     }
 
@@ -179,8 +277,10 @@ class GameState {
         puckY = canvasHeight / 2
         puckVX = -3.0
         puckVY = (Math.random() - 0.5) * 5
+
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
+
         puckMovingTime = 0L
         timeSpeedBoost = 1.0
         baseSpeedMultiplier = 1.0
@@ -190,8 +290,11 @@ class GameState {
         powerUps.clear()
         activePowerUpEffects.clear()
         additionalPucks.clear()
+
         isGhostMode = false
         hasPaddleShield = false
+
+        puckLineCollisionCooldown.clear()
 
         lifeGrid.reset()
         lifeGrid.repositionGrid(canvasWidth, canvasHeight)
