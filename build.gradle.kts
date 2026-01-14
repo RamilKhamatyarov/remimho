@@ -38,9 +38,9 @@ dependencies {
     implementation("org.openjfx:javafx-graphics:$javafxVersion:$platform")
     implementation("org.openjfx:javafx-fxml:$javafxVersion:$platform")
 
-    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.0.1")
-    testImplementation("org.junit.jupiter:junit-jupiter-params:6.0.1")
+    testImplementation("org.junit.jupiter:junit-jupiter-api:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-engine:6.0.2")
+    testImplementation("org.junit.jupiter:junit-jupiter-params:6.0.2")
     testImplementation("org.testfx:testfx-junit5:4.0.18")
     testImplementation("org.jetbrains.kotlin:kotlin-reflect:2.3.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:2.3.0")
