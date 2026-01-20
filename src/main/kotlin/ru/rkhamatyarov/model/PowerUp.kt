@@ -1,7 +1,5 @@
 package ru.rkhamatyarov.model
 
-import javafx.scene.paint.Color
-
 data class PowerUp(
     var x: Double,
     var y: Double,
@@ -14,14 +12,7 @@ data class PowerUp(
 
     fun isExpired(): Boolean = System.nanoTime() - creationTime > lifetime
 
-    fun getColor(): Color =
-        when (type) {
-            PowerUpType.SPEED_BOOST -> Color.YELLOW
-            PowerUpType.MAGNET_BALL -> Color.MAGENTA
-            PowerUpType.GHOST_MODE -> Color.LIGHTBLUE
-            PowerUpType.MULTI_BALL -> Color.ORANGE
-            PowerUpType.PADDLE_SHIELD -> Color.GREEN
-        }
+    fun getColorCode(): String = PowerUpType.getColorCode(type)
 }
 
 enum class PowerUpType(
@@ -38,19 +29,11 @@ enum class PowerUpType(
     companion object {
         fun getColorCode(type: PowerUpType): String =
             when (type) {
-                SPEED_BOOST -> "#FF6B6B"
-
-                // Red
-                MAGNET_BALL -> "#9D4EDD"
-
-                // Purple
-                GHOST_MODE -> "#3A86FF"
-
-                // Blue
-                MULTI_BALL -> "#06FFA5"
-
-                // Green
-                PADDLE_SHIELD -> "#FF9F43" // Orange
+                SPEED_BOOST -> "#FFEB3B"
+                MAGNET_BALL -> "#E040FB"
+                GHOST_MODE -> "#40C4FF"
+                MULTI_BALL -> "#FF6E40"
+                PADDLE_SHIELD -> "#69F0AE"
             }
 
         fun getDuration(type: PowerUpType): Long =

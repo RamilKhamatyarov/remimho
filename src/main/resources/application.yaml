@@ -1,13 +1,16 @@
 quarkus:
-  main:
-    launch-mode: dev
-  arc:
-    remove-unused-beans: false
-    detect-unused-false-positives: true
+  http:
+    port: 8080
+    host: 0.0.0.0
+    cors: true
+    cors:
+      origins: "*"
+
+  websocket:
+    max-frame-size: 1048576
+
   log:
     level: INFO
     category:
-      "ru.rkhamatyarov": DEBUG
-  javafx:
-    enabled: true
-    version: auto
+      "ru.rkhamatyarov":
+        level: DEBUG

@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whiteboard Pong Game</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .game-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 15px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .api-version {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .controls {
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #dee2e6;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            background: #667eea;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-success {
+            background: #2ecc71;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .slider-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        input[type="range"] {
+            width: 150px;
+            height: 6px;
+            border-radius: 3px;
+            background: #dee2e6;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+
+        .powerups-display {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .powerup-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            font-size: 13px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .powerup-emoji {
+            font-size: 18px;
+        }
+
+        .powerup-time {
+            margin-left: auto;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            background: #1a1a2e;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            cursor: none;
+        }
+
+        .status-bar {
+            padding: 10px 20px;
+            background: #343a40;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #2ecc71;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.paused {
+            background: #f39c12;
+        }
+
+        .status-dot.disconnected {
+            background: #e74c3c;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .drawing-mode {
+            padding: 10px;
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            margin: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="game-container">
+            <div class="header">
+                <h1>🎮 Whiteboard Pong</h1>
+                <div class="api-version">API v1</div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" @click="togglePause">
+                    {{ gameState.paused ? '▶️ Resume' : '⏸️ Pause' }}
+                </button>
+                <button class="btn btn-danger" @click="resetGame">
+                    🔄 Reset
+                </button>
+                <button class="btn" @click="clearLines">
+                    🗑️ Clear Drawings
+                </button>
+
+                <div class="slider-group">
+                    <label>Speed: {{ speed.toFixed(1) }}x</label>
+                    <input type="range" v-model.number="speed" min="0.1" max="5" step="0.1" 
+                           @input="setSpeed">
+                </div>
+
+                <div class="slider-group">
+                    <label>Line Width: {{ lineWidth }}</label>
+                    <input type="range" v-model.number="lineWidth" min="1" max="20" step="1">
+                </div>
+
+                <div class="powerups-display" v-if="gameState.activePowerUps && gameState.activePowerUps.length > 0">
+                    <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">Active Power-ups:</div>
+                    <div v-for="powerup in gameState.activePowerUps" :key="powerup.type" class="powerup-item">
+                        <span class="powerup-emoji">{{ powerup.emoji }}</span>
+                        <span>{{ powerup.description }}</span>
+                        <span class="powerup-time" :style="{ color: powerup.color }">
+                            {{ powerup.remainingSeconds }}s
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="drawing-mode" v-if="isDrawing">
+                🎨 Drawing Mode - Right-click and drag to draw obstacles
+            </div>
+
+            <div class="canvas-wrapper">
+                <canvas ref="canvas" 
+                        width="800" 
+                        height="600"
+                        @mousemove="handleMouseMove"
+                        @mousedown="handleMouseDown"
+                        @mouseup="handleMouseUp"
+                        @contextmenu.prevent"></canvas>
+            </div>
+
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" :class="{ paused: gameState.paused, disconnected: !connected }"></div>
+                    <span v-if="connected && !gameState.paused">Running</span>
+                    <span v-else-if="gameState.paused">Paused</span>
+                    <span v-else>Disconnected</span>
+                </div>
+                <div>Speed: {{ (gameState.speedMultiplier || 1).toFixed(2) }}x</div>
+                <div>FPS: {{ fps }}</div>
+                <div>Players: {{ activeSessions }}</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
