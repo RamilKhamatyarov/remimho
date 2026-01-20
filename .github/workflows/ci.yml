@@ -39,15 +39,21 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/wrapper-validation-action@v2
 
-      - name: Install virtual display
-        run: |
-          sudo apt-get update
-
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Run Gradle build
+        run: ./gradlew build -x test
+
+      - name: Run tests
+        run: ./gradlew test
+
       - name: Run lint check
         run: ./gradlew ktlintCheck
+        continue-on-error: true
+
+      - name: Run spotless check
+        run: ./gradlew spotlessCheck
         continue-on-error: true
 
       - name: Upload test results
@@ -64,6 +70,15 @@ jobs:
         with:
           files: build/test-results/test/TEST-*.xml
           check_name: Test Results (${{ matrix.os }}, Java ${{ matrix.java-version }})
+        continue-on-error: true
+
+      - name: Upload coverage to Codecov
+        if: matrix.java-version == '21'
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./build/reports/jacoco/test/jacocoTestReport.xml
+          flags: unittests
+          name: codecov-umbrella
         continue-on-error: true
 
   code-quality:
@@ -85,24 +100,12 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Install virtual display
-        run: |
-          sudo apt-get update
-
       - name: Run ktlint
         run: ./gradlew ktlintCheck
         continue-on-error: true
 
       - name: Run spotless check
         run: ./gradlew spotlessCheck
-        continue-on-error: true
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./build/reports/jacoco/test/jacocoTestReport.xml
-          flags: unittests
-          name: codecov-umbrella
         continue-on-error: true
 
   summary:
