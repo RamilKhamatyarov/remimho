@@ -18,22 +18,14 @@ A unique twist on classic ping-pong with drawing capabilities
 - **Right Mouse Button**: Draw on the canvas
 - **Space**: Pause/resume game
 
-### UI Controls
-
-- **Reset Game**: Resets puck and paddle positions
-- **Clear Drawings**: Removes all drawn lines
-- **Pause/Resume**: Toggles game state
-- **Speed Slider**: Adjusts game speed (0.5x-3.0x)
-- **Thickness Slider**: Changes drawing line width (1-20px)
-
 ### Technical Stack
 
 - **Language**: Kotlin 2.2.20
 - **JVM**: Java 23
-- **UI Framework**: JavaFX 17.0.8
+- **UI Framework**: VueJS
 - **Dependency Injection**: Quarkus 3.28.2
 - **Build System**: Gradle (Kotlin DSL)
-- **Native compilation**: GluonFX 1.0.27
+- **Native compilation**: GraalVM
 
 ### Prerequisites
 
@@ -46,7 +38,25 @@ A unique twist on classic ping-pong with drawing capabilities
 2. Build with Gradle
 3. Run the main class
 4. ./gradlew build
-5. ./gradlew run
+5. ./gradlew quarkusDev
+
+#### Windows
+
+```batch
+cd D:\rep\java\remimho
+gradlew createFatJar
+copy build\jpackage-libs\remimho-1.0.0-all.jar .
+run-remimho.bat
+```
+
+#### Linux / macOS
+```bash
+cd ~/remimho
+./gradlew createFatJar
+cp build/jpackage-libs/remimho-1.0.0-all.jar .
+chmod +x run-remimho.sh
+./run-remimho.sh
+```
 
 ### Native Build Configuration
 #### 1. Required Software
@@ -91,13 +101,6 @@ gradle clean
 
 gradle nativeBuild
 ```
-
-####  Output Files
-
-- `build/gluonfx/x86_64-windows/`
-- Look for `ru.rkhamatyarov.main.exe` (Windows executable)
-- Or `ru.rkhamatyarov.main.dll` (shared library)
-
 
 ### Screenshot
 

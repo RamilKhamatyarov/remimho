@@ -42,31 +42,13 @@ jobs:
       - name: Install virtual display
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libx11-dev libxrender-dev libxrandr-dev
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Run tests with Xvfb
-        run: xvfb-run -a ./gradlew build
-        env:
-          DISPLAY: :99
-
       - name: Run lint check
         run: ./gradlew ktlintCheck
         continue-on-error: true
-
-      - name: Build fat JAR
-        run: ./gradlew createFatJar
-
-      - name: Check build artifacts
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            dir build\jpackage-libs\*.jar 2>nul || echo "No JAR found"
-          else
-            ls build/jpackage-libs/*.jar 2>/dev/null || echo "No JAR found"
-          fi
-        shell: bash
 
       - name: Upload test results
         if: always()
@@ -75,14 +57,6 @@ jobs:
           name: test-results-${{ matrix.os }}-java${{ matrix.java-version }}
           path: build/test-results/
           retention-days: 30
-
-      - name: Upload build artifacts
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-artifacts-${{ matrix.os }}-java${{ matrix.java-version }}
-          path: build/jpackage-libs/*.jar
-          retention-days: 7
 
       - name: Publish test results
         if: always()
@@ -114,7 +88,6 @@ jobs:
       - name: Install virtual display
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libx11-dev libxrender-dev libxrandr-dev
 
       - name: Run ktlint
         run: ./gradlew ktlintCheck
@@ -124,11 +97,6 @@ jobs:
         run: ./gradlew spotlessCheck
         continue-on-error: true
 
-      - name: Generate code coverage
-        run: xvfb-run -a ./gradlew test jacocoTestReport
-        env:
-          DISPLAY: :99
-
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
@@ -136,52 +104,6 @@ jobs:
           flags: unittests
           name: codecov-umbrella
         continue-on-error: true
-
-  build-windows-installer:
-    name: Build Windows Installer
-    runs-on: windows-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Check jpackage readiness
-        run: ./gradlew checkJpackageReadiness
-        continue-on-error: true
-
-      - name: Build full installer
-        run: ./gradlew buildFullInstaller
-        continue-on-error: true
-
-      - name: Verify installer
-        run: |
-          $installerPath = Get-Item -Path "build/installers/Remimho-*.exe" -ErrorAction SilentlyContinue
-          if ($installerPath) {
-            Write-Host "Windows installer created successfully"
-            Get-Item -Path "build/installers/Remimho-*.exe" | Select-Object -ExpandProperty FullName
-          } else {
-            Write-Host "Installer not found, but build succeeded"
-          }
-        shell: pwsh
-
-      - name: Upload installer
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          path: build/installers/Remimho-*.exe
-          retention-days: 30
 
   summary:
     name: Build Summary

@@ -6,18 +6,40 @@ import jakarta.enterprise.context.ApplicationScoped
 class GameOfLifeGrid {
     val rows = 20
     val cols = 20
-    var grid = Array(rows) { BooleanArray(cols) }
-    var cellSize = 15.0
+    val cellSize = 15.0
+
+    // Поле хранит null до первого использования
+    private var _grid: Array<BooleanArray>? = null
+
+    // Custom getter гарантирует инициализацию при первом доступе
+    var grid: Array<BooleanArray>
+        get() {
+            if (_grid == null) {
+                _grid = Array(rows) { BooleanArray(cols) }
+                reset()
+            }
+            return _grid!!
+        }
+        set(value) {
+            _grid = value
+        }
+
     var gridX = 0.0
     var gridY = 0.0
     var lastUpdate = 0L
     val updateInterval = 500_000_000L
 
-    init {
-        reset()
+    // Публичный метод для гарантированной инициализации
+    fun ensureInitialized() {
+        if (_grid == null) {
+            _grid = Array(rows) { BooleanArray(cols) }
+            reset()
+        }
     }
 
+    // Все методы вызывают ensureInitialized()
     fun reset() {
+        ensureInitialized()
         for (i in 0 until rows) {
             for (j in 0 until cols) {
                 grid[i][j] = Math.random() < 0.3
@@ -29,6 +51,7 @@ class GameOfLifeGrid {
         canvasWidth: Double,
         canvasHeight: Double,
     ) {
+        ensureInitialized()
         val gridWidth = cols * cellSize
         val gridHeight = rows * cellSize
 
@@ -40,6 +63,7 @@ class GameOfLifeGrid {
     }
 
     fun update() {
+        ensureInitialized()
         val nextGrid =
             Array(rows) { i ->
                 BooleanArray(cols) { j ->
@@ -49,8 +73,9 @@ class GameOfLifeGrid {
         grid = nextGrid
     }
 
-    fun getAliveCells(): List<Cell> =
-        grid.flatMapIndexed { i, row ->
+    fun getAliveCells(): List<Cell> {
+        ensureInitialized()
+        return grid.flatMapIndexed { i, row ->
             row
                 .withIndex()
                 .filter { it.value }
@@ -61,6 +86,7 @@ class GameOfLifeGrid {
                     )
                 }
         }
+    }
 
     private fun calculateNextCellState(
         i: Int,
