@@ -1,398 +1,477 @@
-const { createApp } = Vue;
+    const { createApp } = Vue;
 
-createApp({
-    data() {
+    createApp({
+      data() {
         return {
-            ws: null,
-            connected: false,
-            gameState: {
-                puckX: 400,
-                puckY: 300,
-                paddle1Y: 250,
-                paddle2Y: 250,
-                paddleHeight: 100,
-                canvasWidth: 800,
-                canvasHeight: 600,
-                lines: [],
-                powerUps: [],
-                activePowerUps: [],
-                additionalPucks: [],
-                lifeGridCells: [],
-                paused: false,
-                speedMultiplier: 1.0
-            },
-            speed: 1.0,
-            lineWidth: 5,
-            isDrawing: false,
-            lastFrameTime: 0,
-            fps: 0,
-            fpsUpdateTime: 0,
-            frameCount: 0,
-            activeSessions: 0,
-            needsRender: true,
-            lastRenderedState: null,
-            renderInterval: 33,
-            lastRenderTime: 0
+          ws: null,
+          connected: false,
+          gameState: {
+            puckX: 400,
+            puckY: 300,
+            puckVX: 40,
+            puckVY: 0,
+            paddle1Y: 250,
+            paddle2Y: 250,
+            paddleHeight: 100,
+            canvasWidth: 800,
+            canvasHeight: 600,
+            lines: [],
+            powerUps: [],
+            activePowerUps: [],
+            additionalPucks: [],
+            lifeGridCells: [],
+            paused: false,
+            speedMultiplier: 5.0
+          },
+          predictedPuckX: 400,
+          predictedPuckY: 300,
+          speed: 8.0,
+          lineWidth: 5,
+          isDrawing: false,
+          lastFrameTime: 0,
+          fps: 0,
+          fpsUpdateTime: 0,
+          frameCount: 0,
+          activeSessions: 0,
+          renderId: null,
+          lastRenderTime: 0,
+          lastPaddleUpdate: 0,
+          lastUpdateTime: 0,
+          interpolationAlpha: 0.8,
+          canvasScale: 1,
+          devicePixelRatio: window.devicePixelRatio || 1,
+          lastPuckX: 400,
+          lastPuckY: 300,
+          smoothPuckX: 400,
+          smoothPuckY: 300
         };
-    },
-    mounted() {
-        this.connectWebSocket();
+      },
+
+      mounted() {
         this.setupCanvas();
+        this.connectWebSocket();
         this.startRenderLoop();
         this.fetchStatistics();
-    },
-    methods: {
+        this.setupEventListeners();
+        window.addEventListener('resize', this.handleResize.bind(this));
+        this.handleResize();
+      },
+
+      beforeUnmount() {
+        if (this.ws) {
+          this.ws.close();
+        }
+        if (this.renderId) {
+          cancelAnimationFrame(this.renderId);
+        }
+        window.removeEventListener('resize', this.handleResize.bind(this));
+      },
+
+      methods: {
+        setupCanvas() {
+          const canvas = this.$refs.canvas;
+          canvas.style.width = '800px';
+          canvas.style.height = '600px';
+          canvas.width = 800 * this.devicePixelRatio;
+          canvas.height = 600 * this.devicePixelRatio;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+          canvas.style.imageRendering = 'crisp-edges';
+          canvas.style.willChange = 'transform';
+        },
+
+        handleResize() {
+          const canvas = this.$refs.canvas;
+          const container = canvas.parentElement;
+          const containerWidth = container.clientWidth;
+          const containerHeight = container.clientHeight;
+          const scaleX = containerWidth / 800;
+          const scaleY = containerHeight / 600;
+          this.canvasScale = Math.min(scaleX, scaleY);
+          canvas.style.transform = `scale(${this.canvasScale})`;
+          canvas.style.transformOrigin = 'top left';
+        },
+
         connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/api/v1/game/ws`;
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          const wsUrl = `${protocol}//${window.location.host}/api/v1/game/ws`;
+          this.ws = new WebSocket(wsUrl);
 
-            console.log('Connecting to WebSocket:', wsUrl);
-            this.ws = new WebSocket(wsUrl);
+          this.ws.onopen = () => {
+            this.connected = true;
+            this.sendCommand('SET_SPEED', { speed: this.speed });
+          };
 
-            this.ws.onopen = () => {
-                console.log('WebSocket connected to API v1');
-                this.connected = true;
-            };
+          this.ws.onmessage = (event) => {
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === 'ERROR') {
+                console.error('Server error:', data.message);
+              } else {
+                this.lastPuckX = this.gameState.puckX;
+                this.lastPuckY = this.gameState.puckY;
 
-            this.ws.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === 'ERROR') {
-                        console.error('Server error:', data.message);
-                    } else {
-                        // Only update if state actually changed
-                        if (JSON.stringify(data) !== JSON.stringify(this.gameState)) {
-                            this.gameState = data;
-                            this.needsRender = true; // Mark for render
-                        }
-                    }
-                } catch (e) {
-                    console.error('Failed to parse message:', e);
-                }
-            };
+                this.gameState.puckX = data.puckX !== undefined ? data.puckX : this.gameState.puckX;
+                this.gameState.puckY = data.puckY !== undefined ? data.puckY : this.gameState.puckY;
+                this.gameState.puckVX = data.puckVX !== undefined ? data.puckVX : 0;
+                this.gameState.puckVY = data.puckVY !== undefined ? data.puckVY : 0;
+                this.gameState.paddle1Y = data.paddle1Y !== undefined ? data.paddle1Y : 250;
+                this.gameState.paddle2Y = data.paddle2Y !== undefined ? data.paddle2Y : 250;
+                this.gameState.paddleHeight = data.paddleHeight || 100;
+                this.gameState.canvasWidth = data.canvasWidth || 800;
+                this.gameState.canvasHeight = data.canvasHeight || 600;
+                this.gameState.lines = data.lines || [];
+                this.gameState.powerUps = data.powerUps || [];
+                this.gameState.activePowerUps = data.activePowerUps || [];
+                this.gameState.additionalPucks = data.additionalPucks || [];
+                this.gameState.lifeGridCells = data.lifeGridCells || [];
+                this.gameState.paused = data.paused || false;
+                this.gameState.speedMultiplier = data.speedMultiplier || 1.0;
 
-            this.ws.onclose = () => {
-                console.log('WebSocket disconnected');
-                this.connected = false;
-                setTimeout(() => this.connectWebSocket(), 3000);
-            };
+                this.smoothPuckX = this.lastPuckX + (this.gameState.puckX - this.lastPuckX) * this.interpolationAlpha;
+                this.smoothPuckY = this.lastPuckY + (this.gameState.puckY - this.lastPuckY) * this.interpolationAlpha;
 
-            this.ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
+                this.speed = data.speedMultiplier || this.speed;
+              }
+            } catch (e) {
+              console.error('Failed to parse message:', e);
+            }
+          };
+
+          this.ws.onclose = () => {
+            this.connected = false;
+            setTimeout(() => this.connectWebSocket(), 2000);
+          };
+
+          this.ws.onerror = (error) => {
+            console.error('WebSocket error:', error);
+          };
         },
 
         sendCommand(type, data = {}) {
-            if (this.ws && this.connected) {
-                this.ws.send(JSON.stringify({ type, data }));
+          if (this.ws && this.connected && this.ws.readyState === WebSocket.OPEN) {
+            try {
+              this.ws.send(JSON.stringify({ type, data }));
+            } catch (e) {
+              console.error('Failed to send command:', e);
             }
+          }
         },
 
         async fetchStatistics() {
-            try {
-                const response = await fetch('/api/v1/game/statistics');
-                const stats = await response.json();
-                this.activeSessions = stats.activeSessions || 0;
-            } catch (e) {
-                console.error('Failed to fetch statistics:', e);
-            }
-
-            // Fetch again in 5 seconds
-            setTimeout(() => this.fetchStatistics(), 5000);
-        },
-
-        async togglePause() {
-            this.sendCommand('TOGGLE_PAUSE');
-        },
-
-        async resetGame() {
-            this.sendCommand('RESET');
-        },
-
-        async clearLines() {
-            this.sendCommand('CLEAR_LINES');
-        },
-
-        async setSpeed() {
-            this.sendCommand('SET_SPEED', { speed: this.speed });
-        },
-
-        setupCanvas() {
-            const canvas = this.$refs.canvas;
-            canvas.width = 800;
-            canvas.height = 600;
+          try {
+            const response = await fetch('/api/v1/game/statistics');
+            const stats = await response.json();
+            this.activeSessions = stats.activeSessions || 0;
+          } catch (e) {
+            console.error('Failed to fetch statistics:', e);
+          }
+          setTimeout(() => this.fetchStatistics(), 5000);
         },
 
         startRenderLoop() {
-            const render = (timestamp) => {
-                // Calculate FPS
-                this.frameCount++;
-                if (timestamp - this.fpsUpdateTime >= 1000) {
-                    this.fps = this.frameCount;
-                    this.frameCount = 0;
-                    this.fpsUpdateTime = timestamp;
-                }
+          const render = (timestamp) => {
+            this.renderId = requestAnimationFrame(render);
+            this.frameCount++;
 
-                // Throttle rendering to 30 FPS
-                if (timestamp - this.lastRenderTime > this.renderInterval && this.needsRender) {
-                    this.renderGame();
-                    this.lastRenderTime = timestamp;
-                    this.needsRender = false;
-                }
+            if (timestamp - this.fpsUpdateTime >= 1000) {
+              this.fps = this.frameCount;
+              this.frameCount = 0;
+              this.fpsUpdateTime = timestamp;
+            }
 
-                requestAnimationFrame(render);
-            };
+            if (timestamp - this.lastRenderTime >= 16) {
+              this.renderGame();
+              this.lastRenderTime = timestamp;
+              this.lastFrameTime = timestamp;
+            }
+          };
 
-            requestAnimationFrame(render);
+          this.renderId = requestAnimationFrame(render);
         },
 
         renderGame() {
-            const canvas = this.$refs.canvas;
-            const ctx = canvas.getContext('2d');
+          const canvas = this.$refs.canvas;
+          const ctx = canvas.getContext('2d');
 
-            // Only redraw if state changed
-            const currentState = JSON.stringify({
-                puck: { x: this.gameState.puckX, y: this.gameState.puckY },
-                paddles: { p1: this.gameState.paddle1Y, p2: this.gameState.paddle2Y },
-                lines: this.gameState.lines,
-                powerUps: this.gameState.powerUps,
-                activePowerUps: this.gameState.activePowerUps,
-                cells: this.gameState.lifeGridCells
-            });
+          ctx.fillStyle = '#1a1a2e';
+          ctx.fillRect(0, 0, 800, 600);
 
-            if (currentState === this.lastRenderedState && !this.isDrawing) {
-                return; // Skip render if nothing changed
-            }
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(0, 0, 800, 600);
 
-            this.lastRenderedState = currentState;
-
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw center line (less frequently updated)
-            if (!this.centerLineBuffer) {
-                this.centerLineBuffer = this.createCenterLineBuffer();
-            }
-
-            // Draw Game of Life cells
-            this.renderLifeGrid(ctx);
-
-            // Draw user-drawn lines
-            this.renderLines(ctx);
-
-            // Draw paddles
-            this.renderPaddles(ctx);
-
-            // Draw puck
-            this.renderPuck(ctx);
-
-            // Draw additional pucks
-            this.renderAdditionalPucks(ctx);
-
-            // Draw power-ups
-            this.renderPowerUps(ctx);
-
-            // Draw center line from buffer
-            ctx.drawImage(this.centerLineBuffer, canvas.width/2, 0);
+          this.renderLifeGrid(ctx);
+          this.renderLines(ctx);
+          this.renderCenterLine(ctx);
+          this.renderPaddles(ctx);
+          this.renderPowerUps(ctx);
+          this.renderAdditionalPucks(ctx);
+          this.renderPuck(ctx);
+          this.renderStats(ctx);
         },
 
-        createCenterLineBuffer() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 2;
-            canvas.height = 600;
-            const ctx = canvas.getContext('2d');
+        renderStats(ctx) {
+          ctx.fillStyle = '#00ff00';
+          ctx.font = '12px Arial';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          ctx.fillText(`FPS: ${this.fps}`, 10, 10);
+          ctx.fillText(`Puck: (${Math.round(this.gameState.puckX)}, ${Math.round(this.gameState.puckY)})`, 10, 25);
+          ctx.fillText(`Velocity: (${this.gameState.puckVX.toFixed(1)}, ${this.gameState.puckVY.toFixed(1)})`, 10, 40);
+          ctx.fillText(`Speed: ${this.speed.toFixed(1)}x`, 10, 55);
+        },
 
-            ctx.strokeStyle = '#333';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([10, 10]);
-            ctx.beginPath();
-            ctx.moveTo(0, 0);
-            ctx.lineTo(0, 600);
-            ctx.stroke();
-
-            return canvas;
+        renderCenterLine(ctx) {
+          ctx.strokeStyle = '#333333';
+          ctx.lineWidth = 1;
+          ctx.setLineDash([10, 10]);
+          ctx.beginPath();
+          ctx.moveTo(400, 0);
+          ctx.lineTo(400, 600);
+          ctx.stroke();
+          ctx.setLineDash([]);
         },
 
         renderLifeGrid(ctx) {
-            if (this.gameState.lifeGridCells.length === 0) return;
+          const cells = this.gameState.lifeGridCells;
+          if (!cells || cells.length === 0) return;
 
-            // Batch all cell draws
-            ctx.fillStyle = '#00ff88';
-            ctx.globalAlpha = 0.5;
+          ctx.fillStyle = '#00ff88';
+          ctx.globalAlpha = 0.5;
+          const cellSize = cells[0]?.size || 15;
 
-            const cellSize = this.gameState.lifeGridCells[0]?.size || 15;
-            ctx.beginPath();
-            this.gameState.lifeGridCells.forEach(cell => {
-                ctx.rect(Math.round(cell.x), Math.round(cell.y), cellSize, cellSize);
-            });
-            ctx.fill();
+          for (let i = 0; i < cells.length; i++) {
+            const cell = cells[i];
+            ctx.fillRect(cell.x, cell.y, cellSize, cellSize);
+          }
 
-            ctx.globalAlpha = 1.0;
+          ctx.globalAlpha = 1.0;
         },
 
         renderLines(ctx) {
-            if (this.gameState.lines.length === 0) return;
+          const lines = this.gameState.lines;
+          if (!lines || lines.length === 0) return;
 
-            ctx.strokeStyle = '#aaaaaa';
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
+          ctx.strokeStyle = '#aaaaaa';
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
 
-            // Batch similar lines together
-            this.gameState.lines.forEach(line => {
-                if (!line.points || line.points.length < 2) return;
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const points = line.points;
+            if (!points || points.length < 2) continue;
 
-                const visiblePoints = line.isAnimating
-                    ? Math.max(2, Math.floor(line.points.length * line.animationProgress))
-                    : line.points.length;
+            const visiblePoints = line.isAnimating
+              ? Math.max(2, Math.floor(points.length * (line.animationProgress || 0)))
+              : points.length;
 
-                if (visiblePoints < 2) return;
+            if (visiblePoints < 2) continue;
 
-                ctx.lineWidth = line.width;
-                ctx.beginPath();
-                ctx.moveTo(line.points[0].x, line.points[0].y);
+            ctx.lineWidth = line.width || 5;
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
 
-                // Use integer coordinates for faster rendering
-                for (let i = 1; i < visiblePoints; i++) {
-                    const point = line.points[i];
-                    ctx.lineTo(Math.round(point.x), Math.round(point.y));
-                }
+            for (let j = 1; j < visiblePoints; j++) {
+              ctx.lineTo(points[j].x, points[j].y);
+            }
 
-                ctx.stroke();
-            });
+            ctx.stroke();
+          }
         },
 
         renderPaddles(ctx) {
-            const paddleWidth = 20;
+          const paddleWidth = 20;
+          ctx.fillStyle = '#ff6b6b';
+          ctx.fillRect(0, this.gameState.paddle1Y, paddleWidth, this.gameState.paddleHeight);
 
-            // AI paddle (left)
-            ctx.fillStyle = '#ff6b6b';
-            ctx.fillRect(0, Math.round(this.gameState.paddle1Y), paddleWidth, Math.round(this.gameState.paddleHeight));
-
-            // Player paddle (right)
-            ctx.fillStyle = '#4ecdc4';
-            ctx.fillRect(
-                this.gameState.canvasWidth - paddleWidth,
-                Math.round(this.gameState.paddle2Y),
-                paddleWidth,
-                Math.round(this.gameState.paddleHeight)
-            );
+          ctx.fillStyle = '#4ecdc4';
+          ctx.fillRect(800 - paddleWidth, this.gameState.paddle2Y, paddleWidth, this.gameState.paddleHeight);
         },
 
         renderPuck(ctx) {
-            // Draw glow first (only when moving fast)
-            const speed = Math.sqrt(
-                Math.pow(this.gameState.puckVX || 0, 2) +
-                Math.pow(this.gameState.puckVY || 0, 2)
-            );
+          const x = this.smoothPuckX;
+          const y = this.smoothPuckY;
+          const vx = this.gameState.puckVX || 0;
+          const vy = this.gameState.puckVY || 0;
+          const speed = Math.sqrt(vx * vx + vy * vy);
 
-            if (speed > 2) {
-                ctx.shadowBlur = Math.min(20, speed * 5);
-                ctx.shadowColor = '#ffffff';
-            } else {
-                ctx.shadowBlur = 0;
+          if (speed > 30) {
+            ctx.globalAlpha = 0.25;
+            ctx.fillStyle = '#ff5555';
+            for (let i = 1; i <= 3; i++) {
+              const trailX = x - vx * i * 0.08;
+              const trailY = y - vy * i * 0.08;
+              const radius = Math.max(2, 10 - i * 2);
+              ctx.beginPath();
+              ctx.arc(trailX, trailY, radius, 0, Math.PI * 2);
+              ctx.fill();
             }
+            ctx.globalAlpha = 1.0;
+          }
 
-            // Draw puck
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(
-                Math.round(this.gameState.puckX),
-                Math.round(this.gameState.puckY),
-                10, 0, Math.PI * 2
-            );
-            ctx.fill();
-
+          if (speed > 25) {
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
+          } else if (speed > 15) {
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'rgba(255, 255, 0, 0.6)';
+          } else {
             ctx.shadowBlur = 0;
+          }
+
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.arc(x, y, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowBlur = 0;
+          ctx.globalAlpha = 1.0;
         },
 
         renderAdditionalPucks(ctx) {
-            if (this.gameState.additionalPucks.length === 0) return;
+          const pucks = this.gameState.additionalPucks;
+          if (!pucks || pucks.length === 0) return;
 
-            ctx.fillStyle = '#ff6b6b';
-            this.gameState.additionalPucks.forEach(puck => {
-                ctx.beginPath();
-                ctx.arc(Math.round(puck.x), Math.round(puck.y), 10, 0, Math.PI * 2);
-                ctx.fill();
-            });
+          ctx.fillStyle = '#ff6b6b';
+          for (let i = 0; i < pucks.length; i++) {
+            const puck = pucks[i];
+            ctx.beginPath();
+            ctx.arc(puck.x, puck.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+          }
         },
 
         renderPowerUps(ctx) {
-            if (this.gameState.powerUps.length === 0) return;
+          const powerups = this.gameState.powerUps;
+          if (!powerups || powerups.length === 0) return;
 
-            const now = Date.now();
-            this.gameState.powerUps.forEach(powerup => {
-                const x = Math.round(powerup.x);
-                const y = Math.round(powerup.y);
-                const radius = powerup.radius || 15;
+          for (let i = 0; i < powerups.length; i++) {
+            const powerup = powerups[i];
+            const x = powerup.x;
+            const y = powerup.y;
+            const radius = powerup.radius || 15;
 
-                // Draw outer circle with color
-                ctx.fillStyle = powerup.color;
-                ctx.globalAlpha = 0.7;
-                ctx.beginPath();
-                ctx.arc(x, y, radius, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Draw pulsing ring (cache animation)
-                const pulseSize = radius + Math.sin(now / 200) * 3;
-                ctx.strokeStyle = powerup.color;
-                ctx.lineWidth = 2;
-                ctx.globalAlpha = 0.5;
-                ctx.beginPath();
-                ctx.arc(x, y, pulseSize, 0, Math.PI * 2);
-                ctx.stroke();
-
-                ctx.globalAlpha = 1.0;
-
-                // Draw emoji
-                ctx.font = '24px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(powerup.emoji, x, y);
-            });
+            ctx.fillStyle = powerup.color || '#ffff00';
+            ctx.globalAlpha = 0.8;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
 
             ctx.globalAlpha = 1.0;
+            ctx.font = 'bold 20px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(powerup.emoji || '?', x, y);
+          }
+
+          ctx.globalAlpha = 1.0;
+        },
+
+        setupEventListeners() {
+          const canvas = this.$refs.canvas;
+          canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+          canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+          canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+          canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+          canvas.addEventListener('touchmove', this.handleTouchMove.bind(this));
+          canvas.addEventListener('touchstart', this.handleTouchStart.bind(this));
+          canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
         },
 
         handleMouseMove(event) {
-            const canvas = this.$refs.canvas;
-            const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            const x = (event.clientX - rect.left) * scaleX;
-            const y = (event.clientY - rect.top) * scaleY;
+          this.handlePointerMove(event.clientX, event.clientY);
+        },
 
-            if (Date.now() - this.lastPaddleUpdate > 16) {
-                this.sendCommand('MOVE_PADDLE', { y: y - this.gameState.paddleHeight / 2 });
-                this.lastPaddleUpdate = Date.now();
-            }
+        handleTouchMove(event) {
+          event.preventDefault();
+          if (event.touches.length > 0) {
+            const touch = event.touches[0];
+            this.handlePointerMove(touch.clientX, touch.clientY);
+          }
+        },
 
-            if (this.isDrawing) {
-                this.sendCommand('UPDATE_LINE', { x, y });
-                this.needsRender = true;
-            }
+        handlePointerMove(clientX, clientY) {
+          const canvas = this.$refs.canvas;
+          const rect = canvas.getBoundingClientRect();
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+          const scaledX = (x / rect.width) * this.gameState.canvasWidth;
+          const scaledY = (y / rect.height) * this.gameState.canvasHeight;
+
+          const now = Date.now();
+          if (now - this.lastPaddleUpdate > 20) {
+            this.sendCommand('MOVE_PADDLE', {
+              y: scaledY - this.gameState.paddleHeight / 2
+            });
+            this.lastPaddleUpdate = now;
+          }
+
+          if (this.isDrawing) {
+            this.sendCommand('UPDATE_LINE', { x: scaledX, y: scaledY });
+          }
         },
 
         handleMouseDown(event) {
-            if (event.button === 2) { // Right click
-                const canvas = this.$refs.canvas;
-                const rect = canvas.getBoundingClientRect();
-                const scaleX = canvas.width / rect.width;
-                const scaleY = canvas.height / rect.height;
-                const x = (event.clientX - rect.left) * scaleX;
-                const y = (event.clientY - rect.top) * scaleY;
+          if (event.button === 2) {
+            this.startDrawing(event.clientX, event.clientY);
+          }
+        },
 
-                this.isDrawing = true;
-                this.sendCommand('START_LINE', { x, y });
-            }
+        handleTouchStart(event) {
+          event.preventDefault();
+          if (event.touches.length > 0) {
+            const touch = event.touches[0];
+            this.startDrawing(touch.clientX, touch.clientY);
+          }
+        },
+
+        startDrawing(clientX, clientY) {
+          const canvas = this.$refs.canvas;
+          const rect = canvas.getBoundingClientRect();
+          const x = clientX - rect.left;
+          const y = clientY - rect.top;
+          const scaledX = (x / rect.width) * this.gameState.canvasWidth;
+          const scaledY = (y / rect.height) * this.gameState.canvasHeight;
+          this.isDrawing = true;
+          this.sendCommand('START_LINE', { x: scaledX, y: scaledY });
         },
 
         handleMouseUp(event) {
-            if (event.button === 2 && this.isDrawing) {
-                this.isDrawing = false;
-                this.sendCommand('FINISH_LINE');
-            }
+          if (event.button === 2 && this.isDrawing) {
+            this.finishDrawing();
+          }
+        },
+
+        handleTouchEnd(event) {
+          if (this.isDrawing) {
+            this.finishDrawing();
+          }
+        },
+
+        finishDrawing() {
+          this.isDrawing = false;
+          this.sendCommand('FINISH_LINE');
+        },
+
+        togglePause() {
+          this.sendCommand('TOGGLE_PAUSE');
+        },
+
+        resetGame() {
+          this.sendCommand('RESET');
+        },
+
+        clearLines() {
+          this.sendCommand('CLEAR_LINES');
+        },
+
+        setSpeed() {
+          this.sendCommand('SET_SPEED', { speed: this.speed });
+        },
+
+        spawnPowerUp(type) {
+          this.sendCommand('SPAWN_POWERUP', { type });
         }
-    }
-}).mount('#app');
+      }
+    }).mount('#app');
