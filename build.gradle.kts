@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.1.0"
     kotlin("plugin.allopen") version "2.3.0"
-    id("io.quarkus") version "3.6.4"
+    id("io.quarkus") version "3.30.8"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
     id("com.diffplug.spotless") version "8.2.0"
 }
@@ -18,12 +18,12 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.6.4"))
+    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.30.8"))
 
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-kotlin")
-    implementation("io.quarkus:quarkus-resteasy-reactive")
-    implementation("io.quarkus:quarkus-resteasy-reactive-jackson")
+    implementation("io.quarkus:quarkus-rest")
+    implementation("io.quarkus:quarkus-rest-jackson")
     implementation("io.quarkus:quarkus-websockets")
     implementation("io.quarkus:quarkus-jackson")
     implementation("io.quarkus:quarkus-scheduler")
