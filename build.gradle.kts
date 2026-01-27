@@ -7,7 +7,7 @@ plugins {
     kotlin("plugin.allopen") version "2.3.0"
     id("io.quarkus") version "3.6.4"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
-    id("com.diffplug.spotless") version "8.1.0"
+    id("com.diffplug.spotless") version "8.2.0"
 }
 
 group = "ru.rkhamatyarov"
