@@ -3,14 +3,41 @@ quarkus:
     port: 8080
     host: 0.0.0.0
     cors: true
-    cors:
-      origins: "*"
-
   websocket:
     max-frame-size: 1048576
-
   log:
     level: INFO
+    console:
+      enable: true
+      format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p [%c] - %s%e%n"
+      level: DEBUG
+    file:
+      enable: true
+      path: logs/application.log
+      format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p [%c] - %s%e%n"
+      level: DEBUG
+      rotation:
+        max-file-size: 20M
+        max-backup-index: 30
+        file-suffix: ".yyyy-MM-dd"
     category:
       "ru.rkhamatyarov":
+        level: DEBUG
+      "ru.rkhamatyarov.game":
+        level: DEBUG
+      "ru.rkhamatyarov.websocket":
+        level: DEBUG
+      "ru.rkhamatyarov.formula":
+        level: DEBUG
+      "ru.rkhamatyarov.powerup":
+        level: DEBUG
+      "com.fasterxml.jackson":
+        level: INFO
+      "io.quarkus":
+        level: INFO
+      "io.smallrye":
+        level: INFO
+      "org.jboss.resteasy":
+        level: INFO
+      "jakarta.websocket":
         level: DEBUG
