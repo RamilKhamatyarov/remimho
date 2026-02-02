@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.internal.builtins.StandardNames.FqNames.targe
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "2.1.0"
+    kotlin("jvm") version "2.3.0"
     kotlin("plugin.allopen") version "2.3.0"
     id("io.quarkus") version "3.30.8"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
