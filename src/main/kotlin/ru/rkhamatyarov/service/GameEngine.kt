@@ -83,7 +83,7 @@ class GameEngine {
     }
 
     private fun updateGame(deltaTime: Long) {
-        gameState.updatePuckMovingTime(deltaTime)
+        gameState.updatePuckMovingTime()
         val oldX = gameState.puckX
         val oldY = gameState.puckY
 

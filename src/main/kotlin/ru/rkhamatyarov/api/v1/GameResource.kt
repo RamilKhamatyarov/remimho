@@ -10,6 +10,9 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.jboss.logging.Logger
+import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
+import ru.rkhamatyarov.api.v1.request.SpeedRequest
+import ru.rkhamatyarov.api.v1.response.GameStateResponse
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.GameEngine
@@ -138,6 +141,7 @@ class GameResource {
                     ),
                 ).build()
         } catch (e: IllegalArgumentException) {
+            log.error(e.message, e)
             return Response
                 .status(Response.Status.BAD_REQUEST)
                 .entity(mapOf("error" to "Invalid power-up type: ${request.type}"))
@@ -206,29 +210,3 @@ class GameResource {
             activePowerUpsCount = gameState.activePowerUpEffects.size,
         )
 }
-
-// Request/Response DTOs
-data class SpeedRequest(
-    val speed: Double,
-)
-
-data class PowerUpSpawnRequest(
-    val type: String,
-)
-
-data class GameStateResponse(
-    val puckX: Double,
-    val puckY: Double,
-    val puckVX: Double,
-    val puckVY: Double,
-    val paddle1Y: Double,
-    val paddle2Y: Double,
-    val paddleHeight: Double,
-    val canvasWidth: Double,
-    val canvasHeight: Double,
-    val paused: Boolean,
-    val speedMultiplier: Double,
-    val linesCount: Int,
-    val powerUpsCount: Int,
-    val activePowerUpsCount: Int,
-)

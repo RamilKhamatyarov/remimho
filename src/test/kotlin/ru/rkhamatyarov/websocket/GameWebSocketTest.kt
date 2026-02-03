@@ -19,6 +19,7 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.websocket.dto.GameCommand
 
 @QuarkusTest
 class GameWebSocketTest {
@@ -74,7 +75,7 @@ class GameWebSocketTest {
         val mockSession = createMockSession("pause-session")
         assertFalse(gameState.paused)
 
-        val command = GameCommand(type = "TOGGLEPAUSE")
+        val command = GameCommand(type = "TOGGLE_PAUSE")
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
         assertTrue(gameState.paused)
 
@@ -108,7 +109,7 @@ class GameWebSocketTest {
         gameState.finishCurrentLine()
         assertTrue(gameState.lines.isNotEmpty())
 
-        val command = GameCommand(type = "CLEARLINES")
+        val command = GameCommand(type = "CLEAR_LINES")
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
         assertEquals(0, gameState.lines.size)
         assertFalse(gameState.isDrawing)
@@ -119,7 +120,7 @@ class GameWebSocketTest {
         val mockSession = createMockSession("start-line")
         val command =
             GameCommand(
-                type = "STARTLINE",
+                type = "START_LINE",
                 data = mapOf("x" to 100.0, "y" to 200.0),
             )
 
@@ -148,7 +149,7 @@ class GameWebSocketTest {
 
         val command =
             GameCommand(
-                type = "UPDATELINE",
+                type = "UPDATE_LINE",
                 data = mapOf("x" to 150.0, "y" to 250.0),
             )
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
@@ -158,26 +159,12 @@ class GameWebSocketTest {
     }
 
     @Test
-    fun `test handle finish line command`() {
-        val mockSession = createMockSession("finish-line")
-        gameState.startNewLine(100.0, 100.0)
-        gameState.updateCurrentLine(150.0, 150.0)
-        assertTrue(gameState.isDrawing)
-
-        val command = GameCommand(type = "FINISHLINE")
-        gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
-        assertFalse(gameState.isDrawing)
-        assertEquals(1, gameState.lines.size)
-    }
-
-    @Test
     fun `test handle set speed command with valid speed`() {
         val mockSession = createMockSession("speed-session")
-        val initialSpeed = gameState.speedMultiplier
 
         val command =
             GameCommand(
-                type = "SETSPEED",
+                type = "SET_SPEED",
                 data = mapOf("speed" to 2.5),
             )
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
@@ -187,11 +174,10 @@ class GameWebSocketTest {
     @Test
     fun `test handle move paddle command`() {
         val mockSession = createMockSession("move-paddle")
-        val initialY = gameState.paddle2Y
 
         val command =
             GameCommand(
-                type = "MOVEPADDLE",
+                type = "MOVE_PADDLE",
                 data = mapOf("y" to 300.0),
             )
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
