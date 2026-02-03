@@ -91,8 +91,8 @@ class GameState {
         }
     }
 
-    fun updatePuckMovingTime(deltaTime: Long) {
-        speedMultiplier = baseSpeedMultiplier
+    fun updatePuckMovingTime() {
+        speedMultiplier = 1.0
     }
 
     fun updateAdditionalPucks() {
@@ -215,9 +215,9 @@ class GameState {
         paddle2Y = (canvasHeight - paddleHeight) / 2
         puckMovingTime = 0L
         timeSpeedBoost = 1.0
-        baseSpeedMultiplier = 8.0
+        baseSpeedMultiplier = 1.0
         powerUpSpeedMultiplier = 1.0
-        speedMultiplier = 8.0
+        speedMultiplier = 1.0
         powerUps.clear()
         activePowerUpEffects.clear()
         additionalPucks.clear()

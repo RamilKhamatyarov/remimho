@@ -2,42 +2,100 @@ quarkus:
   http:
     port: 8080
     host: 0.0.0.0
-    cors: true
-  websocket:
-    max-frame-size: 1048576
+    netty:
+      tcp-no-delay: true
+      tcp-keep-alive: true
+      send-buffer-size: 65536      # 64KB
+      receive-buffer-size: 65536   # 64KB
+    compress: false
+    http2: true
+    limits:
+      max-body-size: 1M
+      max-form-size: 1M
+
+  executor:
+    core-threads: 8
+    max-threads: 64
+    queue-size: 1000
+    shutdown-timeout: 30S
+
+  jackson:
+    indent-output: false
+    fail-on-unknown-properties: false
+    fail-on-empty-beans: false
+
   log:
     level: INFO
-    console:
-      enable: true
-      format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p [%c] - %s%e%n"
-      level: DEBUG
-    file:
-      enable: true
-      path: logs/application.log
-      format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p [%c] - %s%e%n"
-      level: DEBUG
-      rotation:
-        max-file-size: 20M
-        max-backup-index: 30
-        file-suffix: ".yyyy-MM-dd"
+    handler:
+      type: async
     category:
       "ru.rkhamatyarov":
         level: DEBUG
-      "ru.rkhamatyarov.game":
-        level: DEBUG
       "ru.rkhamatyarov.websocket":
         level: DEBUG
-      "ru.rkhamatyarov.formula":
-        level: DEBUG
-      "ru.rkhamatyarov.powerup":
-        level: DEBUG
-      "com.fasterxml.jackson":
-        level: INFO
-      "io.quarkus":
-        level: INFO
-      "io.smallrye":
-        level: INFO
-      "org.jboss.resteasy":
-        level: INFO
-      "jakarta.websocket":
-        level: DEBUG
+
+  netty:
+    event-loops:
+      io: 8
+    io-threads: 8
+
+  rest:
+    server:
+      mode: reactive
+  resteasy:
+    path: api
+
+  micrometer:
+    enabled: true
+    export:
+      prometheus:
+        enabled: true
+        path: /metrics
+    binder:
+      vertx:
+        enabled: true
+      http:
+        client:
+          enabled: false
+        server:
+          enabled: true
+
+  datasource:
+    jdbc:
+      max-size: 8
+      min-size: 4
+
+"%dev":
+  quarkus:
+    log:
+      category:
+        "ru.rkhamatyarov":
+          level: DEBUG
+      handler:
+        type: async
+
+"%prod":
+  quarkus:
+    log:
+      level: WARN
+      category:
+        "ru.rkhamatyarov":
+          level: INFO
+
+"%ultra-latency":
+  quarkus:
+    http:
+      netty:
+        tcp-no-delay: true
+    executor:
+      core-threads: 16
+      max-threads: 128
+    log:
+      level: WARN
+
+game:
+  broadcast:
+    interval: 16
+  websocket:
+    max-connections: 1000
+    keep-alive-interval: 30000  # 30 sec

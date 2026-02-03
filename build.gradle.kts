@@ -20,6 +20,8 @@ repositories {
 dependencies {
     implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.30.8"))
 
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-kotlin")
     implementation("io.quarkus:quarkus-rest")

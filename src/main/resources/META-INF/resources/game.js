@@ -25,7 +25,7 @@
           },
           predictedPuckX: 400,
           predictedPuckY: 300,
-          speed: 8.0,
+          speed: 1.0,
           lineWidth: 5,
           isDrawing: false,
           lastFrameTime: 0,
@@ -37,7 +37,7 @@
           lastRenderTime: 0,
           lastPaddleUpdate: 0,
           lastUpdateTime: 0,
-          interpolationAlpha: 0.8,
+          interpolationAlpha: 1.0,
           canvasScale: 1,
           devicePixelRatio: window.devicePixelRatio || 1,
           lastPuckX: 400,
@@ -93,59 +93,68 @@
         },
 
         connectWebSocket() {
-          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-          const wsUrl = `${protocol}//${window.location.host}/api/v1/game/ws`;
-          this.ws = new WebSocket(wsUrl);
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/game/ws`;
+            this.ws = new WebSocket(wsUrl);
 
-          this.ws.onopen = () => {
-            this.connected = true;
-            this.sendCommand('SET_SPEED', { speed: this.speed });
-          };
+            this.ws.onopen = () => {
+                this.connected = true;
+                this.sendCommand('SET_SPEED', { speed: this.speed });
+            };
 
-          this.ws.onmessage = (event) => {
-            try {
-              const data = JSON.parse(event.data);
-              if (data.type === 'ERROR') {
-                console.error('Server error:', data.message);
-              } else {
-                this.lastPuckX = this.gameState.puckX;
-                this.lastPuckY = this.gameState.puckY;
+            this.ws.onmessage = (event) => {
+                const startTime = performance.now();
 
-                this.gameState.puckX = data.puckX !== undefined ? data.puckX : this.gameState.puckX;
-                this.gameState.puckY = data.puckY !== undefined ? data.puckY : this.gameState.puckY;
-                this.gameState.puckVX = data.puckVX !== undefined ? data.puckVX : 0;
-                this.gameState.puckVY = data.puckVY !== undefined ? data.puckVY : 0;
-                this.gameState.paddle1Y = data.paddle1Y !== undefined ? data.paddle1Y : 250;
-                this.gameState.paddle2Y = data.paddle2Y !== undefined ? data.paddle2Y : 250;
-                this.gameState.paddleHeight = data.paddleHeight || 100;
-                this.gameState.canvasWidth = data.canvasWidth || 800;
-                this.gameState.canvasHeight = data.canvasHeight || 600;
-                this.gameState.lines = data.lines || [];
-                this.gameState.powerUps = data.powerUps || [];
-                this.gameState.activePowerUps = data.activePowerUps || [];
-                this.gameState.additionalPucks = data.additionalPucks || [];
-                this.gameState.lifeGridCells = data.lifeGridCells || [];
-                this.gameState.paused = data.paused || false;
-                this.gameState.speedMultiplier = data.speedMultiplier || 1.0;
+                try {
+                    const data = JSON.parse(event.data);
 
-                this.smoothPuckX = this.lastPuckX + (this.gameState.puckX - this.lastPuckX) * this.interpolationAlpha;
-                this.smoothPuckY = this.lastPuckY + (this.gameState.puckY - this.lastPuckY) * this.interpolationAlpha;
+                    if (data.type === 'ERROR') {
+                        console.error('Server error:', data.message);
+                    } else {
+                        this.lastPuckX = this.gameState.puckX;
+                        this.lastPuckY = this.gameState.puckY;
 
-                this.speed = data.speedMultiplier || this.speed;
-              }
-            } catch (e) {
-              console.error('Failed to parse message:', e);
-            }
-          };
+                        Object.assign(this.gameState, {
+                            puckX: data.puckX ?? this.gameState.puckX,
+                            puckY: data.puckY ?? this.gameState.puckY,
+                            puckVX: data.puckVX ?? 0,
+                            puckVY: data.puckVY ?? 0,
+                            paddle1Y: data.paddle1Y ?? 250,
+                            paddle2Y: data.paddle2Y ?? 250,
+                            paddleHeight: data.paddleHeight ?? 100,
+                            canvasWidth: data.canvasWidth ?? 800,
+                            canvasHeight: data.canvasHeight ?? 600,
+                            lines: data.lines ?? [],
+                            powerUps: data.powerUps ?? [],
+                            activePowerUps: data.activePowerUps ?? [],
+                            additionalPucks: data.additionalPucks ?? [],
+                            lifeGridCells: data.lifeGridCells ?? [],
+                            paused: data.paused ?? false,
+                            speedMultiplier: data.speedMultiplier ?? 1.0,
+                        });
 
-          this.ws.onclose = () => {
-            this.connected = false;
-            setTimeout(() => this.connectWebSocket(), 2000);
-          };
+                        this.smoothPuckX = this.lastPuckX + (this.gameState.puckX - this.lastPuckX) * this.interpolationAlpha;
+                        this.smoothPuckY = this.lastPuckY + (this.gameState.puckY - this.lastPuckY) * this.interpolationAlpha;
+                        this.speed = data.speedMultiplier || this.speed;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse message:', e);
+                }
 
-          this.ws.onerror = (error) => {
-            console.error('WebSocket error:', error);
-          };
+                const processingTime = performance.now() - startTime;
+                if (processingTime > 5) {
+                    console.warn(`Slow message processing: ${processingTime.toFixed(2)}ms`);
+                }
+            };
+
+            this.ws.onclose = () => {
+                this.connected = false;
+                setTimeout(() => this.connectWebSocket(), 2000);
+            };
+
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
         },
 
         sendCommand(type, data = {}) {
@@ -171,7 +180,6 @@
 
         startRenderLoop() {
           const render = (timestamp) => {
-            this.renderId = requestAnimationFrame(render);
             this.frameCount++;
 
             if (timestamp - this.fpsUpdateTime >= 1000) {
@@ -180,11 +188,9 @@
               this.fpsUpdateTime = timestamp;
             }
 
-            if (timestamp - this.lastRenderTime >= 16) {
-              this.renderGame();
-              this.lastRenderTime = timestamp;
-              this.lastFrameTime = timestamp;
-            }
+            this.renderGame();
+
+            this.renderId = requestAnimationFrame(render);
           };
 
           this.renderId = requestAnimationFrame(render);

@@ -1,7 +1,5 @@
 package ru.rkhamatyarov.websocket
 
-import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
@@ -15,10 +13,17 @@ import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
+import ru.rkhamatyarov.websocket.dto.CellDTO
+import ru.rkhamatyarov.websocket.dto.GameCommand
+import ru.rkhamatyarov.websocket.dto.GameStateDTO
+import ru.rkhamatyarov.websocket.dto.LineDTO
+import ru.rkhamatyarov.websocket.dto.PointDTO
+import ru.rkhamatyarov.websocket.dto.PowerUpDTO
+import ru.rkhamatyarov.websocket.dto.PuckDTO
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
-import kotlin.jvm.java
 
 @ServerEndpoint("/api/v1/game/ws")
 @ApplicationScoped
@@ -35,12 +40,12 @@ class GameWebSocket {
     lateinit var objectMapper: ObjectMapper
 
     companion object {
-        private const val BROADCAST_INTERVAL = 8L
+        private const val BROADCAST_INTERVAL = 16L
         private val sessions = ConcurrentHashMap<String, Session>()
         private val lastBroadcastTime = AtomicLong(0)
-        private val cachedDTO = AtomicReference<String?>(null)
-        private var lastStateHash = 0
-        private var broadcastCount = 0L
+
+        private val cachedGameStateJson = AtomicReference<String?>(null)
+        private var lastGameStateHash = 0
     }
 
     @OnOpen
@@ -70,6 +75,8 @@ class GameWebSocket {
         message: String,
         session: Session,
     ) {
+        val startNano = System.nanoTime()
+
         try {
             if (message.isBlank()) {
                 sendError(session, "Empty message")
@@ -89,6 +96,11 @@ class GameWebSocket {
         } catch (e: Exception) {
             log.error("Failed to process message: $message", e)
             sendError(session, "Invalid command format")
+        } finally {
+            val latencyMs = (System.nanoTime() - startNano) / 1_000_000.0
+            if (latencyMs > 10) {
+                log.warn("Slow message: ${"%.2f".format(latencyMs)}ms")
+            }
         }
     }
 
@@ -96,84 +108,99 @@ class GameWebSocket {
         command: GameCommand,
         session: Session,
     ) {
-        when (command.type) {
-            "MOVEPADDLE" -> {
+        when (command.type.uppercase()) {
+            "MOVE_PADDLE" -> {
                 val y = command.data["y"]?.toString()?.toDoubleOrNull()
                 if (y != null) {
-                    gameState.paddle2Y = y.coerceAtMost(gameState.canvasHeight - gameState.paddleHeight).coerceAtLeast(0.0)
-                    log.debug("COMMAND MOVEPADDLE: y=$y")
+                    gameState.paddle2Y =
+                        y
+                            .coerceAtMost(gameState.canvasHeight - gameState.paddleHeight)
+                            .coerceAtLeast(0.0)
+                    if (log.isDebugEnabled) {
+                        log.debug("COMMAND MOVE_PADDLE: y=$y")
+                    }
+                } else {
+                    sendError(session, "Invalid MOVE_PADDLE data: y is required")
                 }
             }
 
-            "TOGGLEPAUSE" -> {
+            "TOGGLE_PAUSE" -> {
                 gameState.togglePause()
                 log.info("Game ${if (gameState.paused) "paused" else "resumed"} by ${session.id}")
             }
 
             "RESET" -> {
                 gameState.reset()
+                cachedGameStateJson.set(null) // ✅ Invalidate cache
                 log.info("Game reset by ${session.id}")
-                log.debug(
-                    "COMMAND RESET - " +
-                        "puckX=${gameState.puckX}, puckY=${gameState.puckY}, " +
-                        "vX=${gameState.puckVX}, vY=${gameState.puckVY}",
-                )
-                cachedDTO.set(null)
             }
 
-            "CLEARLINES" -> {
+            "CLEAR_LINES" -> {
                 val count = gameState.lines.size
                 gameState.clearLines()
+                cachedGameStateJson.set(null) // ✅ Invalidate cache
                 log.info("Cleared $count lines by ${session.id}")
-                cachedDTO.set(null)
             }
 
-            "STARTLINE" -> {
+            "START_LINE" -> {
                 val x = command.data["x"]?.toString()?.toDoubleOrNull()
                 val y = command.data["y"]?.toString()?.toDoubleOrNull()
                 if (x != null && y != null) {
                     gameState.startNewLine(x, y)
-                    log.debug("COMMAND STARTLINE: x=$x, y=$y")
+                    if (log.isDebugEnabled) {
+                        log.debug("COMMAND START_LINE: x=$x, y=$y")
+                    }
+                } else {
+                    sendError(session, "Invalid START_LINE data: x and y are required")
                 }
             }
 
-            "UPDATELINE" -> {
+            "UPDATE_LINE" -> {
                 val x = command.data["x"]?.toString()?.toDoubleOrNull()
                 val y = command.data["y"]?.toString()?.toDoubleOrNull()
                 if (x != null && y != null) {
                     gameState.updateCurrentLine(x, y)
-                    log.debug("COMMAND UPDATELINE: x=$x, y=$y")
+                    if (log.isDebugEnabled) {
+                        log.debug("COMMAND UPDATE_LINE: x=$x, y=$y")
+                    }
+                } else {
+                    sendError(session, "Invalid UPDATE_LINE data: x and y are required")
                 }
             }
 
-            "FINISHLINE" -> {
+            "FINISH_LINE" -> {
                 gameState.finishCurrentLine()
-                log.debug("COMMAND FINISHLINE")
-                cachedDTO.set(null)
+                cachedGameStateJson.set(null) // ✅ Invalidate cache
+                if (log.isDebugEnabled) {
+                    log.debug("COMMAND FINISH_LINE")
+                }
             }
 
-            "SETSPEED" -> {
+            "SET_SPEED" -> {
                 val speed = command.data["speed"]?.toString()?.toDoubleOrNull()
                 if (speed != null && speed in 0.1..20.0) {
                     gameState.baseSpeedMultiplier = speed
                     gameState.speedMultiplier = speed
                     log.info("Speed set to $speed x by ${session.id}")
-                    log.debug("COMMAND SETSPEED: speed=$speed")
-                    cachedDTO.set(null)
+                } else {
+                    sendError(session, "Invalid SET_SPEED data: speed must be between 0.1 and 20.0")
                 }
             }
 
-            "SPAWNPOWERUP" -> {
+            "SPAWN_POWERUP" -> {
                 val typeStr = command.data["type"]?.toString()
                 if (typeStr != null) {
                     try {
                         val type = PowerUpType.valueOf(typeStr)
                         gameEngine.spawnTestPowerUp(type)
+                        cachedGameStateJson.set(null) // ✅ Invalidate cache
                         log.info("Spawned test power-up: $type by ${session.id}")
-                        cachedDTO.set(null)
                     } catch (e: IllegalArgumentException) {
+                        log.error(e.message, e)
                         sendError(session, "Invalid power-up type: $typeStr")
                     }
+                } else {
+                    sendError(session, "Invalid SPAWN_POWERUP data: type is required")
                 }
             }
 
@@ -186,40 +213,45 @@ class GameWebSocket {
 
     fun broadcastGameState() {
         val now = System.currentTimeMillis()
+
         if (now - lastBroadcastTime.get() < BROADCAST_INTERVAL) return
         if (sessions.isEmpty()) return
 
         try {
-            broadcastCount++
-            val dto = createGameStateDTO()
-            val json = objectMapper.writeValueAsString(dto)
+            val broadcastStartNano = System.nanoTime()
 
-            if (broadcastCount % 50 == 0L) {
-                log.debug(
-                    "BROADCAST count=$broadcastCount, " +
-                        "puckX=${dto.puckX}, puckY=${dto.puckY}, " +
-                        "vX=${dto.puckVX}, vY=${dto.puckVY}, " +
-                        "speedMult=${dto.speedMultiplier}, sessions=${sessions.size}",
-                )
+            val dto = createGameStateDTO()
+            val currentHash = dto.hashCode()
+
+            val json =
+                if (lastGameStateHash != currentHash) {
+                    objectMapper.writeValueAsString(dto).also {
+                        lastGameStateHash = currentHash
+                        cachedGameStateJson.set(it)
+                    }
+                } else {
+                    cachedGameStateJson.get() ?: objectMapper.writeValueAsString(dto)
+                }
+
+            sessions.values.parallelStream().forEach { session ->
+                try {
+                    if (session.isOpen) {
+                        session.asyncRemote.sendText(json)
+                    }
+                } catch (e: Exception) {
+                    log.error("Failed to send to session: ${session.id}", e)
+                    sessions.remove(session.id)
+                }
             }
 
-            sendToAllSessions(json)
             lastBroadcastTime.set(now)
+
+            val broadcastMs = (System.nanoTime() - broadcastStartNano) / 1_000_000.0
+            if (broadcastMs > 50) {
+                log.warn("Slow broadcast: ${"%.2f".format(broadcastMs)}ms to ${sessions.size} clients")
+            }
         } catch (e: Exception) {
             log.error("Failed to broadcast game state", e)
-        }
-    }
-
-    private fun sendToAllSessions(json: String) {
-        sessions.values.forEach { session ->
-            try {
-                if (session.isOpen) {
-                    session.asyncRemote.sendText(json)
-                }
-            } catch (e: Exception) {
-                log.error("Failed to send to session: ${session.id}", e)
-                sessions.remove(session.id)
-            }
         }
     }
 
@@ -227,7 +259,6 @@ class GameWebSocket {
         try {
             val state = createGameStateDTO()
             val json = objectMapper.writeValueAsString(state)
-            log.debug("SENDING INITIAL - puckX=${state.puckX}, puckY=${state.puckY}, vX=${state.puckVX}, vY=${state.puckVY}")
             session.asyncRemote.sendText(json)
         } catch (e: Exception) {
             log.error("Failed to send initial state to ${session.id}", e)
@@ -315,72 +346,4 @@ class GameWebSocket {
     }
 
     fun getActiveSessionsCount(): Int = sessions.size
-
-    data class GameStateDTO(
-        val puckX: Double,
-        val puckY: Double,
-        val puckVX: Double,
-        val puckVY: Double,
-        val paddle1Y: Double,
-        val paddle2Y: Double,
-        val paddleHeight: Double,
-        val canvasWidth: Double,
-        val canvasHeight: Double,
-        val lines: List<LineDTO>,
-        val powerUps: List<PowerUpDTO>,
-        val activePowerUps: List<ActivePowerUpDTO>,
-        val additionalPucks: List<PuckDTO>,
-        val lifeGridCells: List<CellDTO>,
-        val paused: Boolean,
-        val speedMultiplier: Double,
-    )
-
-    data class LineDTO(
-        val points: List<PointDTO>,
-        val width: Double,
-        val animationProgress: Double,
-        val isAnimating: Boolean,
-    )
-
-    data class PointDTO(
-        val x: Double,
-        val y: Double,
-    )
-
-    data class PowerUpDTO(
-        val x: Double,
-        val y: Double,
-        val type: String,
-        val emoji: String,
-        val color: String,
-        val radius: Double,
-    )
-
-    data class ActivePowerUpDTO(
-        val type: String,
-        val emoji: String,
-        val description: String,
-        val remainingSeconds: Int,
-        val color: String,
-    )
-
-    data class PuckDTO(
-        val x: Double,
-        val y: Double,
-    )
-
-    data class CellDTO(
-        val x: Double,
-        val y: Double,
-        val size: Double,
-    )
 }
-
-data class GameCommand
-    @JsonCreator
-    constructor(
-        @JsonProperty("type")
-        val type: String,
-        @JsonProperty("data")
-        val data: Map<String, Any> = emptyMap(),
-    )
