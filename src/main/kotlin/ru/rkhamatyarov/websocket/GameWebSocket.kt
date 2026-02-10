@@ -1,6 +1,7 @@
 package ru.rkhamatyarov.websocket
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.quarkus.scheduler.Scheduled
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import jakarta.websocket.OnClose
@@ -41,11 +42,10 @@ class GameWebSocket {
 
     companion object {
         private const val BROADCAST_INTERVAL = 16L
-        private val sessions = ConcurrentHashMap<String, Session>()
-        private val lastBroadcastTime = AtomicLong(0)
-
-        private val cachedGameStateJson = AtomicReference<String?>(null)
-        private var lastGameStateHash = 0
+        private val sessions: ConcurrentHashMap<String, Session> = ConcurrentHashMap()
+        private val lastBroadcastTime: AtomicLong = AtomicLong(0)
+        private val cachedGameStateJson: AtomicReference<String?> = AtomicReference(null)
+        private var lastGameStateHash: Int = 0
     }
 
     @OnOpen
@@ -209,6 +209,11 @@ class GameWebSocket {
                 sendError(session, "Unknown command type: ${command.type}")
             }
         }
+    }
+
+    @Scheduled(every = "0.016s")
+    fun scheduledBroadcast() {
+        broadcastGameState()
     }
 
     fun broadcastGameState() {
