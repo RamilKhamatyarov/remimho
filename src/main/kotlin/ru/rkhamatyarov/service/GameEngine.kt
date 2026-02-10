@@ -10,7 +10,6 @@ import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
-import ru.rkhamatyarov.websocket.GameWebSocket
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -24,9 +23,6 @@ class GameEngine {
 
     @Inject
     lateinit var powerUpManager: PowerUpManager
-
-    @Inject
-    lateinit var gameWebSocket: jakarta.enterprise.inject.Instance<GameWebSocket>
 
     @Inject
     lateinit var formulaRegistry: FormulaRegistry
@@ -48,34 +44,18 @@ class GameEngine {
         )
     }
 
-    @Scheduled(every = "0.008s")
+    @Scheduled(every = "0.016s")
     fun gameLoop() {
         if (!initialized) return
-
         try {
             val currentTime = System.nanoTime()
             val deltaTime = currentTime - lastUpdateTime
             lastUpdateTime = currentTime
-
             frameCount++
             debugFrameCount++
 
-            if (frameCount % 120 == 0L) {
-                val fps = 1_000_000_000.0 / deltaTime
-                log.debug(
-                    "GAMELOOP: fps=${fps.toInt()}, " +
-                        "puckX=${gameState.puckX.toInt()}, puckY=${gameState.puckY.toInt()}, " +
-                        "vX=${gameState.puckVX.toInt()}, vY=${gameState.puckVY.toInt()}, " +
-                        "speedMult=${gameState.speedMultiplier}",
-                )
-            }
-
             if (!gameState.paused) {
                 updateGame(deltaTime)
-            }
-
-            if (gameWebSocket.isResolvable) {
-                gameWebSocket.get().broadcastGameState()
             }
         } catch (e: Exception) {
             log.error("Error in game loop: ${e.message}", e)
@@ -88,7 +68,7 @@ class GameEngine {
         val oldY = gameState.puckY
 
         updateAIPaddle()
-        updatePuckPosition()
+        updatePuckPosition(deltaTime)
 
         val deltaX = gameState.puckX - oldX
         val deltaY = gameState.puckY - oldY
@@ -125,20 +105,12 @@ class GameEngine {
         gameState.paddle1Y = gameState.paddle1Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
     }
 
-    private fun updatePuckPosition() {
-        val moveX = gameState.puckVX * gameState.speedMultiplier
-        val moveY = gameState.puckVY * gameState.speedMultiplier
-
+    private fun updatePuckPosition(deltaTime: Long) {
+        val dt = (deltaTime / 1_000_000_000.0).coerceIn(0.0, 0.05)
+        val moveX = gameState.puckVX * gameState.speedMultiplier * dt
+        val moveY = gameState.puckVY * gameState.speedMultiplier * dt
         gameState.puckX += moveX
         gameState.puckY += moveY
-
-        if (debugFrameCount % 50 == 0L) {
-            log.debug(
-                "PUCK_UPDATE: moveX=$moveX, moveY=$moveY, vX=${gameState.puckVX}, vY=${gameState.puckVY}, " +
-                    "speedMult=${gameState.speedMultiplier}, newX=${gameState.puckX}, newY=${gameState.puckY}",
-            )
-        }
-
         gameState.capPuckVelocity()
     }
 

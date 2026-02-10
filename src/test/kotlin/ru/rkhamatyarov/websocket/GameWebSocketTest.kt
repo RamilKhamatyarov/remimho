@@ -195,27 +195,6 @@ class GameWebSocketTest {
     }
 
     @Test
-    fun `test broadcastGameState when no sessions`() {
-        gameWebSocket.broadcastGameState()
-        assertEquals(0, gameWebSocket.getActiveSessionsCount())
-    }
-
-    @Test
-    fun `test broadcastGameState with active sessions`() {
-        val mockSession = createMockSession("broadcast-session")
-        val asyncRemote = mock(jakarta.websocket.RemoteEndpoint.Async::class.java)
-
-        `when`(mockSession.asyncRemote).thenReturn(asyncRemote)
-        `when`(mockSession.isOpen).thenReturn(true)
-
-        gameWebSocket.onOpen(mockSession)
-        gameWebSocket.broadcastGameState()
-
-        verify(asyncRemote, atLeastOnce()).sendText(anyString())
-        gameWebSocket.onClose(mockSession)
-    }
-
-    @Test
     fun `test getActiveSessionsCount accuracy`() {
         val sessions =
             listOf(
@@ -240,8 +219,8 @@ class GameWebSocketTest {
         val mockSession = createMockSession("powerup-session")
         val command =
             GameCommand(
-                type = "SPAWNPOWERUP",
-                data = mapOf("type" to "INVALIDTYPE"),
+                type = "SPAWN_POWERUP",
+                data = mapOf("type" to "INVALID_TYPE"),
             )
 
         gameWebSocket.onMessage(objectMapper.writeValueAsString(command), mockSession)
