@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.0"
     kotlin("plugin.allopen") version "2.3.10"
-    id("io.quarkus") version "3.31.1"
+    id("io.quarkus") version "3.31.3"
     id("org.jlleitschuh.gradle.ktlint") version "12.1.0"
     id("com.diffplug.spotless") version "8.2.1"
 }
@@ -18,7 +18,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.31.1"))
+    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.31.3"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
