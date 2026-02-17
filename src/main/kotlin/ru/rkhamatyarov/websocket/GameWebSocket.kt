@@ -131,14 +131,12 @@ class GameWebSocket {
 
             "RESET" -> {
                 gameState.reset()
-                cachedGameStateJson.set(null) // ✅ Invalidate cache
                 log.info("Game reset by ${session.id}")
             }
 
             "CLEAR_LINES" -> {
                 val count = gameState.lines.size
                 gameState.clearLines()
-                cachedGameStateJson.set(null) // ✅ Invalidate cache
                 log.info("Cleared $count lines by ${session.id}")
             }
 
@@ -170,7 +168,6 @@ class GameWebSocket {
 
             "FINISH_LINE" -> {
                 gameState.finishCurrentLine()
-                cachedGameStateJson.set(null) // ✅ Invalidate cache
                 if (log.isDebugEnabled) {
                     log.debug("COMMAND FINISH_LINE")
                 }
@@ -193,7 +190,6 @@ class GameWebSocket {
                     try {
                         val type = PowerUpType.valueOf(typeStr)
                         gameEngine.spawnTestPowerUp(type)
-                        cachedGameStateJson.set(null) // ✅ Invalidate cache
                         log.info("Spawned test power-up: $type by ${session.id}")
                     } catch (e: IllegalArgumentException) {
                         log.error(e.message, e)
