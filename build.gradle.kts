@@ -5,7 +5,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.10"
     kotlin("plugin.allopen") version "2.3.10"
-    id("io.quarkus") version "3.31.3"
+    id("io.quarkus") version "3.32.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.2.1"
 }
