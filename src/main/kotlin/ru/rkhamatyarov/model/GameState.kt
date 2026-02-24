@@ -13,8 +13,8 @@ class GameState {
     var canvasHeight = 600.0
     var puckX = 400.0
     var puckY = 300.0
-    var puckVX = 80.0
-    var puckVY = 80.0
+    var puckVX = 250.0
+    var puckVY = 180.0
     var paddle1Y = 250.0
     var paddle2Y = 250.0
 
@@ -41,8 +41,8 @@ class GameState {
 
     val puckLineCollisionCooldown = mutableMapOf<String, Long>()
     val collisionCooldownDuration = 100_000_000L
-    val maxVelocityMagnitude = 150.0
-    val additionalPuckMaxVelocity = 60.0
+    val maxVelocityMagnitude = 500.0
+    val additionalPuckMaxVelocity = 400.0
 
     var getTimeNs: () -> Long = { System.nanoTime() }
 
@@ -92,7 +92,7 @@ class GameState {
     }
 
     fun updatePuckMovingTime() {
-        speedMultiplier = 1.0
+        speedMultiplier = baseSpeedMultiplier
     }
 
     fun updateAdditionalPucks() {
@@ -209,8 +209,8 @@ class GameState {
     fun reset() {
         puckX = canvasWidth / 2
         puckY = canvasHeight / 2
-        puckVX = 80.0
-        puckVY = 80.0
+        puckVX = 250.0
+        puckVY = 180.0
         paddle1Y = (canvasHeight - paddleHeight) / 2
         paddle2Y = (canvasHeight - paddleHeight) / 2
         puckMovingTime = 0L

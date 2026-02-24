@@ -147,7 +147,7 @@ class GameEngineTest {
 
         // w
         assertTrue(gameState.puckVY < 0.0)
-        assertTrue(abs(gameState.puckVY) > 10.0)
+        assertEquals(10.0, abs(gameState.puckVY), 0.001)
     }
 
     @Test

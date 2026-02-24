@@ -1,11 +1,9 @@
-import org.gradle.internal.impldep.org.eclipse.jgit.util.RawCharUtil.trimTrailingWhitespace
-import org.jetbrains.kotlin.gradle.internal.builtins.StandardNames.FqNames.target
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "2.3.10"
     kotlin("plugin.allopen") version "2.3.10"
-    id("io.quarkus") version "3.31.3"
+    id("io.quarkus") version "3.32.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.0.1"
     id("com.diffplug.spotless") version "8.2.1"
 }
@@ -18,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus.platform:quarkus-bom:3.31.4"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.32.0"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 

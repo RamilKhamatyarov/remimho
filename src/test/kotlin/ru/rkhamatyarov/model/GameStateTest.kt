@@ -217,6 +217,6 @@ class GameStateTest {
 
         gameState.updatePuckMovingTime()
 
-        assertEquals(1.0, gameState.speedMultiplier)
+        assertEquals(1.5, gameState.speedMultiplier)
     }
 }
