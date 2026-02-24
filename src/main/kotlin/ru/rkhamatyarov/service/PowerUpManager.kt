@@ -23,7 +23,7 @@ class PowerUpManager {
     private val spawnInterval = 10_000_000_000L
     private val minSpawnDistance = 100.0
 
-    fun update(deltaTime: Long) {
+    fun update(deltaTime: Double) {
         if (System.nanoTime() - lastSpawnTime > spawnInterval) {
             spawnRandomPowerUp()
             lastSpawnTime = System.nanoTime()
@@ -46,7 +46,7 @@ class PowerUpManager {
     }
 
     private fun spawnRandomPowerUp() {
-        val powerUpType = PowerUpType.values().random()
+        val powerUpType = PowerUpType.entries.toTypedArray().random()
         val (x, y) = generateSafeSpawnPosition()
 
         val powerUp = PowerUp(x, y, powerUpType)
@@ -141,7 +141,6 @@ class PowerUpManager {
 
     private fun applyActivePowerUpEffects() {
         var hasSpeedBoost = false
-        var hasMagnetEffect = false
 
         gameState.activePowerUpEffects.forEach { effect ->
             when (effect.type) {
@@ -150,7 +149,6 @@ class PowerUpManager {
                 }
 
                 PowerUpType.MAGNET_BALL -> {
-                    hasMagnetEffect = true
                     applyMagnetEffect()
                 }
 
@@ -169,10 +167,6 @@ class PowerUpManager {
     }
 
     private fun applyMagnetEffect() {
-        val magnetStrength = 0.3
-        val magnetRange = 150.0
-        val paddleWidth = 20.0
-
         applyMagnetToPuck(
             gameState.puckX,
             gameState.puckY,

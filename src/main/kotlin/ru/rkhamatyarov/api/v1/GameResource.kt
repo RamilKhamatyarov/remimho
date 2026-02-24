@@ -165,7 +165,7 @@ class GameResource {
                 "lifeGridAliveCells" to gameState.lifeGrid.getAliveCells().size,
                 "speedMultiplier" to gameState.speedMultiplier,
                 "isPaused" to gameState.paused,
-                "puckMovingTime" to gameState.puckMovingTime / 1_000_000_000.0, // seconds
+                "puckMovingTime" to gameState.puckMovingTime / 1_000_000_000.0,
             )
 
         return Response.ok(stats).build()
@@ -185,7 +185,7 @@ class GameResource {
                     "description" to type.description,
                     "emoji" to type.emoji,
                     "color" to PowerUpType.getColorCode(type),
-                    "duration" to PowerUpType.getDuration(type) / 1_000_000_000.0, // seconds
+                    "duration" to PowerUpType.getDuration(type) / 1_000_000_000.0,
                 )
             }
 

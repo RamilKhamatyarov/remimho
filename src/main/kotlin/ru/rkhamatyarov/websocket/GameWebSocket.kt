@@ -24,7 +24,6 @@ import ru.rkhamatyarov.websocket.dto.PowerUpDTO
 import ru.rkhamatyarov.websocket.dto.PuckDTO
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 
 @ServerEndpoint("/api/v1/game/ws")
 @ApplicationScoped
@@ -44,8 +43,6 @@ class GameWebSocket {
         private const val BROADCAST_INTERVAL = 16L
         private val sessions: ConcurrentHashMap<String, Session> = ConcurrentHashMap()
         private val lastBroadcastTime: AtomicLong = AtomicLong(0)
-        private val cachedGameStateJson: AtomicReference<String?> = AtomicReference(null)
-        private var lastGameStateHash: Int = 0
     }
 
     @OnOpen
@@ -207,7 +204,7 @@ class GameWebSocket {
         }
     }
 
-    @Scheduled(every = "0.016s")
+    @Scheduled(every = "0.005s")
     fun scheduledBroadcast() {
         broadcastGameState()
     }
@@ -222,17 +219,7 @@ class GameWebSocket {
             val broadcastStartNano = System.nanoTime()
 
             val dto = createGameStateDTO()
-            val currentHash = dto.hashCode()
-
-            val json =
-                if (lastGameStateHash != currentHash) {
-                    objectMapper.writeValueAsString(dto).also {
-                        lastGameStateHash = currentHash
-                        cachedGameStateJson.set(it)
-                    }
-                } else {
-                    cachedGameStateJson.get() ?: objectMapper.writeValueAsString(dto)
-                }
+            val json = objectMapper.writeValueAsString(dto)
 
             sessions.values.parallelStream().forEach { session ->
                 try {

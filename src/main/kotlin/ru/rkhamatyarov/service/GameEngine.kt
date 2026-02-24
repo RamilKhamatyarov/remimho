@@ -44,30 +44,38 @@ class GameEngine {
         )
     }
 
-    @Scheduled(every = "0.016s")
+    @Scheduled(every = "0.005s")
     fun gameLoop() {
         if (!initialized) return
-        try {
-            val currentTime = System.nanoTime()
-            val deltaTime = currentTime - lastUpdateTime
-            lastUpdateTime = currentTime
-            frameCount++
-            debugFrameCount++
 
+        val now = System.nanoTime()
+        var deltaNs = now - lastUpdateTime
+        lastUpdateTime = now
+
+        if (deltaNs <= 0L) return
+
+        val maxDeltaNs = 50_000_000L
+        if (deltaNs > maxDeltaNs) {
+            deltaNs = maxDeltaNs
+        }
+
+        val deltaSeconds = deltaNs / 1_000_000_000.0
+
+        try {
             if (!gameState.paused) {
-                updateGame(deltaTime)
+                updateGame(deltaSeconds)
             }
         } catch (e: Exception) {
             log.error("Error in game loop: ${e.message}", e)
         }
     }
 
-    private fun updateGame(deltaTime: Long) {
+    private fun updateGame(deltaTime: Double) {
         gameState.updatePuckMovingTime()
         val oldX = gameState.puckX
         val oldY = gameState.puckY
 
-        updateAIPaddle()
+        updateAIPaddle(deltaTime)
         updatePuckPosition(deltaTime)
 
         val deltaX = gameState.puckX - oldX
@@ -92,25 +100,26 @@ class GameEngine {
         gameState.cleanupCollisionCooldowns()
     }
 
-    private fun updateAIPaddle() {
-        val aiSpeed = 15.0
+    private fun updateAIPaddle(deltaSeconds: Double) {
+        val aiSpeed = 300.0 * gameState.speedMultiplier
         val targetY = gameState.puckY - gameState.paddleHeight / 2
-        if (abs(gameState.paddle1Y - targetY) > 5) {
-            if (gameState.paddle1Y < targetY) {
-                gameState.paddle1Y += aiSpeed * gameState.speedMultiplier
-            } else {
-                gameState.paddle1Y -= aiSpeed * gameState.speedMultiplier
-            }
+        val diff = targetY - gameState.paddle1Y
+
+        if (kotlin.math.abs(diff) > 2.0) {
+            val direction = kotlin.math.sign(diff)
+            gameState.paddle1Y += direction * aiSpeed * deltaSeconds
         }
-        gameState.paddle1Y = gameState.paddle1Y.coerceIn(0.0, gameState.canvasHeight - gameState.paddleHeight)
+
+        gameState.paddle1Y =
+            gameState.paddle1Y.coerceIn(
+                0.0,
+                gameState.canvasHeight - gameState.paddleHeight,
+            )
     }
 
-    private fun updatePuckPosition(deltaTime: Long) {
-        val dt = (deltaTime / 1_000_000_000.0).coerceIn(0.0, 0.05)
-        val moveX = gameState.puckVX * gameState.speedMultiplier * dt
-        val moveY = gameState.puckVY * gameState.speedMultiplier * dt
-        gameState.puckX += moveX
-        gameState.puckY += moveY
+    private fun updatePuckPosition(deltaSeconds: Double) {
+        gameState.puckX += gameState.puckVX * gameState.speedMultiplier * gameState.powerUpSpeedMultiplier * deltaSeconds
+        gameState.puckY += gameState.puckVY * gameState.speedMultiplier * gameState.powerUpSpeedMultiplier * deltaSeconds
         gameState.capPuckVelocity()
     }
 
@@ -119,11 +128,11 @@ class GameEngine {
 
         if (gameState.puckY <= puckRadius) {
             gameState.puckY = puckRadius
-            gameState.puckVY = abs(gameState.puckVY) * 1.15
+            gameState.puckVY = abs(gameState.puckVY)
             log.debug("COLLISION: top wall, vY=${gameState.puckVY}")
         } else if (gameState.puckY >= gameState.canvasHeight - puckRadius) {
             gameState.puckY = gameState.canvasHeight - puckRadius
-            gameState.puckVY = -abs(gameState.puckVY) * 1.15
+            gameState.puckVY = -abs(gameState.puckVY)
             log.debug("COLLISION: bottom wall, vY=${gameState.puckVY}")
         }
 
@@ -149,9 +158,11 @@ class GameEngine {
             gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
         ) {
             gameState.puckX = paddleWidth + puckRadius
-            gameState.puckVX = abs(gameState.puckVX) * 1.3
+            val currentSpeed = hypot(gameState.puckVX, gameState.puckVY)
             val relativeY = (gameState.puckY - gameState.paddle1Y) / gameState.paddleHeight
-            gameState.puckVY = (relativeY - 0.5) * 30.0
+            gameState.puckVX = abs(gameState.puckVX) * 1.1
+            gameState.puckVY = (relativeY - 0.5) * 2.0 * currentSpeed
+            gameState.capPuckVelocity()
             log.debug("COLLISION: paddle1, vX=${gameState.puckVX}, vY=${gameState.puckVY}")
         }
 
@@ -160,9 +171,11 @@ class GameEngine {
             gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
         ) {
             gameState.puckX = gameState.canvasWidth - paddleWidth - puckRadius
-            gameState.puckVX = -abs(gameState.puckVX) * 1.3
+            val currentSpeed = hypot(gameState.puckVX, gameState.puckVY)
             val relativeY = (gameState.puckY - gameState.paddle2Y) / gameState.paddleHeight
-            gameState.puckVY = (relativeY - 0.5) * 30.0
+            gameState.puckVX = -abs(gameState.puckVX) * 1.1
+            gameState.puckVY = (relativeY - 0.5) * 2.0 * currentSpeed
+            gameState.capPuckVelocity()
             log.debug("COLLISION: paddle2, vX=${gameState.puckVX}, vY=${gameState.puckVY}")
         }
     }

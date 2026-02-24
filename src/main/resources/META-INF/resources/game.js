@@ -1,4 +1,4 @@
-    const { createApp } = Vue;
+const { createApp } = Vue;
 
     createApp({
       data() {
@@ -133,8 +133,8 @@
                             speedMultiplier: data.speedMultiplier ?? 1.0,
                         });
 
-                        this.smoothPuckX = this.lastPuckX + (this.gameState.puckX - this.lastPuckX) * this.interpolationAlpha;
-                        this.smoothPuckY = this.lastPuckY + (this.gameState.puckY - this.lastPuckY) * this.interpolationAlpha;
+                        this.smoothPuckX = this.gameState.puckX;
+                        this.smoothPuckY = this.gameState.puckY;
                         this.speed = data.speedMultiplier || this.speed;
                     }
                 } catch (e) {
@@ -187,6 +187,20 @@
               this.frameCount = 0;
               this.fpsUpdateTime = timestamp;
             }
+
+            if (!this.gameState.paused) {
+              const deltaSec = this.lastRenderTime > 0
+                ? Math.min((timestamp - this.lastRenderTime) / 1000, 0.05)
+                : 0;
+              const speed = this.gameState.speedMultiplier || 1.0;
+              this.smoothPuckX += this.gameState.puckVX * speed * deltaSec;
+              this.smoothPuckY += this.gameState.puckVY * speed * deltaSec;
+
+              this.smoothPuckX = Math.max(10, Math.min(this.gameState.canvasWidth - 10, this.smoothPuckX));
+              this.smoothPuckY = Math.max(10, Math.min(this.gameState.canvasHeight - 10, this.smoothPuckY));
+            }
+
+            this.lastRenderTime = timestamp;
 
             this.renderGame();
 
@@ -302,12 +316,13 @@
           const vy = this.gameState.puckVY || 0;
           const speed = Math.sqrt(vx * vx + vy * vy);
 
-          if (speed > 30) {
+          // Thresholds scaled to new velocity range (puck starts at ~250-300 px/s)
+          if (speed > 150) {
             ctx.globalAlpha = 0.25;
             ctx.fillStyle = '#ff5555';
             for (let i = 1; i <= 3; i++) {
-              const trailX = x - vx * i * 0.08;
-              const trailY = y - vy * i * 0.08;
+              const trailX = x - (vx / speed) * i * 8;
+              const trailY = y - (vy / speed) * i * 8;
               const radius = Math.max(2, 10 - i * 2);
               ctx.beginPath();
               ctx.arc(trailX, trailY, radius, 0, Math.PI * 2);
@@ -316,10 +331,10 @@
             ctx.globalAlpha = 1.0;
           }
 
-          if (speed > 25) {
+          if (speed > 400) {
             ctx.shadowBlur = 20;
             ctx.shadowColor = 'rgba(255, 0, 0, 0.8)';
-          } else if (speed > 15) {
+          } else if (speed > 200) {
             ctx.shadowBlur = 10;
             ctx.shadowColor = 'rgba(255, 255, 0, 0.6)';
           } else {
