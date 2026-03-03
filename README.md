@@ -31,40 +31,28 @@ A unique twist on classic ping-pong with drawing capabilities
 
 - JDK 21+
 - Gradle 8.0+
+- NodeJS v24.14.0+
 
 ### How to Run
 
 1. Clone the repository
 2. Build with Gradle
-3. Run the main class
-4. ./gradlew build
-5. ./gradlew quarkusDev
-
-#### Windows
-
-```batch
-cd D:\rep\java\remimho
-gradlew createFatJar
-copy build\jpackage-libs\remimho-1.0.0-all.jar .
-run-remimho.bat
-```
-
-#### Linux / macOS
-```bash
-cd ~/remimho
-./gradlew createFatJar
-cp build/jpackage-libs/remimho-1.0.0-all.jar .
-chmod +x run-remimho.sh
-./run-remimho.sh
-```
+3. Run backend standalone
+4. gradle build
+5. gradle quarkusDev
+6. Run frontend standalone
+7. npm install
+8. npm run frontend
 
 ### Native Build Configuration
 #### 1. Required Software
 
-- **Visual Studio Build Tools 2022** (required for Windows native compilation)
-- **GraalVM 25** or later
-- **Gradle** (handled by wrapper)
-- **JDK 21** or later
+- Visual Studio Build Tools 2022 (required for Windows native compilation)
+- GraalVM 25 or later
+- Gradle (handled by wrapper)
+- JDK 21 or later
+- NodeJS v24.14.0+
+
 
 #### 2. Visual Studio Setup
 
@@ -100,6 +88,10 @@ cd D:\path\to\your\project\remimho
 gradle clean
 
 gradle nativeBuild
+
+gradle build -Dquarkus.package.type=native
+
+gradle build -Dquarkus.package.type=native -Dquarkus.native.container-build=true
 ```
 
 ### Screenshot

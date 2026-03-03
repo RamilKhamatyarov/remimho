@@ -8,10 +8,8 @@ class GameOfLifeGrid {
     val cols = 20
     val cellSize = 15.0
 
-    // Поле хранит null до первого использования
     private var _grid: Array<BooleanArray>? = null
 
-    // Custom getter гарантирует инициализацию при первом доступе
     var grid: Array<BooleanArray>
         get() {
             if (_grid == null) {
@@ -29,7 +27,6 @@ class GameOfLifeGrid {
     var lastUpdate = 0L
     val updateInterval = 500_000_000L
 
-    // Публичный метод для гарантированной инициализации
     fun ensureInitialized() {
         if (_grid == null) {
             _grid = Array(rows) { BooleanArray(cols) }
@@ -37,7 +34,6 @@ class GameOfLifeGrid {
         }
     }
 
-    // Все методы вызывают ensureInitialized()
     fun reset() {
         ensureInitialized()
         for (i in 0 until rows) {

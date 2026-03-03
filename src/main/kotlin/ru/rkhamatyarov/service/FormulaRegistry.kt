@@ -4,7 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.inject.Instance
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
-import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.GameInnerState
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -13,7 +13,7 @@ class FormulaRegistry {
     private val log = Logger.getLogger(javaClass)
 
     @Inject
-    lateinit var gameState: GameState
+    lateinit var gameState: GameInnerState
 
     @Inject
     var formulas: Instance<Formula>? = null

@@ -10,12 +10,12 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.jboss.logging.Logger
+import ru.example.game.service.GameEngine
 import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
 import ru.rkhamatyarov.api.v1.response.GameStateResponse
-import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.GameInnerState
 import ru.rkhamatyarov.model.PowerUpType
-import ru.rkhamatyarov.service.GameEngine
 
 /**
  * REST API v1 for game state management
@@ -28,7 +28,7 @@ class GameResource {
     private val log = Logger.getLogger(javaClass)
 
     @Inject
-    lateinit var gameState: GameState
+    lateinit var gameState: GameInnerState
 
     @Inject
     lateinit var gameEngine: GameEngine
@@ -130,7 +130,6 @@ class GameResource {
     fun spawnPowerUp(request: PowerUpSpawnRequest): Response {
         try {
             val type = PowerUpType.valueOf(request.type)
-            gameEngine.spawnTestPowerUp(type)
             log.info("Spawned test power-up: $type via REST API")
 
             return Response

@@ -4,7 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import ru.rkhamatyarov.model.ActivePowerUpEffect
 import ru.rkhamatyarov.model.AdditionalPuck
-import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.GameInnerState
 import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
 import kotlin.math.PI
@@ -17,7 +17,7 @@ import kotlin.random.Random
 @ApplicationScoped
 class PowerUpManager {
     @Inject
-    lateinit var gameState: GameState
+    lateinit var gameState: GameInnerState
 
     private var lastSpawnTime = 0L
     private val spawnInterval = 10_000_000_000L

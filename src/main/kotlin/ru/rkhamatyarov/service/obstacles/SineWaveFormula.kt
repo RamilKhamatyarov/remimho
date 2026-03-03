@@ -2,7 +2,7 @@ package ru.rkhamatyarov.service.obstacles
 
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
-import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.GameInnerState
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.service.Formula
@@ -11,7 +11,7 @@ import kotlin.math.sin
 @ApplicationScoped
 class SineWaveFormula : Formula {
     @Inject
-    lateinit var gameState: GameState
+    lateinit var gameState: GameInnerState
 
     override val name = "Sine Wave"
 

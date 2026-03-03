@@ -13,7 +13,7 @@ import kotlin.math.hypot
 @QuarkusTest
 class GameStateTest {
     @Inject
-    lateinit var gameState: GameState
+    lateinit var gameState: GameInnerState
 
     @BeforeEach
     fun setUp() {
