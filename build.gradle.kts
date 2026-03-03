@@ -24,11 +24,12 @@ dependencies {
     implementation("io.quarkus:quarkus-kotlin")
     implementation("io.quarkus:quarkus-rest")
     implementation("io.quarkus:quarkus-rest-jackson")
-    implementation("io.quarkus:quarkus-websockets")
+    implementation("io.quarkus:quarkus-websockets-next")
     implementation("io.quarkus:quarkus-jackson")
     implementation("io.quarkus:quarkus-scheduler")
     implementation("io.quarkus:quarkus-logging-json")
 
+    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.7.2")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
     testImplementation("io.quarkus:quarkus-junit5")

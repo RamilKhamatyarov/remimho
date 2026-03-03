@@ -1,0 +1,20 @@
+{
+  "name": "remimho",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 5173 --host",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "frontend": "vite --port 5173 --host"
+  },
+  "dependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^7.3.1",
+    "vue-tsc": "^2.2.0"
+  }
+}

@@ -5,7 +5,7 @@ quarkus:
     netty:
       tcp-no-delay: true
       tcp-keep-alive: true
-      send-buffer-size: 65536      # 64KB
+      send-buffer-size: 262144     # 256KB
       receive-buffer-size: 65536   # 64KB
     compress: false
     http2: true
@@ -30,9 +30,9 @@ quarkus:
       type: async
     category:
       "ru.rkhamatyarov":
-        level: DEBUG
+        level: INFO
       "ru.rkhamatyarov.websocket":
-        level: DEBUG
+        level: WARN
 
   netty:
     event-loops:
@@ -60,10 +60,13 @@ quarkus:
         server:
           enabled: true
 
-  datasource:
-    jdbc:
-      max-size: 8
-      min-size: 4
+  quinoa:
+    ui-dir: src/main/resources/META-INF/resources
+    build-dir: dist
+    dev-server:
+      port: 5173
+      check-timeout: 60000
+    package-manager: npm
 
 "%dev":
   quarkus:
@@ -73,6 +76,9 @@ quarkus:
           level: DEBUG
       handler:
         type: async
+    quinoa:
+      dev-server:
+        port: 5173
 
 "%prod":
   quarkus:
@@ -82,20 +88,9 @@ quarkus:
         "ru.rkhamatyarov":
           level: INFO
 
-"%ultra-latency":
-  quarkus:
-    http:
-      netty:
-        tcp-no-delay: true
-    executor:
-      core-threads: 16
-      max-threads: 128
-    log:
-      level: WARN
-
 game:
   broadcast:
     interval: 16
   websocket:
     max-connections: 1000
-    keep-alive-interval: 30000  # 30 sec
+    keep-alive-interval: 30000

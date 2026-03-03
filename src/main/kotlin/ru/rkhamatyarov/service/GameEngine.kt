@@ -1,329 +1,121 @@
-package ru.rkhamatyarov.service
+package ru.example.game.service
 
-import io.quarkus.runtime.Startup
-import io.quarkus.scheduler.Scheduled
 import jakarta.enterprise.context.ApplicationScoped
-import jakarta.inject.Inject
-import org.jboss.logging.Logger
-import ru.rkhamatyarov.model.AdditionalPuck
-import ru.rkhamatyarov.model.GameState
-import ru.rkhamatyarov.model.Point
-import ru.rkhamatyarov.model.PowerUp
-import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.model.Puck
+import ru.rkhamatyarov.model.Score
 import kotlin.math.abs
-import kotlin.math.hypot
 
-@Startup
 @ApplicationScoped
 class GameEngine {
-    private val log = Logger.getLogger(javaClass)
+    val canvasWidth = 800.0
+    val canvasHeight = 600.0
+    val paddleWidth = 20.0
+    val paddleHeight get() = canvasHeight / 6
 
-    @Inject
-    lateinit var gameState: GameState
+    val puck = Puck(x = canvasWidth / 2, y = canvasHeight / 2, vx = 250.0, vy = 180.0)
+    val score = Score()
 
-    @Inject
-    lateinit var powerUpManager: PowerUpManager
+    var paddle1Y = (canvasHeight - paddleHeight) / 2
+    var paddle2Y = (canvasHeight - paddleHeight) / 2
+    var paused = false
 
-    @Inject
-    lateinit var formulaRegistry: FormulaRegistry
+    fun tick(deltaSeconds: Double) {
+        if (paused) return
 
-    private var lastUpdateTime = System.nanoTime()
-    private var initialized = false
-    private var frameCount = 0L
-    private var debugFrameCount = 0L
-
-    @jakarta.annotation.PostConstruct
-    fun initialize() {
-        log.info("GameEngine initialized")
-        gameState.speedMultiplier = gameState.baseSpeedMultiplier
-        formulaRegistry.startRandomCurveScheduler()
-        initialized = true
-        log.debug(
-            "INIT: puckVX=${gameState.puckVX}, puckVY=${gameState.puckVY}, " +
-                "speedMultiplier=${gameState.speedMultiplier}, puckX=${gameState.puckX}, puckY=${gameState.puckY}",
-        )
+        movePuck(deltaSeconds)
+        handleWallCollisions()
+        handlePaddleCollisions()
+        handleGoals()
+        updateAI(deltaSeconds)
     }
 
-    @Scheduled(every = "0.005s")
-    fun gameLoop() {
-        if (!initialized) return
+    private fun movePuck(dt: Double) {
+        puck.x += puck.vx * dt
+        puck.y += puck.vy * dt
+    }
 
-        val now = System.nanoTime()
-        var deltaNs = now - lastUpdateTime
-        lastUpdateTime = now
+    private fun handleWallCollisions() {
+        val r = puck.radius
 
-        if (deltaNs <= 0L) return
-
-        val maxDeltaNs = 50_000_000L
-        if (deltaNs > maxDeltaNs) {
-            deltaNs = maxDeltaNs
+        if (puck.y - r <= 0.0 && puck.vy < 0.0) {
+            puck.y = r
+            puck.vy = abs(puck.vy)
         }
-
-        val deltaSeconds = deltaNs / 1_000_000_000.0
-
-        try {
-            if (!gameState.paused) {
-                updateGame(deltaSeconds)
-            }
-        } catch (e: Exception) {
-            log.error("Error in game loop: ${e.message}", e)
+        if (puck.y + r >= canvasHeight && puck.vy > 0.0) {
+            puck.y = canvasHeight - r
+            puck.vy = -abs(puck.vy)
         }
     }
 
-    private fun updateGame(deltaTime: Double) {
-        gameState.updatePuckMovingTime()
-        val oldX = gameState.puckX
-        val oldY = gameState.puckY
+    private fun handlePaddleCollisions() {
+        val r = puck.radius
+        val clearX = paddleWidth + r + 2.0
 
-        updateAIPaddle(deltaTime)
-        updatePuckPosition(deltaTime)
-
-        val deltaX = gameState.puckX - oldX
-        val deltaY = gameState.puckY - oldY
-
-        if (debugFrameCount % 50 == 0L) {
-            log.debug(
-                "PUCK_MOVE: frame=$debugFrameCount, oldX=$oldX, oldY=$oldY, " +
-                    "newX=${gameState.puckX}, newY=${gameState.puckY}, deltaX=$deltaX, deltaY=$deltaY, " +
-                    "vX=${gameState.puckVX}, vY=${gameState.puckVY}, speedMult=${gameState.speedMultiplier}",
-            )
-        }
-
-        checkWallCollisions()
-        checkPaddleCollisions()
-        checkLineCollisions()
-        gameState.updateAdditionalPucks()
-        checkAdditionalPuckCollisions()
-        powerUpManager.update(deltaTime)
-        updateGameOfLife()
-        gameState.updateAnimations()
-        gameState.cleanupCollisionCooldowns()
-    }
-
-    private fun updateAIPaddle(deltaSeconds: Double) {
-        val aiSpeed = 300.0 * gameState.speedMultiplier
-        val targetY = gameState.puckY - gameState.paddleHeight / 2
-        val diff = targetY - gameState.paddle1Y
-
-        if (kotlin.math.abs(diff) > 2.0) {
-            val direction = kotlin.math.sign(diff)
-            gameState.paddle1Y += direction * aiSpeed * deltaSeconds
-        }
-
-        gameState.paddle1Y =
-            gameState.paddle1Y.coerceIn(
-                0.0,
-                gameState.canvasHeight - gameState.paddleHeight,
-            )
-    }
-
-    private fun updatePuckPosition(deltaSeconds: Double) {
-        gameState.puckX += gameState.puckVX * gameState.speedMultiplier * gameState.powerUpSpeedMultiplier * deltaSeconds
-        gameState.puckY += gameState.puckVY * gameState.speedMultiplier * gameState.powerUpSpeedMultiplier * deltaSeconds
-        gameState.capPuckVelocity()
-    }
-
-    private fun checkWallCollisions() {
-        val puckRadius = 10.0
-
-        if (gameState.puckY <= puckRadius) {
-            gameState.puckY = puckRadius
-            gameState.puckVY = abs(gameState.puckVY)
-            log.debug("COLLISION: top wall, vY=${gameState.puckVY}")
-        } else if (gameState.puckY >= gameState.canvasHeight - puckRadius) {
-            gameState.puckY = gameState.canvasHeight - puckRadius
-            gameState.puckVY = -abs(gameState.puckVY)
-            log.debug("COLLISION: bottom wall, vY=${gameState.puckVY}")
-        }
-
-        if (gameState.puckX <= puckRadius) {
-            log.debug("RESET: puck out of bounds (left), x=${gameState.puckX}")
-            gameState.reset()
-            return
-        }
-
-        if (gameState.puckX >= gameState.canvasWidth - puckRadius) {
-            log.debug("RESET: puck out of bounds (right), x=${gameState.puckX}")
-            gameState.reset()
-            return
-        }
-    }
-
-    private fun checkPaddleCollisions() {
-        val puckRadius = 10.0
-        val paddleWidth = 20.0
-
-        if (gameState.puckX <= paddleWidth + puckRadius &&
-            gameState.puckY >= gameState.paddle1Y &&
-            gameState.puckY <= gameState.paddle1Y + gameState.paddleHeight
+        if (puck.vx < 0.0 &&
+            puck.x <= paddleWidth + r &&
+            puck.y >= paddle1Y &&
+            puck.y <= paddle1Y + paddleHeight
         ) {
-            gameState.puckX = paddleWidth + puckRadius
-            val currentSpeed = hypot(gameState.puckVX, gameState.puckVY)
-            val relativeY = (gameState.puckY - gameState.paddle1Y) / gameState.paddleHeight
-            gameState.puckVX = abs(gameState.puckVX) * 1.1
-            gameState.puckVY = (relativeY - 0.5) * 2.0 * currentSpeed
-            gameState.capPuckVelocity()
-            log.debug("COLLISION: paddle1, vX=${gameState.puckVX}, vY=${gameState.puckVY}")
+            puck.x = clearX
+            val speed = Math.hypot(puck.vx, puck.vy)
+            val rel = (puck.y - paddle1Y) / paddleHeight
+            puck.vx = abs(puck.vx) * 1.05
+            puck.vy = (rel - 0.5) * 1.5 * speed
+            capVelocity()
         }
 
-        if (gameState.puckX >= gameState.canvasWidth - paddleWidth - puckRadius &&
-            gameState.puckY >= gameState.paddle2Y &&
-            gameState.puckY <= gameState.paddle2Y + gameState.paddleHeight
+        if (puck.vx > 0.0 &&
+            puck.x >= canvasWidth - paddleWidth - r &&
+            puck.y >= paddle2Y &&
+            puck.y <= paddle2Y + paddleHeight
         ) {
-            gameState.puckX = gameState.canvasWidth - paddleWidth - puckRadius
-            val currentSpeed = hypot(gameState.puckVX, gameState.puckVY)
-            val relativeY = (gameState.puckY - gameState.paddle2Y) / gameState.paddleHeight
-            gameState.puckVX = -abs(gameState.puckVX) * 1.1
-            gameState.puckVY = (relativeY - 0.5) * 2.0 * currentSpeed
-            gameState.capPuckVelocity()
-            log.debug("COLLISION: paddle2, vX=${gameState.puckVX}, vY=${gameState.puckVY}")
+            puck.x = canvasWidth - clearX
+            val speed = Math.hypot(puck.vx, puck.vy)
+            val rel = (puck.y - paddle2Y) / paddleHeight
+            puck.vx = -abs(puck.vx) * 1.05
+            puck.vy = (rel - 0.5) * 1.5 * speed
+            capVelocity()
         }
     }
 
-    private fun checkLineCollisions() {
-        if (gameState.isGhostMode) return
-        val puckRadius = 10.0
-
-        gameState.lines.forEach { line ->
-            val points = line.flattenedPoints ?: return@forEach
-            for (i in 0 until points.size - 1) {
-                val p1 = points[i]
-                val p2 = points[i + 1]
-                if (gameState.isLineSegmentInCooldown(p1, p2)) continue
-
-                val distance = distanceToLineSegment(gameState.puckX, gameState.puckY, p1.x, p1.y, p2.x, p2.y)
-                if (distance < puckRadius + line.width / 2) {
-                    handleLineCollision(p1, p2)
-                    gameState.recordLineSegmentCollision(p1, p2)
-                    log.debug("COLLISION: line, vX=${gameState.puckVX}, vY=${gameState.puckVY}")
-                }
-            }
+    private fun handleGoals() {
+        val r = puck.radius
+        if (puck.x - r <= 0.0) {
+            score.playerB++
+            resetPuck()
+        }
+        if (puck.x + r >= canvasWidth) {
+            score.playerA++
+            resetPuck()
         }
     }
 
-    private fun handleLineCollision(
-        p1: Point,
-        p2: Point,
-    ) {
-        val dx = p2.x - p1.x
-        val dy = p2.y - p1.y
-        val length = hypot(dx, dy)
-        if (length < 0.001) return
-
-        val nx = -dy / length
-        val ny = dx / length
-        val dot = gameState.puckVX * nx + gameState.puckVY * ny
-        gameState.puckVX -= 2 * dot * nx * 1.15
-        gameState.puckVY -= 2 * dot * ny * 1.15
-        gameState.puckX += nx * 2
-        gameState.puckY += ny * 2
+    fun resetPuck() {
+        puck.x = canvasWidth / 2
+        puck.y = canvasHeight / 2
+        puck.vx = if (score.playerA + score.playerB % 2 == 0) 250.0 else -250.0
+        puck.vy = 180.0
     }
 
-    private fun distanceToLineSegment(
-        px: Double,
-        py: Double,
-        x1: Double,
-        y1: Double,
-        x2: Double,
-        y2: Double,
-    ): Double {
-        val dx = x2 - x1
-        val dy = y2 - y1
-        val lengthSq = dx * dx + dy * dy
-        if (lengthSq < 0.0001) {
-            return hypot(px - x1, py - y1)
+    private fun updateAI(dt: Double) {
+        val aiSpeed = 300.0
+        val target = puck.y - paddleHeight / 2
+        val diff = target - paddle1Y
+        if (Math.abs(diff) > 2.0) {
+            paddle1Y += Math.signum(diff) * aiSpeed * dt
         }
-
-        val t = ((px - x1) * dx + (py - y1) * dy) / lengthSq
-        val clampedT = t.coerceIn(0.0, 1.0)
-        val closestX = x1 + clampedT * dx
-        val closestY = y1 + clampedT * dy
-        return hypot(px - closestX, py - closestY)
+        paddle1Y = paddle1Y.coerceIn(0.0, canvasHeight - paddleHeight)
     }
 
-    private fun checkAdditionalPuckCollisions() {
-        gameState.additionalPucks.forEach { puck ->
-            checkAdditionalPuckWalls(puck)
-            checkAdditionalPuckPaddles(puck)
-            if (!gameState.isGhostMode) {
-                checkAdditionalPuckLines(puck)
-            }
+    private fun capVelocity(max: Double = 500.0) {
+        val mag = Math.hypot(puck.vx, puck.vy)
+        if (mag > max) {
+            puck.vx = puck.vx / mag * max
+            puck.vy = puck.vy / mag * max
         }
     }
 
-    private fun checkAdditionalPuckWalls(puck: AdditionalPuck) {
-        val radius = 10.0
-        if (puck.y <= radius) {
-            puck.y = radius
-            puck.vy = abs(puck.vy) * 1.15
-        } else if (puck.y >= gameState.canvasHeight - radius) {
-            puck.y = gameState.canvasHeight - radius
-            puck.vy = -abs(puck.vy) * 1.15
-        }
-
-        if (puck.x <= radius || puck.x >= gameState.canvasWidth - radius) {
-            puck.vx = -puck.vx * 1.15
-        }
-    }
-
-    private fun checkAdditionalPuckPaddles(puck: AdditionalPuck) {
-        val radius = 10.0
-        val paddleWidth = 20.0
-
-        if (puck.x <= paddleWidth + radius &&
-            puck.y >= gameState.paddle1Y &&
-            puck.y <= gameState.paddle1Y + gameState.paddleHeight
-        ) {
-            puck.x = paddleWidth + radius
-            puck.vx = abs(puck.vx) * 1.2
-        }
-
-        if (puck.x >= gameState.canvasWidth - paddleWidth - radius &&
-            puck.y >= gameState.paddle2Y &&
-            puck.y <= gameState.paddle2Y + gameState.paddleHeight
-        ) {
-            puck.x = gameState.canvasWidth - paddleWidth - radius
-            puck.vx = -abs(puck.vx) * 1.2
-        }
-    }
-
-    private fun checkAdditionalPuckLines(puck: AdditionalPuck) {
-        val radius = 10.0
-        gameState.lines.forEach { line ->
-            val points = line.flattenedPoints ?: return@forEach
-            for (i in 0 until points.size - 1) {
-                val p1 = points[i]
-                val p2 = points[i + 1]
-                val distance = distanceToLineSegment(puck.x, puck.y, p1.x, p1.y, p2.x, p2.y)
-                if (distance < radius + line.width / 2) {
-                    val dx = p2.x - p1.x
-                    val dy = p2.y - p1.y
-                    val length = hypot(dx, dy)
-                    if (length > 0.001) {
-                        val nx = -dy / length
-                        val ny = dx / length
-                        val dot = puck.vx * nx + puck.vy * ny
-                        puck.vx -= 2 * dot * nx * 1.15
-                        puck.vy -= 2 * dot * ny * 1.15
-                        puck.x += nx * 2
-                        puck.y += ny * 2
-                    }
-                }
-            }
-        }
-    }
-
-    private fun updateGameOfLife() {
-        val currentTime = System.nanoTime()
-        if (currentTime - gameState.lifeGrid.lastUpdate > gameState.lifeGrid.updateInterval) {
-            gameState.lifeGrid.update()
-            gameState.lifeGrid.lastUpdate = currentTime
-        }
-    }
-
-    fun spawnTestPowerUp(type: PowerUpType) {
-        val powerUp = PowerUp(x = gameState.canvasWidth / 2, y = gameState.canvasHeight / 2, type = type)
-        gameState.powerUps.add(powerUp)
-        log.info("Test power-up spawned: $type")
+    fun movePaddle2(y: Double) {
+        paddle2Y = y.coerceIn(0.0, canvasHeight - paddleHeight)
     }
 }
