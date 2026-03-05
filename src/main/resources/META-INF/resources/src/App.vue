@@ -8,6 +8,7 @@
     </header>
 
     <main>
+      <!-- GameCanvas no longer needs :game-state — it imports the ref directly -->
       <GameCanvas
         :width="800"
         :height="600"
@@ -18,6 +19,7 @@
     <footer>
       <button @click="togglePause">{{ gameState?.paused ? 'Resume' : 'Pause' }}</button>
       <button @click="reset">Reset</button>
+      <button @click="clearLines" class="btn-clear">Clear Lines</button>
       <span v-if="gameState">
         {{ gameState.score.playerA }} – {{ gameState.score.playerB }}
       </span>
@@ -29,7 +31,7 @@
 import GameCanvas from './components/GameCanvas.vue'
 import { useGameSocket } from './composables/useGameSocket'
 
-const { gameState, connected, movePaddle, togglePause, reset } = useGameSocket()
+const { gameState, connected, movePaddle, togglePause, reset, clearLines } = useGameSocket()
 </script>
 
 <style>
@@ -82,6 +84,9 @@ button {
 }
 
 button:hover { background: #e94560; }
+
+.btn-clear { border-color: #f0a500; }
+.btn-clear:hover { background: #f0a500; color: #000; }
 
 canvas { border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; cursor: none; }
 </style>

@@ -5,6 +5,7 @@ import jakarta.inject.Inject
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.hypot
 
+@Deprecated("Will be removed from all beans")
 @ApplicationScoped
 class GameInnerState {
     @Inject

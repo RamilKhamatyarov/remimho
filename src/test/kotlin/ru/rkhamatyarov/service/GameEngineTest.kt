@@ -1,4 +1,4 @@
-package ru.example.game.service
+package ru.rkhamatyarov.service
 
 import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject

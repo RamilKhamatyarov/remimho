@@ -1,4 +1,4 @@
-package ru.example.game.websocket
+package ru.rkhamatyarov.websocket
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -13,10 +13,8 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
-import ru.example.game.service.GameEngine
-import ru.rkhamatyarov.model.GameInnerState
 import ru.rkhamatyarov.model.GameState
-import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.service.GameEngine
 import java.util.concurrent.ConcurrentHashMap
 
 @WebSocket(path = "/game")
@@ -24,26 +22,18 @@ import java.util.concurrent.ConcurrentHashMap
 class GameWebSocket {
     private val log = Logger.getLogger(javaClass)
 
-    @Inject
-    lateinit var engine: GameEngine
+    @Inject lateinit var engine: GameEngine
 
-    @Inject
-    lateinit var gameState: GameInnerState
+    @Inject lateinit var mapper: ObjectMapper
 
-    @Inject
-    lateinit var mapper: ObjectMapper
-
-    @Inject
-    lateinit var vertx: Vertx
+    @Inject lateinit var vertx: Vertx
 
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
 
     fun onStart(
         @Observes event: StartupEvent,
     ) {
-        vertx.setPeriodic(16L) {
-            tick()
-        }
+        vertx.setPeriodic(16L) { tick() }
     }
 
     @OnOpen
@@ -69,8 +59,7 @@ class GameWebSocket {
                 sendError(connection, "Empty message")
                 return
             }
-            val cmd = mapper.readValue<Map<String, Any>>(message)
-            handleCommand(cmd, connection)
+            handleCommand(mapper.readValue<Map<String, Any>>(message), connection)
         } catch (e: Exception) {
             log.error("Failed to handle message: $message", e)
             sendError(connection, "Invalid command format")
@@ -89,34 +78,30 @@ class GameWebSocket {
                 val y = data["y"]?.toString()?.toDoubleOrNull()
                 if (y != null) {
                     engine.movePaddle2(y)
-                    gameState.paddle2Y =
-                        y
-                            .coerceAtMost(gameState.canvasHeight - gameState.paddleHeight)
-                            .coerceAtLeast(0.0)
                 } else {
                     sendError(connection, "Invalid MOVE_PADDLE: y required")
                 }
             }
 
             "TOGGLE_PAUSE" -> {
-                gameState.togglePause()
-                engine.paused = gameState.paused
+                engine.paused = !engine.paused
             }
 
             "RESET" -> {
-                gameState.reset()
                 engine.resetPuck()
+                engine.clearLines()
+                engine.paused = false
             }
 
             "CLEAR_LINES" -> {
-                gameState.clearLines()
+                engine.clearLines()
             }
 
             "START_LINE" -> {
                 val x = data["x"]?.toString()?.toDoubleOrNull()
                 val y = data["y"]?.toString()?.toDoubleOrNull()
                 if (x != null && y != null) {
-                    gameState.startNewLine(x, y)
+                    engine.startNewLine(x, y)
                 } else {
                     sendError(connection, "Invalid START_LINE: x and y required")
                 }
@@ -126,38 +111,18 @@ class GameWebSocket {
                 val x = data["x"]?.toString()?.toDoubleOrNull()
                 val y = data["y"]?.toString()?.toDoubleOrNull()
                 if (x != null && y != null) {
-                    gameState.updateCurrentLine(x, y)
+                    engine.updateCurrentLine(x, y)
                 } else {
                     sendError(connection, "Invalid UPDATE_LINE: x and y required")
                 }
             }
 
             "FINISH_LINE" -> {
-                gameState.finishCurrentLine()
+                engine.finishCurrentLine()
             }
 
             "SET_SPEED" -> {
-                val speed = data["speed"]?.toString()?.toDoubleOrNull()
-                if (speed != null && speed in 0.1..20.0) {
-                    gameState.baseSpeedMultiplier = speed
-                    gameState.speedMultiplier = speed
-                } else {
-                    sendError(connection, "Invalid SET_SPEED: speed must be 0.1-20.0")
-                }
-            }
-
-            "SPAWN_POWERUP" -> {
-                val typeStr = data["type"]?.toString()
-                if (typeStr != null) {
-                    try {
-                        PowerUpType.valueOf(typeStr)
-                        log.info("Power-up spawn requested: $typeStr")
-                    } catch (e: IllegalArgumentException) {
-                        sendError(connection, "Invalid power-up type: $typeStr")
-                    }
-                } else {
-                    sendError(connection, "Invalid SPAWN_POWERUP: type required")
-                }
+                log.info("SET_SPEED received (not yet applied to engine)")
             }
 
             else -> {
@@ -170,21 +135,13 @@ class GameWebSocket {
     private fun tick() {
         engine.tick(deltaSeconds = 0.016)
         if (sessions.isEmpty()) return
-
         val json = currentStateJson()
         val dead = mutableListOf<String>()
-
         sessions.forEach { (id, conn) ->
-            conn
-                .sendText(json)
-                .subscribe()
-                .with(
-                    { /* success */ },
-                    { throwable ->
-                        log.warn("Failed to send to $id: ${throwable.message}")
-                        dead.add(id)
-                    },
-                )
+            conn.sendText(json).subscribe().with({}, { t ->
+                log.warn("Failed to send to $id: ${t.message}")
+                dead.add(id)
+            })
         }
         dead.forEach { sessions.remove(it) }
     }
@@ -202,6 +159,7 @@ class GameWebSocket {
                 paddle1Y = engine.paddle1Y,
                 paddle2Y = engine.paddle2Y,
                 paused = engine.paused,
+                lines = engine.lines.toList(),
             ),
         )
 
@@ -210,8 +168,7 @@ class GameWebSocket {
         message: String,
     ) {
         try {
-            val err = mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message))
-            connection.sendTextAndAwait(err)
+            connection.sendTextAndAwait(mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message)))
         } catch (e: Exception) {
             log.error("Failed to send error to ${connection.id()}", e)
         }

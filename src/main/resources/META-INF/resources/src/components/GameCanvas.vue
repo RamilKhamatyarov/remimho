@@ -3,86 +3,44 @@
     ref="canvasRef"
     :width="props.width"
     :height="props.height"
+    :style="{ cursor: isDrawing ? 'crosshair' : 'none' }"
     @mousemove="onMouseMove"
+    @mousedown="onMouseDown"
+    @mouseup="onMouseUp"
+    @mouseleave="onMouseLeave"
   />
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { gameStateRef } from '../composables/useGameSocket'
-import type { GameState } from '../types/game'
+import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
+import type { GameState, Point } from '../types/game'
 
-const props = defineProps<{
-  width: number
-  height: number
-}>()
+const props = defineProps<{ width: number; height: number }>()
+const emit = defineEmits<{ paddleMove: [y: number] }>()
 
-const emit = defineEmits<{
-  paddleMove: [y: number]
-}>()
-
+const { send } = useGameSocket()
+const isDrawing = ref(false)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const PADDLE_WIDTH = 20
 
 let rafId = 0
-let frameCount = 0
-let lastLog = performance.now()
-
-function loop(now: number) {
-  try {
-    frameCount++
-    if (now - lastLog > 1000) {
-      console.log(`[Canvas] FPS: ${frameCount}`)
-      frameCount = 0
-      lastLog = now
-    }
-
-    const state = gameStateRef.value
-    if (state) draw(state)
-  } catch (err) {
-    console.error('[Canvas] Fatal error in draw():', err)
-  } finally {
-    rafId = requestAnimationFrame(loop)
-  }
-}
-
-onMounted(() => {
-  console.log('[Canvas] Mounted, starting RAF loop')
+function loop() {
+  const state = gameStateRef.value
+  if (state) draw(state)
   rafId = requestAnimationFrame(loop)
-})
-
-onUnmounted(() => {
-  console.log('[Canvas] Unmounted, cancelling RAF')
-  cancelAnimationFrame(rafId)
-})
+}
+onMounted(() => { rafId = requestAnimationFrame(loop) })
+onUnmounted(() => { cancelAnimationFrame(rafId) })
 
 function draw(state: GameState) {
   const canvas = canvasRef.value
   if (!canvas) return
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx || !state.puck || typeof state.canvasWidth !== 'number') return
 
-  if (
-    !state.puck ||
-    typeof state.puck.x !== 'number' ||
-    typeof state.puck.y !== 'number' ||
-    typeof state.puck.radius !== 'number' ||
-    !state.score ||
-    typeof state.score.playerA !== 'number' ||
-    typeof state.score.playerB !== 'number' ||
-    typeof state.canvasWidth !== 'number' ||
-    typeof state.canvasHeight !== 'number' ||
-    typeof state.paddleHeight !== 'number' ||
-    typeof state.paddle1Y !== 'number' ||
-    typeof state.paddle2Y !== 'number' ||
-    typeof state.paused !== 'boolean'
-  ) {
-    console.warn('[Canvas] Incomplete game state, skipping draw', state)
-    return
-  }
-
-  const scaleX = canvas.width / state.canvasWidth
-  const scaleY = canvas.height / state.canvasHeight
+  const sx = canvas.width  / state.canvasWidth
+  const sy = canvas.height / state.canvasHeight
 
   ctx.fillStyle = '#1a1a2e'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
@@ -97,56 +55,104 @@ function draw(state: GameState) {
   ctx.stroke()
   ctx.restore()
 
+  if (state.lines && state.lines.length > 0) {
+    ctx.save()
+    ctx.strokeStyle = '#f0a500'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (const line of state.lines) {
+      const pts: Point[] = (line.flattenedPoints && line.flattenedPoints.length > 1)
+        ? line.flattenedPoints
+        : line.controlPoints
+      if (pts.length < 2) continue
+      ctx.lineWidth = (line.width ?? 5) * Math.min(sx, sy)
+      ctx.beginPath()
+      ctx.moveTo(pts[0].x * sx, pts[0].y * sy)
+      for (let i = 1; i < pts.length; i++) {
+        ctx.lineTo(pts[i].x * sx, pts[i].y * sy)
+      }
+      ctx.stroke()
+    }
+    ctx.restore()
+  }
+
   ctx.fillStyle = '#e94560'
-  ctx.fillRect(
-    0,
-    state.paddle1Y * scaleY,
-    PADDLE_WIDTH * scaleX,
-    state.paddleHeight * scaleY
-  )
+  ctx.fillRect(0, state.paddle1Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
 
   ctx.fillStyle = '#4ecca3'
-  ctx.fillRect(
-    canvas.width - PADDLE_WIDTH * scaleX,
-    state.paddle2Y * scaleY,
-    PADDLE_WIDTH * scaleX,
-    state.paddleHeight * scaleY
-  )
+  ctx.fillRect(canvas.width - PADDLE_WIDTH * sx, state.paddle2Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
 
   ctx.beginPath()
-  ctx.arc(
-    state.puck.x * scaleX,
-    state.puck.y * scaleY,
-    state.puck.radius * Math.min(scaleX, scaleY),
-    0,
-    Math.PI * 2
-  )
+  ctx.arc(state.puck.x * sx, state.puck.y * sy, state.puck.radius * Math.min(sx, sy), 0, Math.PI * 2)
   ctx.fillStyle = '#ffffff'
   ctx.fill()
 
-  ctx.font = `bold ${Math.round(32 * scaleX)}px monospace`
+  ctx.font = `bold ${Math.round(32 * sx)}px monospace`
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
   ctx.textAlign = 'center'
-  ctx.fillText(String(state.score.playerA), canvas.width * 0.25, 50 * scaleY)
-  ctx.fillText(String(state.score.playerB), canvas.width * 0.75, 50 * scaleY)
+  ctx.fillText(String(state.score.playerA), canvas.width * 0.25, 50 * sy)
+  ctx.fillText(String(state.score.playerB), canvas.width * 0.75, 50 * sy)
+
+  if (!isDrawing.value) {
+    ctx.font = `${Math.round(11 * sx)}px monospace`
+    ctx.fillStyle = 'rgba(255,255,255,0.3)'
+    ctx.textAlign = 'center'
+    ctx.fillText('Hold & drag to draw a barrier line', canvas.width / 2, canvas.height - 8)
+  }
 
   if (state.paused) {
     ctx.fillStyle = 'rgba(0,0,0,0.55)'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.fillStyle = '#ffffff'
-    ctx.font = `bold ${Math.round(48 * scaleX)}px monospace`
+    ctx.font = `bold ${Math.round(48 * sx)}px monospace`
     ctx.textAlign = 'center'
     ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2)
   }
 }
 
+function toGamePt(e: MouseEvent): Point | null {
+  const canvas = canvasRef.value
+  const state  = gameStateRef.value
+  if (!canvas || !state) return null
+  const r = canvas.getBoundingClientRect()
+  return {
+    x: (e.clientX - r.left) * (state.canvasWidth  / canvas.width),
+    y: (e.clientY - r.top)  * (state.canvasHeight / canvas.height),
+  }
+}
+
+function onMouseDown(e: MouseEvent) {
+  if (e.button !== 0) return
+  const pt = toGamePt(e)
+  if (!pt) return
+  isDrawing.value = true
+  send('START_LINE', { x: pt.x, y: pt.y })
+}
+
 function onMouseMove(e: MouseEvent) {
   const canvas = canvasRef.value
-  const state = gameStateRef.value
+  const state  = gameStateRef.value
   if (!canvas || !state) return
-  const rect = canvas.getBoundingClientRect()
-  const relY = e.clientY - rect.top
-  const scaleY = state.canvasHeight / canvas.height
-  emit('paddleMove', relY * scaleY)
+  const r    = canvas.getBoundingClientRect()
+  const relY = e.clientY - r.top
+
+  emit('paddleMove', relY * (state.canvasHeight / canvas.height))
+
+  if (isDrawing.value) {
+    const pt = toGamePt(e)
+    if (pt) send('UPDATE_LINE', { x: pt.x, y: pt.y })
+  }
+}
+
+function onMouseUp() {
+  if (!isDrawing.value) return
+  isDrawing.value = false
+  send('FINISH_LINE')
+}
+
+function onMouseLeave() {
+  if (!isDrawing.value) return
+  isDrawing.value = false
+  send('FINISH_LINE')
 }
 </script>
