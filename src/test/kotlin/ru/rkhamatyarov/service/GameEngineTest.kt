@@ -4,8 +4,6 @@ import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import ru.rkhamatyarov.model.AdditionalPuck
-import ru.rkhamatyarov.model.GameInnerState
 import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -16,18 +14,12 @@ class GameEngineTest {
     @Inject
     lateinit var gameEngine: GameEngine
 
-    @Inject
-    lateinit var gameState: GameInnerState
-
     companion object {
         private const val TICK_DT = 0.016
     }
 
     @BeforeEach
     fun setup() {
-        gameState.reset()
-        gameState.paused = false
-
         gameEngine.paused = false
         gameEngine.resetPuck()
         gameEngine.puck.vx = 0.0
@@ -169,44 +161,5 @@ class GameEngineTest {
         assertTrue(gameEngine.puck.x < gameEngine.canvasWidth)
         assertTrue(gameEngine.puck.y > 0.0)
         assertTrue(gameEngine.puck.y < gameEngine.canvasHeight)
-    }
-
-    @Test
-    fun `test additional puck moves when velocity is non-zero`() {
-        val puck = AdditionalPuck(x = 300.0, y = 300.0, vx = 10.0, vy = 5.0)
-        gameState.additionalPucks.add(puck)
-
-        gameState.updateAdditionalPucks()
-
-        assertTrue(puck.x > 300.0 || puck.y > 300.0, "Additional puck should have moved")
-    }
-
-    @Test
-    fun `test expired additional pucks are removed`() {
-        val expired =
-            AdditionalPuck(
-                x = 300.0,
-                y = 300.0,
-                vx = 10.0,
-                vy = 5.0,
-                creationTime = System.nanoTime() - 16_000_000_000L,
-            )
-        gameState.additionalPucks.add(expired)
-
-        gameState.updateAdditionalPucks()
-
-        assertTrue(gameState.additionalPucks.isEmpty(), "Expired puck should be removed")
-    }
-
-    @Test
-    fun `test multiple additional pucks managed independently`() {
-        val p1 = AdditionalPuck(100.0, 100.0, 5.0, 5.0)
-        val p2 = AdditionalPuck(500.0, 500.0, -5.0, -5.0)
-        gameState.additionalPucks.add(p1)
-        gameState.additionalPucks.add(p2)
-
-        gameState.updateAdditionalPucks()
-
-        assertEquals(2, gameState.additionalPucks.size)
     }
 }

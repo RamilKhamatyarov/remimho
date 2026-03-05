@@ -1,284 +1,197 @@
 package ru.rkhamatyarov.service
 
 import jakarta.enterprise.context.ApplicationScoped
+import ru.rkhamatyarov.model.ActivePowerUpEffect
+import ru.rkhamatyarov.model.AdditionalPuck
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
+import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
-import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.abs
 import kotlin.math.hypot
-import kotlin.math.sqrt
 
 @ApplicationScoped
 class GameEngine {
-    val canvasWidth = 800.0
-    val canvasHeight = 600.0
-    val paddleWidth = 20.0
-    val paddleHeight get() = canvasHeight / 6
+    val canvasWidth: Double = 800.0
+    val canvasHeight: Double = 600.0
 
-    val puck = Puck(x = canvasWidth / 2, y = canvasHeight / 2, vx = 250.0, vy = 180.0)
-    val score = Score()
+    val paddleHeight: Double = 100.0
+    private val paddleWidth: Double = 20.0
+    private val paddleSpeed: Double = 400.0
 
-    var paddle1Y = (canvasHeight - paddleHeight) / 2
-    var paddle2Y = (canvasHeight - paddleHeight) / 2
-    var paused = false
+    var paddle1Y: Double = (canvasHeight - paddleHeight) / 2
+    var paddle2Y: Double = (canvasHeight - paddleHeight) / 2
 
-    val lines = CopyOnWriteArrayList<Line>()
-    var currentLine: Line? = null
-    var isDrawing = false
+    val puck: Puck =
+        Puck(
+            x = canvasWidth / 2,
+            y = canvasHeight / 2,
+            vx = 300.0,
+            vy = 200.0,
+            radius = 10.0,
+        )
 
-    private val segmentCooldown = mutableMapOf<String, Long>()
-    private val cooldownDurationNs = 100_000_000L
-    var getTimeNs: () -> Long = { System.nanoTime() }
+    val score: Score = Score(playerA = 0, playerB = 0)
+
+    var paused: Boolean = false
+
+    val lines: MutableList<Line> = mutableListOf()
+    private var currentLine: Line? = null
+
+    val powerUps: MutableList<PowerUp> = mutableListOf()
+    val activePowerUpEffects: MutableList<ActivePowerUpEffect> = mutableListOf()
+    val additionalPucks: MutableList<AdditionalPuck> = mutableListOf()
+    var powerUpSpeedMultiplier: Double = 1.0
+    var isGhostMode: Boolean = false
+    var hasPaddleShield: Boolean = false
 
     fun tick(deltaSeconds: Double) {
         if (paused) return
-        movePuck(deltaSeconds)
-        handleWallCollisions()
-        handlePaddleCollisions()
-        handleLineCollisions()
-        handleGoals()
-        updateAI(deltaSeconds)
-        cleanupCooldowns()
-    }
 
-    private fun movePuck(dt: Double) {
-        puck.x += puck.vx * dt
-        puck.y += puck.vy * dt
-    }
+        val speed = powerUpSpeedMultiplier
 
-    private fun handleWallCollisions() {
-        val r = puck.radius
-        if (puck.y - r <= 0.0 && puck.vy < 0.0) {
-            puck.y = r
+        puck.x += puck.vx * speed * deltaSeconds
+        puck.y += puck.vy * speed * deltaSeconds
+
+        if (puck.y - puck.radius <= 0) {
+            puck.y = puck.radius
             puck.vy = abs(puck.vy)
-        }
-        if (puck.y + r >= canvasHeight && puck.vy > 0.0) {
-            puck.y = canvasHeight - r
+        } else if (puck.y + puck.radius >= canvasHeight) {
+            puck.y = canvasHeight - puck.radius
             puck.vy = -abs(puck.vy)
         }
-    }
 
-    private fun handlePaddleCollisions() {
-        val r = puck.radius
-        val clearX = paddleWidth + r + 2.0
-
-        if (puck.vx < 0.0 && puck.x <= paddleWidth + r &&
-            puck.y >= paddle1Y && puck.y <= paddle1Y + paddleHeight
+        if (puck.x - puck.radius <= paddleWidth &&
+            puck.y >= paddle1Y &&
+            puck.y <= paddle1Y + paddleHeight
         ) {
-            puck.x = clearX
-            val speed = hypot(puck.vx, puck.vy)
-            val rel = (puck.y - paddle1Y) / paddleHeight
-            puck.vx = abs(puck.vx) * 1.05
-            puck.vy = (rel - 0.5) * 1.5 * speed
-            capVelocity()
+            puck.x = paddleWidth + puck.radius
+            puck.vx = abs(puck.vx)
         }
 
-        if (puck.vx > 0.0 && puck.x >= canvasWidth - paddleWidth - r &&
-            puck.y >= paddle2Y && puck.y <= paddle2Y + paddleHeight
+        if (puck.x + puck.radius >= canvasWidth - paddleWidth &&
+            puck.y >= paddle2Y &&
+            puck.y <= paddle2Y + paddleHeight
         ) {
-            puck.x = canvasWidth - clearX
-            val speed = hypot(puck.vx, puck.vy)
-            val rel = (puck.y - paddle2Y) / paddleHeight
-            puck.vx = -abs(puck.vx) * 1.05
-            puck.vy = (rel - 0.5) * 1.5 * speed
-            capVelocity()
+            puck.x = canvasWidth - paddleWidth - puck.radius
+            puck.vx = -abs(puck.vx)
         }
+
+        if (puck.x - puck.radius <= 0) {
+            score.playerB++
+            resetPuck()
+        } else if (puck.x + puck.radius >= canvasWidth) {
+            score.playerA++
+            resetPuck()
+        }
+
+        val aiCenter = paddle1Y + paddleHeight / 2
+        if (puck.y > aiCenter + 5) {
+            paddle1Y = minOf(paddle1Y + paddleSpeed * deltaSeconds, canvasHeight - paddleHeight)
+        } else if (puck.y < aiCenter - 5) {
+            paddle1Y = maxOf(paddle1Y - paddleSpeed * deltaSeconds, 0.0)
+        }
+
+        deflectOffLines()
     }
 
-    private fun handleLineCollisions() {
-        val r = puck.radius
+    private fun deflectOffLines() {
         for (line in lines) {
-            val pts =
-                line.flattenedPoints?.takeIf { it.size >= 2 }
-                    ?: line.controlPoints.takeIf { it.size >= 2 }
-                    ?: continue
-
+            val pts = line.flattenedPoints ?: line.controlPoints
+            if (pts.size < 2) continue
             for (i in 0 until pts.size - 1) {
                 val a = pts[i]
                 val b = pts[i + 1]
-                if (isSegmentCooling(a, b)) continue
-
-                val info = segmentInfo(puck.x, puck.y, a, b)
-                val threshold = r + line.width / 2.0
-                if (info.dist < threshold) {
-                    val overlap = threshold - info.dist
-                    puck.x += info.nx * overlap
-                    puck.y += info.ny * overlap
-
-                    val dot = puck.vx * info.nx + puck.vy * info.ny
-
-                    puck.vx -= 2.0 * dot * info.nx
-                    puck.vy -= 2.0 * dot * info.ny
-                    capVelocity()
-                    recordCooldown(a, b)
-                    break
+                if (segmentCircleCollision(a, b, puck)) {
+                    val nx = -(b.y - a.y)
+                    val ny = (b.x - a.x)
+                    val len = hypot(nx, ny)
+                    if (len < 1e-9) continue
+                    val nnx = nx / len
+                    val nny = ny / len
+                    val dot = puck.vx * nnx + puck.vy * nny
+                    puck.vx -= 2 * dot * nnx
+                    puck.vy -= 2 * dot * nny
+                    return
                 }
             }
         }
     }
 
-    private fun handleGoals() {
-        val r = puck.radius
-        if (puck.x - r <= 0.0) {
-            score.playerB++
-            resetPuck()
-        }
-        if (puck.x + r >= canvasWidth) {
-            score.playerA++
-            resetPuck()
-        }
-    }
-
-    fun resetPuck() {
-        puck.x = canvasWidth / 2
-        puck.y = canvasHeight / 2
-        puck.vx = if ((score.playerA + score.playerB) % 2 == 0) 250.0 else -250.0
-        puck.vy = 180.0
-    }
-
-    private fun updateAI(dt: Double) {
-        val target = puck.y - paddleHeight / 2
-        val diff = target - paddle1Y
-        if (abs(diff) > 2.0) paddle1Y += Math.signum(diff) * 300.0 * dt
-        paddle1Y = paddle1Y.coerceIn(0.0, canvasHeight - paddleHeight)
-    }
-
-    fun startNewLine(
-        x: Double,
-        y: Double,
-    ) {
-        currentLine =
-            Line().apply {
-                controlPoints.add(Point(x, y))
-                width = 5.0
-            }
-        isDrawing = true
-    }
-
-    fun updateCurrentLine(
-        x: Double,
-        y: Double,
-    ) {
-        currentLine?.let {
-            it.controlPoints.add(Point(x, y))
-            if (it.controlPoints.size > 1000) it.controlPoints.removeAt(0)
-        }
-    }
-
-    fun finishCurrentLine() {
-        currentLine?.let {
-            if (it.controlPoints.size > 1) {
-                it.flattenedPoints = flattenBezierSpline(it.controlPoints)
-                lines.add(it)
-            }
-        }
-        currentLine = null
-        isDrawing = false
-    }
-
-    fun clearLines() {
-        lines.clear()
-        currentLine = null
-        isDrawing = false
+    private fun segmentCircleCollision(
+        a: Point,
+        b: Point,
+        p: Puck,
+    ): Boolean {
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        val fx = a.x - p.x
+        val fy = a.y - p.y
+        val lenSq = dx * dx + dy * dy
+        if (lenSq < 1e-9) return false
+        val t = ((-fx * dx - fy * dy) / lenSq).coerceIn(0.0, 1.0)
+        val closestX = a.x + t * dx - p.x
+        val closestY = a.y + t * dy - p.y
+        return closestX * closestX + closestY * closestY <= p.radius * p.radius
     }
 
     fun movePaddle2(y: Double) {
         paddle2Y = y.coerceIn(0.0, canvasHeight - paddleHeight)
     }
 
-    fun flattenBezierSpline(
-        controlPoints: List<Point>,
-        stepsPerSegment: Int = 15,
-    ): MutableList<Point> {
-        val flattened = mutableListOf<Point>()
-        if (controlPoints.size < 4) {
-            flattened.addAll(controlPoints)
-            return flattened
+    fun resetPuck() {
+        puck.x = canvasWidth / 2
+        puck.y = canvasHeight / 2
+        puck.vx = if (puck.vx > 0) 300.0 else -300.0
+        puck.vy = 200.0
+    }
+
+    fun startNewLine(
+        x: Double,
+        y: Double,
+    ) {
+        val line = Line()
+        line.controlPoints.add(Point(x, y))
+        currentLine = line
+        lines.add(line)
+    }
+
+    fun updateCurrentLine(
+        x: Double,
+        y: Double,
+    ) {
+        currentLine?.controlPoints?.add(Point(x, y))
+    }
+
+    fun finishCurrentLine() {
+        currentLine?.let { line ->
+            line.flattenedPoints = flattenPolyline(line.controlPoints)
         }
-        val divisor = 6 * 0.5
-        for (i in 0 until controlPoints.size - 1) {
-            val p0 = if (i == 0) controlPoints[0] else controlPoints[i - 1]
-            val p1 = controlPoints[i]
-            val p2 = controlPoints[i + 1]
-            val p3 = if (i == controlPoints.size - 2) controlPoints.last() else controlPoints[i + 2]
-            val dx1 = if (i == 0) 0.0 else (p2.x - p0.x) / divisor
-            val dy1 = if (i == 0) 0.0 else (p2.y - p0.y) / divisor
-            val dx2 = if (i == controlPoints.size - 2) 0.0 else (p3.x - p1.x) / divisor
-            val dy2 = if (i == controlPoints.size - 2) 0.0 else (p3.y - p1.y) / divisor
-            val b0 = Point(p1.x, p1.y)
-            val b1 = Point(p1.x + dx1, p1.y + dy1)
-            val b2 = Point(p2.x - dx2, p2.y - dy2)
-            val b3 = Point(p2.x, p2.y)
-            for (step in 0..stepsPerSegment) {
-                val t = step.toDouble() / stepsPerSegment
-                val u = 1 - t
-                flattened.add(
-                    Point(
-                        u * u * u * b0.x + 3 * u * u * t * b1.x + 3 * u * t * t * b2.x + t * t * t * b3.x,
-                        u * u * u * b0.y + 3 * u * u * t * b1.y + 3 * u * t * t * b2.y + t * t * t * b3.y,
-                    ),
-                )
+        currentLine = null
+    }
+
+    fun clearLines() {
+        lines.clear()
+        currentLine = null
+    }
+
+    fun flattenBezierSpline(controlPoints: MutableList<Point>): MutableList<Point> = flattenPolyline(controlPoints)
+
+    private fun flattenPolyline(pts: List<Point>): MutableList<Point> {
+        if (pts.size < 2) return pts.toMutableList()
+        val result = mutableListOf<Point>()
+        for (i in 0 until pts.size - 1) {
+            val a = pts[i]
+            val b = pts[i + 1]
+            val dist = hypot(b.x - a.x, b.y - a.y)
+            val steps = maxOf(1, (dist / 5).toInt())
+            for (s in 0 until steps) {
+                val t = s.toDouble() / steps
+                result.add(Point(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)))
             }
         }
-        return flattened
-    }
-
-    private fun capVelocity(max: Double = 500.0) {
-        val mag = hypot(puck.vx, puck.vy)
-        if (mag > max) {
-            puck.vx = puck.vx / mag * max
-            puck.vy = puck.vy / mag * max
-        }
-    }
-
-    private fun segmentKey(
-        a: Point,
-        b: Point,
-    ) = "${a.x.toInt()}_${a.y.toInt()}_${b.x.toInt()}_${b.y.toInt()}"
-
-    private fun isSegmentCooling(
-        a: Point,
-        b: Point,
-    ) = segmentCooldown[segmentKey(a, b)]?.let { (getTimeNs() - it) < cooldownDurationNs } ?: false
-
-    private fun recordCooldown(
-        a: Point,
-        b: Point,
-    ) {
-        segmentCooldown[segmentKey(a, b)] = getTimeNs()
-    }
-
-    private fun cleanupCooldowns() {
-        val now = getTimeNs()
-        segmentCooldown.entries.removeAll { (_, t) -> (now - t) > cooldownDurationNs * 2 }
-    }
-
-    private data class SegInfo(
-        val dist: Double,
-        val nx: Double,
-        val ny: Double,
-        val cx: Double,
-        val cy: Double,
-    )
-
-    private fun segmentInfo(
-        px: Double,
-        py: Double,
-        a: Point,
-        b: Point,
-    ): SegInfo {
-        val abx = b.x - a.x
-        val aby = b.y - a.y
-        val len2 = abx * abx + aby * aby
-        val tc = if (len2 == 0.0) 0.0 else ((px - a.x) * abx + (py - a.y) * aby / len2).coerceIn(0.0, 1.0)
-        val cx = a.x + tc * abx
-        val cy = a.y + tc * aby
-        val dx = px - cx
-        val dy = py - cy
-        val dist = sqrt(dx * dx + dy * dy)
-        val (nx, ny) = if (dist < 1e-9) Pair(0.0, -1.0) else Pair(dx / dist, dy / dist)
-        return SegInfo(dist, nx, ny, cx, cy)
+        result.add(pts.last())
+        return result
     }
 }

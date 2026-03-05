@@ -125,6 +125,10 @@ class GameWebSocket {
                 log.info("SET_SPEED received (not yet applied to engine)")
             }
 
+            "SPAWN_POWERUP" -> {
+                log.info("SPAWN_POWERUP received: ${data["type"]}")
+            }
+
             else -> {
                 log.warn("Unknown command: ${cmd["type"]}")
                 sendError(connection, "Unknown command: ${cmd["type"]}")
@@ -168,7 +172,9 @@ class GameWebSocket {
         message: String,
     ) {
         try {
-            connection.sendTextAndAwait(mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message)))
+            connection.sendTextAndAwait(
+                mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message)),
+            )
         } catch (e: Exception) {
             log.error("Failed to send error to ${connection.id()}", e)
         }
