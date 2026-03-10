@@ -17,54 +17,31 @@ function initSocket() {
   const wsUrl = `${proto}://${window.location.host}/game`
 
   function connect() {
-    if (_reconnectTimer) {
-      clearTimeout(_reconnectTimer)
-      _reconnectTimer = null
-    }
+    if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null }
 
-    console.log('[WS] Connecting to', wsUrl)
     _ws = new WebSocket(wsUrl)
 
     _ws.onopen = () => {
       connectedRef.value = true
-      console.log('[WS] Connected')
+      console.log('[WS] Connected to', wsUrl)
     }
 
     _ws.onmessage = (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data as string)
-
-        console.log('[WS] Message received:', data)
-
-        if (data.type === 'ERROR') {
-          console.warn('[WS] Server error:', data.message)
-          return
-        }
-
-        if (
-          data &&
-          typeof data === 'object' &&
-          'puck' in data &&
-          'score' in data
-        ) {
+        if (data.type === 'ERROR') { console.warn('[WS] Server error:', data.message); return }
+        if (data && typeof data === 'object' && 'puck' in data && 'score' in data) {
           gameStateRef.value = { ...data } as GameState
-        } else {
-          console.warn('[WS] Received message is not a GameState:', data)
         }
-      } catch (e) {
-        console.error('[WS] Parse error', e)
-      }
+      } catch (e) { console.error('[WS] Parse error', e) }
     }
 
     _ws.onclose = () => {
       connectedRef.value = false
-      console.log('[WS] Closed – reconnecting in 1s')
       _reconnectTimer = setTimeout(connect, 1000)
     }
 
-    _ws.onerror = (e) => {
-      console.error('[WS] Error', e)
-    }
+    _ws.onerror = (e) => { console.error('[WS] Error', e) }
   }
 
   connect()
@@ -76,20 +53,13 @@ export function useGameSocket() {
   function send(type: string, data: Record<string, unknown> = {}) {
     if (_ws?.readyState === WebSocket.OPEN) {
       _ws.send(JSON.stringify({ type, data }))
-    } else {
-      console.warn('[WS] Cannot send, socket not open')
     }
   }
 
-  function movePaddle(y: number) {
-    send('MOVE_PADDLE', { y })
-  }
-  function togglePause() {
-    send('TOGGLE_PAUSE')
-  }
-  function reset() {
-    send('RESET')
-  }
+  function movePaddle(y: number)  { send('MOVE_PADDLE', { y }) }
+  function togglePause()           { send('TOGGLE_PAUSE') }
+  function reset()                 { send('RESET') }
+  function clearLines()            { send('CLEAR_LINES') }
 
   return {
     gameState: gameStateRef,
@@ -97,5 +67,7 @@ export function useGameSocket() {
     movePaddle,
     togglePause,
     reset,
+    clearLines,
+    send,
   }
 }

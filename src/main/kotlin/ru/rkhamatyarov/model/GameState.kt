@@ -9,4 +9,5 @@ data class GameState(
     val paddle1Y: Double,
     val paddle2Y: Double,
     val paused: Boolean,
+    val lines: List<Line> = emptyList(),
 )

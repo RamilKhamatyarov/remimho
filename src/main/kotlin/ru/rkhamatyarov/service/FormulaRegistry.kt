@@ -4,7 +4,6 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.inject.Instance
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
-import ru.rkhamatyarov.model.GameInnerState
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -13,7 +12,7 @@ class FormulaRegistry {
     private val log = Logger.getLogger(javaClass)
 
     @Inject
-    lateinit var gameState: GameInnerState
+    lateinit var engine: GameEngine
 
     @Inject
     var formulas: Instance<Formula>? = null
@@ -27,7 +26,6 @@ class FormulaRegistry {
 
     private fun scheduleNextCurve() {
         val delay = (5000L..15000L).random()
-
         executor.schedule(
             {
                 showRandomCurve()
@@ -39,33 +37,29 @@ class FormulaRegistry {
     }
 
     private fun showRandomCurve() {
-        val availableFormulas = formulas?.toList() ?: return
+        val available = formulas?.toList() ?: return
+        if (available.isEmpty()) return
 
-        if (availableFormulas.isEmpty()) return
-
-        currentFormula = availableFormulas.random()
-
+        currentFormula = available.random()
         currentFormula?.let { formula ->
             val line =
                 formula.createLine().apply {
-                    flattenedPoints = gameState.flattenBezierSpline(controlPoints)
+                    flattenedPoints = engine.flattenBezierSpline(controlPoints)
                     isAnimating = true
                 }
-            gameState.lines.add(line)
+            engine.lines.add(line)
         }
     }
 
     fun handleResize() {
-        currentFormula?.let {
-            gameState.clearLines()
-
+        currentFormula?.let { formula ->
+            engine.clearLines()
             val line =
-                it.createLine().apply {
-                    flattenedPoints = gameState.flattenBezierSpline(controlPoints)
+                formula.createLine().apply {
+                    flattenedPoints = engine.flattenBezierSpline(controlPoints)
                     isAnimating = false
                 }
-
-            gameState.lines.add(line)
+            engine.lines.add(line)
         }
     }
 }

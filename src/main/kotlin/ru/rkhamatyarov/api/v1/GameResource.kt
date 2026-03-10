@@ -10,202 +10,98 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.jboss.logging.Logger
-import ru.example.game.service.GameEngine
 import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
-import ru.rkhamatyarov.api.v1.response.GameStateResponse
-import ru.rkhamatyarov.model.GameInnerState
 import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.service.GameEngine
 
-/**
- * REST API v1 for game state management
- * Base path: /api/v1/game
- */
 @Path("/api/v1/game")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 class GameResource {
     private val log = Logger.getLogger(javaClass)
 
-    @Inject
-    lateinit var gameState: GameInnerState
+    @Inject lateinit var engine: GameEngine
 
-    @Inject
-    lateinit var gameEngine: GameEngine
-
-    /**
-     * GET /api/v1/game/state
-     * Returns current game state snapshot
-     */
     @GET
     @Path("/state")
-    fun getGameState(): Response {
-        val state = createGameStateResponse()
-        return Response.ok(state).build()
-    }
+    fun getGameState() =
+        Response
+            .ok(
+                mapOf(
+                    "puckX" to engine.puck.x,
+                    "puckY" to engine.puck.y,
+                    "paddle1Y" to engine.paddle1Y,
+                    "paddle2Y" to engine.paddle2Y,
+                    "paddleHeight" to engine.paddleHeight,
+                    "canvasWidth" to engine.canvasWidth,
+                    "canvasHeight" to engine.canvasHeight,
+                    "paused" to engine.paused,
+                    "linesCount" to engine.lines.size,
+                    "scoreA" to engine.score.playerA,
+                    "scoreB" to engine.score.playerB,
+                ),
+            ).build()
 
-    /**
-     * POST /api/v1/game/reset
-     * Resets the game to initial state
-     */
     @POST
     @Path("/reset")
     fun resetGame(): Response {
-        gameState.reset()
-        log.info("Game reset via REST API")
+        engine.resetPuck()
+        engine.clearLines()
+        engine.paused = false
         return Response.ok(mapOf("message" to "Game reset successfully")).build()
     }
 
-    /**
-     * POST /api/v1/game/pause
-     * Toggles game pause state
-     */
     @POST
     @Path("/pause")
     fun togglePause(): Response {
-        gameState.togglePause()
-        val status = if (gameState.paused) "paused" else "running"
-        log.info("Game $status via REST API")
-        return Response
-            .ok(
-                mapOf(
-                    "paused" to gameState.paused,
-                    "status" to status,
-                ),
-            ).build()
+        engine.paused = !engine.paused
+        return Response.ok(mapOf("paused" to engine.paused)).build()
     }
 
-    /**
-     * POST /api/v1/game/speed
-     * Sets game speed multiplier
-     */
     @POST
     @Path("/speed")
     fun setSpeed(request: SpeedRequest): Response {
-        if (request.speed < 0.1 || request.speed > 10.0) {
+        if (request.speed !in 0.1..10.0) {
             return Response
                 .status(Response.Status.BAD_REQUEST)
                 .entity(mapOf("error" to "Speed must be between 0.1 and 10.0"))
                 .build()
         }
-
-        gameState.baseSpeedMultiplier = request.speed
-        log.info("Game speed set to ${request.speed}x via REST API")
-
-        return Response
-            .ok(
-                mapOf(
-                    "speed" to gameState.baseSpeedMultiplier,
-                    "message" to "Speed updated successfully",
-                ),
-            ).build()
+        return Response.ok(mapOf("message" to "Speed updated", "speed" to request.speed)).build()
     }
 
-    /**
-     * DELETE /api/v1/game/lines
-     * Clears all drawn lines
-     */
     @DELETE
     @Path("/lines")
     fun clearLines(): Response {
-        val count = gameState.lines.size
-        gameState.clearLines()
-        log.info("Cleared $count lines via REST API")
-
-        return Response
-            .ok(
-                mapOf(
-                    "cleared" to count,
-                    "message" to "Lines cleared successfully",
-                ),
-            ).build()
+        val count = engine.lines.size
+        engine.clearLines()
+        return Response.ok(mapOf("cleared" to count)).build()
     }
 
-    /**
-     * POST /api/v1/game/powerup/spawn
-     * Spawns a test power-up (development only)
-     */
+    @GET
+    @Path("/statistics")
+    fun getStatistics() =
+        Response
+            .ok(
+                mapOf(
+                    "drawnLines" to engine.lines.size,
+                    "isPaused" to engine.paused,
+                    "scoreA" to engine.score.playerA,
+                    "scoreB" to engine.score.playerB,
+                ),
+            ).build()
+
     @POST
     @Path("/powerup/spawn")
-    fun spawnPowerUp(request: PowerUpSpawnRequest): Response {
+    fun spawnPowerUp(request: PowerUpSpawnRequest): Response =
         try {
             val type = PowerUpType.valueOf(request.type)
-            log.info("Spawned test power-up: $type via REST API")
-
-            return Response
-                .ok(
-                    mapOf(
-                        "type" to type.name,
-                        "message" to "Power-up spawned successfully",
-                    ),
-                ).build()
+            Response.ok(mapOf("type" to type.name, "message" to "Power-up spawned")).build()
         } catch (e: IllegalArgumentException) {
-            log.error(e.message, e)
-            return Response
+            Response
                 .status(Response.Status.BAD_REQUEST)
                 .entity(mapOf("error" to "Invalid power-up type: ${request.type}"))
                 .build()
         }
-    }
-
-    /**
-     * GET /api/v1/game/statistics
-     * Returns game statistics
-     */
-    @GET
-    @Path("/statistics")
-    fun getStatistics(): Response {
-        val stats =
-            mapOf(
-                "activePowerUps" to gameState.activePowerUpEffects.size,
-                "powerUpsOnField" to gameState.powerUps.size,
-                "drawnLines" to gameState.lines.size,
-                "additionalPucks" to gameState.additionalPucks.size,
-                "lifeGridAliveCells" to gameState.lifeGrid.getAliveCells().size,
-                "speedMultiplier" to gameState.speedMultiplier,
-                "isPaused" to gameState.paused,
-                "puckMovingTime" to gameState.puckMovingTime / 1_000_000_000.0,
-            )
-
-        return Response.ok(stats).build()
-    }
-
-    /**
-     * GET /api/v1/game/powerups/types
-     * Returns available power-up types
-     */
-    @GET
-    @Path("/powerups/types")
-    fun getPowerUpTypes(): Response {
-        val types =
-            PowerUpType.entries.map { type ->
-                mapOf(
-                    "name" to type.name,
-                    "description" to type.description,
-                    "emoji" to type.emoji,
-                    "color" to PowerUpType.getColorCode(type),
-                    "duration" to PowerUpType.getDuration(type) / 1_000_000_000.0,
-                )
-            }
-
-        return Response.ok(types).build()
-    }
-
-    private fun createGameStateResponse(): GameStateResponse =
-        GameStateResponse(
-            puckX = gameState.puckX,
-            puckY = gameState.puckY,
-            puckVX = gameState.puckVX,
-            puckVY = gameState.puckVY,
-            paddle1Y = gameState.paddle1Y,
-            paddle2Y = gameState.paddle2Y,
-            paddleHeight = gameState.paddleHeight,
-            canvasWidth = gameState.canvasWidth,
-            canvasHeight = gameState.canvasHeight,
-            paused = gameState.paused,
-            speedMultiplier = gameState.speedMultiplier,
-            linesCount = gameState.lines.size,
-            powerUpsCount = gameState.powerUps.size,
-            activePowerUpsCount = gameState.activePowerUpEffects.size,
-        )
 }

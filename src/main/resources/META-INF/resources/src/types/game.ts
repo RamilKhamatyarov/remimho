@@ -11,6 +11,17 @@ export interface Score {
   playerB: number
 }
 
+export interface Point {
+  x: number
+  y: number
+}
+
+export interface Line {
+  controlPoints: Point[]
+  flattenedPoints: Point[] | null
+  width: number
+}
+
 export interface GameState {
   puck: Puck
   score: Score
@@ -20,4 +31,5 @@ export interface GameState {
   paddle1Y: number
   paddle2Y: number
   paused: boolean
+  lines: Line[]
 }
