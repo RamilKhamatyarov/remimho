@@ -18,7 +18,6 @@ import type { GameState, Point } from '../types/game'
 
 const props = defineProps<{ width: number; height: number }>()
 const emit = defineEmits<{ paddleMove: [y: number] }>()
-
 const { send } = useGameSocket()
 const isDrawing = ref(false)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -62,23 +61,47 @@ function draw(state: GameState) {
     ctx.lineJoin = 'round'
     for (const line of state.lines) {
       const pts: Point[] = (line.flattenedPoints && line.flattenedPoints.length > 1)
-        ? line.flattenedPoints
-        : line.controlPoints
+        ? line.flattenedPoints : line.controlPoints
       if (pts.length < 2) continue
       ctx.lineWidth = (line.width ?? 5) * Math.min(sx, sy)
       ctx.beginPath()
       ctx.moveTo(pts[0].x * sx, pts[0].y * sy)
-      for (let i = 1; i < pts.length; i++) {
-        ctx.lineTo(pts[i].x * sx, pts[i].y * sy)
-      }
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * sx, pts[i].y * sy)
       ctx.stroke()
     }
     ctx.restore()
   }
 
+  if (state.powerUps && state.powerUps.length > 0) {
+    const t = performance.now() / 600
+    for (const pu of state.powerUps) {
+      const pulse = 1 + 0.12 * Math.sin(t + pu.x)
+      const r     = pu.radius * Math.min(sx, sy) * pulse
+      const cx    = pu.x * sx
+      const cy    = pu.y * sy
+
+      ctx.save()
+      ctx.shadowBlur  = 18
+      ctx.shadowColor = pu.color
+      ctx.beginPath()
+      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.fillStyle = pu.color + '44'
+      ctx.fill()
+      ctx.strokeStyle = pu.color
+      ctx.lineWidth   = 2 * Math.min(sx, sy)
+      ctx.stroke()
+      ctx.restore()
+
+      ctx.font      = `${Math.round(r * 1.3)}px serif`
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(pu.emoji, cx, cy)
+      ctx.textBaseline = 'alphabetic'
+    }
+  }
+
   ctx.fillStyle = '#e94560'
   ctx.fillRect(0, state.paddle1Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
-
   ctx.fillStyle = '#4ecca3'
   ctx.fillRect(canvas.width - PADDLE_WIDTH * sx, state.paddle2Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
 
@@ -93,9 +116,31 @@ function draw(state: GameState) {
   ctx.fillText(String(state.score.playerA), canvas.width * 0.25, 50 * sy)
   ctx.fillText(String(state.score.playerB), canvas.width * 0.75, 50 * sy)
 
-  if (!isDrawing.value) {
+  if (state.activePowerUpEffects && state.activePowerUpEffects.length > 0) {
+    const badgeW = 54 * sx
+    const badgeH = 28 * sy
+    const pad    = 6 * sx
+    let bx       = canvas.width / 2 - (state.activePowerUpEffects.length * (badgeW + pad)) / 2
+
+    for (const eff of state.activePowerUpEffects) {
+      const secs = (eff.remainingMs / 1000).toFixed(1)
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'
+      ctx.beginPath()
+      ctx.roundRect(bx, canvas.height - badgeH - 8 * sy, badgeW, badgeH, 6)
+      ctx.fill()
+      ctx.font = `${Math.round(14 * sx)}px serif`
+      ctx.textAlign = 'center'
+      ctx.fillText(eff.emoji, bx + badgeW * 0.3, canvas.height - badgeH / 2 - 8 * sy + 5 * sy)
+      ctx.font = `${Math.round(10 * sx)}px monospace`
+      ctx.fillStyle = '#fff'
+      ctx.fillText(secs + 's', bx + badgeW * 0.7, canvas.height - badgeH / 2 - 8 * sy + 5 * sy)
+      bx += badgeW + pad
+    }
+  }
+
+  if (!isDrawing.value && (!state.activePowerUpEffects || state.activePowerUpEffects.length === 0)) {
     ctx.font = `${Math.round(11 * sx)}px monospace`
-    ctx.fillStyle = 'rgba(255,255,255,0.3)'
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'
     ctx.textAlign = 'center'
     ctx.fillText('Hold & drag to draw a barrier line', canvas.width / 2, canvas.height - 8)
   }
@@ -123,8 +168,7 @@ function toGamePt(e: MouseEvent): Point | null {
 
 function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
-  const pt = toGamePt(e)
-  if (!pt) return
+  const pt = toGamePt(e); if (!pt) return
   isDrawing.value = true
   send('START_LINE', { x: pt.x, y: pt.y })
 }
@@ -133,26 +177,13 @@ function onMouseMove(e: MouseEvent) {
   const canvas = canvasRef.value
   const state  = gameStateRef.value
   if (!canvas || !state) return
-  const r    = canvas.getBoundingClientRect()
-  const relY = e.clientY - r.top
-
-  emit('paddleMove', relY * (state.canvasHeight / canvas.height))
-
+  const r = canvas.getBoundingClientRect()
+  emit('paddleMove', (e.clientY - r.top) * (state.canvasHeight / canvas.height))
   if (isDrawing.value) {
-    const pt = toGamePt(e)
-    if (pt) send('UPDATE_LINE', { x: pt.x, y: pt.y })
+    const pt = toGamePt(e); if (pt) send('UPDATE_LINE', { x: pt.x, y: pt.y })
   }
 }
 
-function onMouseUp() {
-  if (!isDrawing.value) return
-  isDrawing.value = false
-  send('FINISH_LINE')
-}
-
-function onMouseLeave() {
-  if (!isDrawing.value) return
-  isDrawing.value = false
-  send('FINISH_LINE')
-}
+function onMouseUp()    { if (!isDrawing.value) return; isDrawing.value = false; send('FINISH_LINE') }
+function onMouseLeave() { if (!isDrawing.value) return; isDrawing.value = false; send('FINISH_LINE') }
 </script>

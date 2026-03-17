@@ -1,6 +1,7 @@
 package ru.rkhamatyarov.service
 
 import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 import ru.rkhamatyarov.model.ActivePowerUpEffect
 import ru.rkhamatyarov.model.AdditionalPuck
 import ru.rkhamatyarov.model.Line
@@ -18,7 +19,12 @@ class GameEngine {
 
     val paddleHeight: Double = 100.0
     private val paddleWidth: Double = 20.0
-    private val paddleSpeed: Double = 400.0
+
+    private val aiMaxSpeed: Double = 160.0
+
+    private val aiReactZone: Double = canvasWidth * 0.65
+
+    private val aiInaccuracy: Double = 12.0
 
     var paddle1Y: Double = (canvasHeight - paddleHeight) / 2
     var paddle2Y: Double = (canvasHeight - paddleHeight) / 2
@@ -31,9 +37,7 @@ class GameEngine {
             vy = 200.0,
             radius = 10.0,
         )
-
     val score: Score = Score(playerA = 0, playerB = 0)
-
     var paused: Boolean = false
 
     val lines: MutableList<Line> = mutableListOf()
@@ -45,6 +49,9 @@ class GameEngine {
     var powerUpSpeedMultiplier: Double = 1.0
     var isGhostMode: Boolean = false
     var hasPaddleShield: Boolean = false
+
+    @Inject
+    lateinit var powerUpManager: PowerUpManager
 
     fun tick(deltaSeconds: Double) {
         if (paused) return
@@ -63,16 +70,13 @@ class GameEngine {
         }
 
         if (puck.x - puck.radius <= paddleWidth &&
-            puck.y >= paddle1Y &&
-            puck.y <= paddle1Y + paddleHeight
+            puck.y >= paddle1Y && puck.y <= paddle1Y + paddleHeight
         ) {
             puck.x = paddleWidth + puck.radius
             puck.vx = abs(puck.vx)
         }
-
         if (puck.x + puck.radius >= canvasWidth - paddleWidth &&
-            puck.y >= paddle2Y &&
-            puck.y <= paddle2Y + paddleHeight
+            puck.y >= paddle2Y && puck.y <= paddle2Y + paddleHeight
         ) {
             puck.x = canvasWidth - paddleWidth - puck.radius
             puck.vx = -abs(puck.vx)
@@ -86,14 +90,28 @@ class GameEngine {
             resetPuck()
         }
 
-        val aiCenter = paddle1Y + paddleHeight / 2
-        if (puck.y > aiCenter + 5) {
-            paddle1Y = minOf(paddle1Y + paddleSpeed * deltaSeconds, canvasHeight - paddleHeight)
-        } else if (puck.y < aiCenter - 5) {
-            paddle1Y = maxOf(paddle1Y - paddleSpeed * deltaSeconds, 0.0)
-        }
+        updateAI(deltaSeconds)
 
         deflectOffLines()
+
+        powerUpManager.update(deltaSeconds)
+    }
+
+    private fun updateAI(dt: Double) {
+        val shouldReact = puck.vx < 0 && puck.x < aiReactZone
+
+        val targetY =
+            if (shouldReact) {
+                puck.y - paddleHeight / 2 + aiInaccuracy
+            } else {
+                (canvasHeight - paddleHeight) / 2
+            }
+
+        val diff = targetY - paddle1Y
+        if (abs(diff) > 4.0) {
+            val move = Math.signum(diff) * aiMaxSpeed * dt
+            paddle1Y = (paddle1Y + move).coerceIn(0.0, canvasHeight - paddleHeight)
+        }
     }
 
     private fun deflectOffLines() {
@@ -165,9 +183,7 @@ class GameEngine {
     }
 
     fun finishCurrentLine() {
-        currentLine?.let { line ->
-            line.flattenedPoints = flattenPolyline(line.controlPoints)
-        }
+        currentLine?.let { it.flattenedPoints = flattenPolyline(it.controlPoints) }
         currentLine = null
     }
 
