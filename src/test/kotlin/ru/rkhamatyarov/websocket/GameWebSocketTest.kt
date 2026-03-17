@@ -21,6 +21,7 @@ import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
 import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.PowerUpManager
 
 @QuarkusTest
 class GameWebSocketTest {
@@ -168,6 +169,9 @@ class GameWebSocketTest {
     @Test
     fun `puck deflects off a horizontal line`() {
         val eng = GameEngine()
+
+        initPowerUpManager(eng)
+
         eng.startNewLine(100.0, 300.0)
         eng.updateCurrentLine(700.0, 300.0)
         eng.finishCurrentLine()
@@ -185,6 +189,9 @@ class GameWebSocketTest {
     @Test
     fun `puck deflects off a vertical line`() {
         val eng = GameEngine()
+
+        initPowerUpManager(eng)
+
         eng.startNewLine(400.0, 100.0)
         eng.updateCurrentLine(400.0, 500.0)
         eng.finishCurrentLine()
@@ -202,6 +209,9 @@ class GameWebSocketTest {
     @Test
     fun `clearLines removes all lines so no deflection occurs`() {
         val eng = GameEngine()
+
+        initPowerUpManager(eng)
+
         eng.startNewLine(100.0, 300.0)
         eng.updateCurrentLine(700.0, 300.0)
         eng.finishCurrentLine()
@@ -227,4 +237,15 @@ class GameWebSocketTest {
             `when`(conn.id()).thenReturn(id)
             `when`(conn.sendText(anyString())).thenReturn(Uni.createFrom().voidItem())
         }
+
+    private fun initPowerUpManager(eng: GameEngine) {
+        val field = GameEngine::class.java.getDeclaredField("powerUpManager")
+        field.isAccessible = true
+        field.set(
+            eng,
+            object : PowerUpManager() {
+                override fun update(deltaTime: Double) {}
+            },
+        )
+    }
 }

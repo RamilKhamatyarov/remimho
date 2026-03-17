@@ -1,5 +1,8 @@
 package ru.rkhamatyarov.model
 
+import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
+import ru.rkhamatyarov.websocket.dto.PowerUpDTO
+
 data class GameState(
     val puck: Puck,
     val score: Score,
@@ -10,4 +13,6 @@ data class GameState(
     val paddle2Y: Double,
     val paused: Boolean,
     val lines: List<Line> = emptyList(),
+    val powerUps: List<PowerUpDTO> = emptyList(),
+    val activePowerUpEffects: List<ActivePowerUpDTO> = emptyList(),
 )

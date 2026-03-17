@@ -14,7 +14,11 @@ import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.model.GameState
+import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.PowerUpManager
+import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
+import ru.rkhamatyarov.websocket.dto.PowerUpDTO
 import java.util.concurrent.ConcurrentHashMap
 
 @WebSocket(path = "/game")
@@ -23,6 +27,8 @@ class GameWebSocket {
     private val log = Logger.getLogger(javaClass)
 
     @Inject lateinit var engine: GameEngine
+
+    @Inject lateinit var powerUpManager: PowerUpManager
 
     @Inject lateinit var mapper: ObjectMapper
 
@@ -72,7 +78,6 @@ class GameWebSocket {
         connection: WebSocketConnection,
     ) {
         val data = cmd["data"] as? Map<String, Any> ?: cmd
-
         when (cmd["type"]?.toString()?.uppercase()) {
             "MOVE_PADDLE" -> {
                 val y = data["y"]?.toString()?.toDoubleOrNull()
@@ -122,7 +127,7 @@ class GameWebSocket {
             }
 
             "SET_SPEED" -> {
-                log.info("SET_SPEED received (not yet applied to engine)")
+                log.info("SET_SPEED received")
             }
 
             "SPAWN_POWERUP" -> {
@@ -138,6 +143,7 @@ class GameWebSocket {
 
     private fun tick() {
         engine.tick(deltaSeconds = 0.016)
+        powerUpManager.update(0.016)
         if (sessions.isEmpty()) return
         val json = currentStateJson()
         val dead = mutableListOf<String>()
@@ -152,8 +158,9 @@ class GameWebSocket {
 
     fun getActiveSessionsCount(): Int = sessions.size
 
-    private fun currentStateJson(): String =
-        mapper.writeValueAsString(
+    private fun currentStateJson(): String {
+        val nowNs = System.nanoTime()
+        return mapper.writeValueAsString(
             GameState(
                 puck = engine.puck,
                 score = engine.score,
@@ -164,17 +171,41 @@ class GameWebSocket {
                 paddle2Y = engine.paddle2Y,
                 paused = engine.paused,
                 lines = engine.lines.toList(),
+                powerUps =
+                    engine.powerUps
+                        .filter { it.isActive }
+                        .map { pu ->
+                            PowerUpDTO(
+                                x = pu.x,
+                                y = pu.y,
+                                radius = pu.radius,
+                                type = pu.type.name,
+                                emoji = pu.type.emoji,
+                                color = PowerUpType.getColorCode(pu.type),
+                            )
+                        },
+                activePowerUpEffects =
+                    engine.activePowerUpEffects
+                        .filter { !it.isExpired() }
+                        .map { eff ->
+                            ActivePowerUpDTO(
+                                type = eff.type.name,
+                                emoji = eff.type.emoji,
+                                remainingSeconds =
+                                    ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000)
+                                        .coerceAtLeast(0),
+                            )
+                        },
             ),
         )
+    }
 
     private fun sendError(
         connection: WebSocketConnection,
         message: String,
     ) {
         try {
-            connection.sendTextAndAwait(
-                mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message)),
-            )
+            connection.sendTextAndAwait(mapper.writeValueAsString(mapOf("type" to "ERROR", "message" to message)))
         } catch (e: Exception) {
             log.error("Failed to send error to ${connection.id()}", e)
         }
