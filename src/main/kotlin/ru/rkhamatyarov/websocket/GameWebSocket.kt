@@ -26,13 +26,17 @@ import java.util.concurrent.ConcurrentHashMap
 class GameWebSocket {
     private val log = Logger.getLogger(javaClass)
 
-    @Inject lateinit var engine: GameEngine
+    @Inject
+    lateinit var engine: GameEngine
 
-    @Inject lateinit var powerUpManager: PowerUpManager
+    @Inject
+    lateinit var powerUpManager: PowerUpManager
 
-    @Inject lateinit var mapper: ObjectMapper
+    @Inject
+    lateinit var mapper: ObjectMapper
 
-    @Inject lateinit var vertx: Vertx
+    @Inject
+    lateinit var vertx: Vertx
 
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
 
@@ -72,73 +76,127 @@ class GameWebSocket {
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
     private fun handleCommand(
         cmd: Map<String, Any>,
         connection: WebSocketConnection,
     ) {
-        val data = cmd["data"] as? Map<String, Any> ?: cmd
-        when (cmd["type"]?.toString()?.uppercase()) {
+        val type = cmd["type"]?.toString()?.uppercase() ?: return sendError(connection, "Missing 'type'")
+        val data = cmd["data"]?.let { it as? Map<*, *> } ?: cmd
+
+        when (type) {
             "MOVE_PADDLE" -> {
-                val y = data["y"]?.toString()?.toDoubleOrNull()
-                if (y != null) {
-                    engine.movePaddle2(y)
-                } else {
-                    sendError(connection, "Invalid MOVE_PADDLE: y required")
-                }
+                handleMovePaddle(data, connection)
             }
 
             "TOGGLE_PAUSE" -> {
-                engine.paused = !engine.paused
+                handleTogglePause()
             }
 
             "RESET" -> {
-                engine.resetPuck()
-                engine.clearLines()
-                engine.paused = false
+                handleReset()
             }
 
             "CLEAR_LINES" -> {
-                engine.clearLines()
+                handleClearLines()
             }
 
             "START_LINE" -> {
-                val x = data["x"]?.toString()?.toDoubleOrNull()
-                val y = data["y"]?.toString()?.toDoubleOrNull()
-                if (x != null && y != null) {
-                    engine.startNewLine(x, y)
-                } else {
-                    sendError(connection, "Invalid START_LINE: x and y required")
-                }
+                handleStartLine(data, connection)
             }
 
             "UPDATE_LINE" -> {
-                val x = data["x"]?.toString()?.toDoubleOrNull()
-                val y = data["y"]?.toString()?.toDoubleOrNull()
-                if (x != null && y != null) {
-                    engine.updateCurrentLine(x, y)
-                } else {
-                    sendError(connection, "Invalid UPDATE_LINE: x and y required")
-                }
+                handleUpdateLine(data, connection)
             }
 
             "FINISH_LINE" -> {
-                engine.finishCurrentLine()
+                handleFinishLine()
             }
 
             "SET_SPEED" -> {
-                log.info("SET_SPEED received")
+                handleSetSpeed(data)
             }
 
             "SPAWN_POWERUP" -> {
-                log.info("SPAWN_POWERUP received: ${data["type"]}")
+                handleSpawnPowerUp(data)
             }
 
             else -> {
-                log.warn("Unknown command: ${cmd["type"]}")
-                sendError(connection, "Unknown command: ${cmd["type"]}")
+                log.warn("Unknown command: $type")
+                sendError(connection, "Unknown command: $type")
             }
         }
+    }
+
+    private fun handleMovePaddle(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val yStr = data["y"]?.toString()
+        val y = yStr?.toDoubleOrNull()
+        if (y != null) {
+            engine.movePaddle2(y)
+        } else {
+            sendError(connection, "Invalid MOVE_PADDLE: y required")
+        }
+    }
+
+    private fun handleTogglePause() {
+        engine.paused = !engine.paused
+    }
+
+    private fun handleReset() {
+        engine.resetPuck()
+        engine.clearLines()
+        engine.paused = false
+    }
+
+    private fun handleClearLines() {
+        engine.clearLines()
+    }
+
+    private fun handleStartLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val xStr = data["x"]?.toString()
+        val yStr = data["y"]?.toString()
+        val x = xStr?.toDoubleOrNull()
+        val y = yStr?.toDoubleOrNull()
+
+        if (x != null && y != null) {
+            engine.startNewLine(x, y)
+        } else {
+            sendError(connection, "Invalid START_LINE: x and y required")
+        }
+    }
+
+    private fun handleUpdateLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val xStr = data["x"]?.toString()
+        val yStr = data["y"]?.toString()
+        val x = xStr?.toDoubleOrNull()
+        val y = yStr?.toDoubleOrNull()
+
+        if (x != null && y != null) {
+            engine.updateCurrentLine(x, y)
+        } else {
+            sendError(connection, "Invalid UPDATE_LINE: x and y required")
+        }
+    }
+
+    private fun handleFinishLine() {
+        engine.finishCurrentLine()
+    }
+
+    private fun handleSetSpeed(data: Map<*, *>) {
+        log.info("SET_SPEED received")
+    }
+
+    private fun handleSpawnPowerUp(data: Map<*, *>) {
+        val type = data["type"]?.toString()
+        log.info("SPAWN_POWERUP received: $type")
     }
 
     private fun tick() {
