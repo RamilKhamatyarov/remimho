@@ -1,8 +1,11 @@
 package ru.rkhamatyarov.model
 
+import io.quarkus.runtime.annotations.RegisterForReflection
 import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
 import ru.rkhamatyarov.websocket.dto.PowerUpDTO
+import java.util.Collections.emptyList
 
+@RegisterForReflection
 data class GameState(
     val puck: Puck,
     val score: Score,

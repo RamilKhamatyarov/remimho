@@ -1,5 +1,8 @@
 package ru.rkhamatyarov.websocket.dto
 
+import io.quarkus.runtime.annotations.RegisterForReflection
+
+@RegisterForReflection
 data class GameStateDTO(
     val puckX: Double,
     val puckY: Double,
