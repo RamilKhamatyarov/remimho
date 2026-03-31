@@ -30,6 +30,7 @@ dependencies {
     implementation("io.quarkus:quarkus-logging-json")
 
     implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.7.2")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
 
     testImplementation("io.quarkus:quarkus-junit5")

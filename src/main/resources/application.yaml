@@ -33,7 +33,8 @@ quarkus:
         level: INFO
       "ru.rkhamatyarov.websocket":
         level: WARN
-
+  native:
+    additional-build-args: --initialize-at-build-time=kotlin.reflect
   netty:
     event-loops:
       io: 8

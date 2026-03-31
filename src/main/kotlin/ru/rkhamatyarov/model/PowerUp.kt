@@ -1,5 +1,8 @@
 package ru.rkhamatyarov.model
 
+import io.quarkus.runtime.annotations.RegisterForReflection
+
+@RegisterForReflection
 data class PowerUp(
     var x: Double,
     var y: Double,

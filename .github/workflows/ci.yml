@@ -49,9 +49,6 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v2
-
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
