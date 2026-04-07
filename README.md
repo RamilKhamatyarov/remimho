@@ -81,17 +81,9 @@ call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build
 cd D:\path\to\your\project\remimho
 ```
 
-####  5: Clean and Build
-
-```cmd
-
-gradle clean
-
-gradle nativeBuild
-
-gradle build -Dquarkus.package.type=native
-
-gradle build -Dquarkus.package.type=native -Dquarkus.native.container-build=true
+####  5: Build the native executable
+```bash
+   gradle clean build -Dquarkus.package.type=native
 ```
 
 ### Screenshot

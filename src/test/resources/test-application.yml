@@ -1,0 +1,11 @@
+"%test":
+  quarkus:
+    quinoa:
+      enabled: false
+    dev-ui:
+      enabled: false
+    log:
+      level: WARN
+      category:
+        "ru.rkhamatyarov":
+          level: INFO

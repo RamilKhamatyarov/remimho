@@ -34,7 +34,7 @@ class GameResourceTest {
                     RestAssured
                         .given()
                         .`when`()
-                        .get("/api/v1/game/stats")
+                        .get("/api/v1/game/statistics")
                         .then()
                         .statusCode(200)
                 }

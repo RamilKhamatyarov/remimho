@@ -1,8 +1,10 @@
 <template>
+  <!--
+    No :width/:height — setting canvas.width/height (even same value) erases the bitmap.
+    The canvas sizes itself imperatively from state.canvasWidth/Height in draw().
+  -->
   <canvas
     ref="canvasRef"
-    :width="props.width"
-    :height="props.height"
     :style="{ cursor: isDrawing ? 'crosshair' : 'none' }"
     @mousemove="onMouseMove"
     @mousedown="onMouseDown"
@@ -16,7 +18,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Point } from '../types/game'
 
-const props = defineProps<{ width: number; height: number }>()
 const emit = defineEmits<{ paddleMove: [y: number] }>()
 const { send } = useGameSocket()
 const isDrawing = ref(false)
@@ -38,8 +39,15 @@ function draw(state: GameState) {
   const ctx = canvas.getContext('2d')
   if (!ctx || !state.puck || typeof state.canvasWidth !== 'number') return
 
-  const sx = canvas.width  / state.canvasWidth
-  const sy = canvas.height / state.canvasHeight
+  // Size the canvas from server dimensions — only when they actually change
+  // (assigning canvas.width/height always clears the bitmap, even same value)
+  if (canvas.width !== state.canvasWidth || canvas.height !== state.canvasHeight) {
+    canvas.width  = state.canvasWidth
+    canvas.height = state.canvasHeight
+  }
+
+  const sx = canvas.width  / state.canvasWidth   // always 1.0 now
+  const sy = canvas.height / state.canvasHeight   // always 1.0 now
 
   ctx.fillStyle = '#1a1a2e'
   ctx.fillRect(0, 0, canvas.width, canvas.height)

@@ -1,97 +1,60 @@
 quarkus:
   http:
-    port: 8080
-    host: 0.0.0.0
+    limits:
+      max-form-size: 10M
+    body:
+      handle-file-uploads: false
     netty:
+      receive-buffer-size: 65536
+      send-buffer-size: 65536
       tcp-no-delay: true
       tcp-keep-alive: true
-      send-buffer-size: 262144     # 256KB
-      receive-buffer-size: 65536   # 64KB
-    compress: false
-    http2: true
-    limits:
-      max-body-size: 1M
-      max-form-size: 1M
 
-  executor:
+  vertx:
+    event-loops-pool-size: 4
+
+  thread-pool:
     core-threads: 8
-    max-threads: 64
-    queue-size: 1000
-    shutdown-timeout: 30S
-
-  jackson:
-    indent-output: false
-    fail-on-unknown-properties: false
-    fail-on-empty-beans: false
+    max-threads: 200
+    queue-size: 10000
+    shutdown-timeout: 60
 
   log:
     level: INFO
-    handler:
-      type: async
     category:
       "ru.rkhamatyarov":
-        level: INFO
+        level: DEBUG
       "ru.rkhamatyarov.websocket":
-        level: WARN
-  native:
-    additional-build-args: --initialize-at-build-time=kotlin.reflect
-  netty:
-    event-loops:
-      io: 8
-    io-threads: 8
-
-  rest:
-    server:
-      mode: reactive
-  resteasy:
-    path: api
-
-  micrometer:
-    enabled: true
-    export:
-      prometheus:
-        enabled: true
-        path: /metrics
-    binder:
-      vertx:
-        enabled: true
-      http:
-        client:
-          enabled: false
-        server:
-          enabled: true
+        level: DEBUG
+    
 
   quinoa:
-    ui-dir: src/main/resources/META-INF/resources
-    build-dir: dist
+    package-manager-install: true
+    node-version: 24.14.0
     dev-server:
       port: 5173
-      check-timeout: 60000
-    package-manager: npm
+  native:
+    additional-build-args: >
+      -H:IncludeResources=.*\\.proto,
+      --initialize-at-run-time=com.google.protobuf,
+      --initialize-at-run-time=ru.rkhamatyarov.proto,
+      -H:+ReportExceptionStackTraces
+    resources:
+      includes:
+        - "META-INF/resources/**"
+        - ".*\\.html"
+        - ".*\\.css"
+        - ".*\\.js"
+        - "assets/.*"
+        - ".*\\.proto"
+    reflection:
+      include-patterns:
+        - ru.rkhamatyarov.proto.**
+        - com.google.protobuf.**
+        
+  websockets-next:
+    server:
+      supported-subprotocols: binary
 
-"%dev":
-  quarkus:
-    log:
-      category:
-        "ru.rkhamatyarov":
-          level: DEBUG
-      handler:
-        type: async
-    quinoa:
-      dev-server:
-        port: 5173
-
-"%prod":
-  quarkus:
-    log:
-      level: WARN
-      category:
-        "ru.rkhamatyarov":
-          level: INFO
-
-game:
-  broadcast:
-    interval: 16
-  websocket:
-    max-connections: 1000
-    keep-alive-interval: 30000
+  scheduler:
+    enabled: true
