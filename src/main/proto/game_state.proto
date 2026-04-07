@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package ru.rkhamatyarov.proto;
+
+option java_multiple_files = true;
+
+message GameStateDelta {
+  optional double puck_x = 1;
+  optional double puck_y = 2;
+  optional double puck_vx = 3;
+  optional double puck_vy = 4;
+  optional double paddle1_y = 5;
+  optional double paddle2_y = 6;
+  optional int32 score_a = 7;
+  optional int32 score_b = 8;
+  optional bool paused = 9;
+  repeated Line lines = 10;
+  repeated PowerUp power_ups = 11;
+  repeated ActivePowerUp active_power_ups = 12;
+}
+
+message Line {
+  repeated Point points = 1;
+  double width = 2;
+  double animation_progress = 3;
+  bool is_animating = 4;
+}
+
+message Point {
+  double x = 1;
+  double y = 2;
+}
+
+message PowerUp {
+  double x = 1;
+  double y = 2;
+  string type = 3;
+  string emoji = 4;
+  string color = 5;
+  double radius = 6;
+}
+
+message ActivePowerUp {
+  string type = 1;
+  string emoji = 2;
+  int64 remaining_seconds = 3;
+}

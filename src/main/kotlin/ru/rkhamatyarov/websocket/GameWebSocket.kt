@@ -13,12 +13,10 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
-import ru.rkhamatyarov.model.GameState
 import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.PowerUpManager
-import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
-import ru.rkhamatyarov.websocket.dto.PowerUpDTO
 import java.util.concurrent.ConcurrentHashMap
 
 @WebSocket(path = "/game")
@@ -39,6 +37,7 @@ class GameWebSocket {
     lateinit var vertx: Vertx
 
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
+    private var lastFullState: GameStateDelta? = null
 
     fun onStart(
         @Observes event: StartupEvent,
@@ -50,7 +49,8 @@ class GameWebSocket {
     fun onOpen(connection: WebSocketConnection) {
         sessions[connection.id()] = connection
         log.info("Client connected: ${connection.id()} (total: ${sessions.size})")
-        connection.sendTextAndAwait(currentStateJson())
+        lastFullState = null
+        connection.sendBinary(currentStateBinary(true))
     }
 
     @OnClose
@@ -113,11 +113,11 @@ class GameWebSocket {
             }
 
             "SET_SPEED" -> {
-                handleSetSpeed(data)
+                handleSetSpeed()
             }
 
             "SPAWN_POWERUP" -> {
-                handleSpawnPowerUp(data)
+                handleSpawnPowerUp()
             }
 
             else -> {
@@ -158,11 +158,8 @@ class GameWebSocket {
         data: Map<*, *>,
         connection: WebSocketConnection,
     ) {
-        val xStr = data["x"]?.toString()
-        val yStr = data["y"]?.toString()
-        val x = xStr?.toDoubleOrNull()
-        val y = yStr?.toDoubleOrNull()
-
+        val x = data["x"]?.toString()?.toDoubleOrNull()
+        val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             engine.startNewLine(x, y)
         } else {
@@ -174,11 +171,8 @@ class GameWebSocket {
         data: Map<*, *>,
         connection: WebSocketConnection,
     ) {
-        val xStr = data["x"]?.toString()
-        val yStr = data["y"]?.toString()
-        val x = xStr?.toDoubleOrNull()
-        val y = yStr?.toDoubleOrNull()
-
+        val x = data["x"]?.toString()?.toDoubleOrNull()
+        val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             engine.updateCurrentLine(x, y)
         } else {
@@ -190,23 +184,22 @@ class GameWebSocket {
         engine.finishCurrentLine()
     }
 
-    private fun handleSetSpeed(data: Map<*, *>) {
+    private fun handleSetSpeed() {
         log.info("SET_SPEED received")
     }
 
-    private fun handleSpawnPowerUp(data: Map<*, *>) {
-        val type = data["type"]?.toString()
-        log.info("SPAWN_POWERUP received: $type")
+    private fun handleSpawnPowerUp() {
+        log.info("SPAWN_POWERUP received")
     }
 
     private fun tick() {
         engine.tick(deltaSeconds = 0.016)
         powerUpManager.update(0.016)
         if (sessions.isEmpty()) return
-        val json = currentStateJson()
+        val binary = currentStateBinary(false)
         val dead = mutableListOf<String>()
         sessions.forEach { (id, conn) ->
-            conn.sendText(json).subscribe().with({}, { t ->
+            conn.sendBinary(binary).subscribe().with({}, { t ->
                 log.warn("Failed to send to $id: ${t.message}")
                 dead.add(id)
             })
@@ -216,46 +209,93 @@ class GameWebSocket {
 
     fun getActiveSessionsCount(): Int = sessions.size
 
-    private fun currentStateJson(): String {
-        val nowNs = System.nanoTime()
-        return mapper.writeValueAsString(
-            GameState(
-                puck = engine.puck,
-                score = engine.score,
-                canvasWidth = engine.canvasWidth,
-                canvasHeight = engine.canvasHeight,
-                paddleHeight = engine.paddleHeight,
-                paddle1Y = engine.paddle1Y,
-                paddle2Y = engine.paddle2Y,
-                paused = engine.paused,
-                lines = engine.lines.toList(),
-                powerUps =
-                    engine.powerUps
-                        .filter { it.isActive }
-                        .map { pu ->
-                            PowerUpDTO(
-                                x = pu.x,
-                                y = pu.y,
-                                radius = pu.radius,
-                                type = pu.type.name,
-                                emoji = pu.type.emoji,
-                                color = PowerUpType.getColorCode(pu.type),
-                            )
-                        },
-                activePowerUpEffects =
-                    engine.activePowerUpEffects
-                        .filter { !it.isExpired() }
-                        .map { eff ->
-                            ActivePowerUpDTO(
-                                type = eff.type.name,
-                                emoji = eff.type.emoji,
-                                remainingSeconds =
-                                    ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000)
-                                        .coerceAtLeast(0),
-                            )
-                        },
-            ),
-        )
+    private fun currentStateBinary(full: Boolean): ByteArray {
+        val now = System.nanoTime()
+        val newState = buildGameStateDelta(now)
+        val delta = if (full || lastFullState == null) newState else computeDelta(lastFullState!!, newState)
+        lastFullState = newState
+        return delta.toByteArray()
+    }
+
+    private fun buildGameStateDelta(nowNs: Long): GameStateDelta {
+        val puck = engine.puck
+        val score = engine.score
+
+        val builder =
+            GameStateDelta
+                .newBuilder()
+                .setPuckX(puck.x)
+                .setPuckY(puck.y)
+                .setPuckVx(puck.vx)
+                .setPuckVy(puck.vy)
+                .setPaddle1Y(engine.paddle1Y)
+                .setPaddle2Y(engine.paddle2Y)
+                .setScoreA(score.playerA)
+                .setScoreB(score.playerB)
+                .setPaused(engine.paused)
+
+        engine.lines.forEach { line ->
+            val lineBuilder =
+                ru.rkhamatyarov.proto.Line
+                    .newBuilder()
+                    .setWidth(line.width)
+                    .setAnimationProgress(line.animationProgress)
+                    .setIsAnimating(line.isAnimating)
+            line.flattenedPoints?.forEach { pt ->
+                lineBuilder.addPoints(
+                    ru.rkhamatyarov.proto.Point
+                        .newBuilder()
+                        .setX(pt.x)
+                        .setY(pt.y),
+                )
+            }
+            builder.addLines(lineBuilder)
+        }
+
+        engine.powerUps.filter { it.isActive }.forEach { pu ->
+            builder.addPowerUps(
+                ru.rkhamatyarov.proto.PowerUp
+                    .newBuilder()
+                    .setX(pu.x)
+                    .setY(pu.y)
+                    .setRadius(pu.radius)
+                    .setType(pu.type.name)
+                    .setEmoji(pu.type.emoji)
+                    .setColor(PowerUpType.getColorCode(pu.type)),
+            )
+        }
+
+        engine.activePowerUpEffects.filter { !it.isExpired() }.forEach { eff ->
+            val remainingSec = ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000_000).coerceAtLeast(0)
+            builder.addActivePowerUps(
+                ru.rkhamatyarov.proto.ActivePowerUp
+                    .newBuilder()
+                    .setType(eff.type.name)
+                    .setEmoji(eff.type.emoji)
+                    .setRemainingSeconds(remainingSec),
+            )
+        }
+        return builder.build()
+    }
+
+    private fun computeDelta(
+        prev: GameStateDelta,
+        curr: GameStateDelta,
+    ): GameStateDelta {
+        val builder = GameStateDelta.newBuilder()
+        if (curr.puckX != prev.puckX) builder.puckX = curr.puckX
+        if (curr.puckY != prev.puckY) builder.puckY = curr.puckY
+        if (curr.puckVx != prev.puckVx) builder.puckVx = curr.puckVx
+        if (curr.puckVy != prev.puckVy) builder.puckVy = curr.puckVy
+        if (curr.paddle1Y != prev.paddle1Y) builder.paddle1Y = curr.paddle1Y
+        if (curr.paddle2Y != prev.paddle2Y) builder.paddle2Y = curr.paddle2Y
+        if (curr.scoreA != prev.scoreA) builder.scoreA = curr.scoreA
+        if (curr.scoreB != prev.scoreB) builder.scoreB = curr.scoreB
+        if (curr.paused != prev.paused) builder.paused = curr.paused
+        if (curr.linesList != prev.linesList) builder.addAllLines(curr.linesList)
+        if (curr.powerUpsList != prev.powerUpsList) builder.addAllPowerUps(curr.powerUpsList)
+        if (curr.activePowerUpsList != prev.activePowerUpsList) builder.addAllActivePowerUps(curr.activePowerUpsList)
+        return builder.build()
     }
 
     private fun sendError(

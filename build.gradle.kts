@@ -3,7 +3,8 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.allopen") version "2.3.20"
-    id("io.quarkus") version "3.34.1"
+    id("io.quarkus") version "3.34.2"
+    id("com.google.protobuf") version "0.9.6"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.4.0"
 }
@@ -16,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.1"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.2"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -32,6 +33,8 @@ dependencies {
     implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.0")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("com.google.protobuf:protobuf-java")
+    implementation("com.google.protobuf:protobuf-kotlin")
 
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
@@ -48,7 +51,7 @@ tasks.withType<KotlinCompile> {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
         javaParameters = true
-        freeCompilerArgs.addAll("-Xjvm-default=all")
+        freeCompilerArgs.addAll("-jvm-default=enable")
     }
 }
 
@@ -59,14 +62,34 @@ allOpen {
     annotation("io.quarkus.test.junit.QuarkusTest")
 }
 
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.30.0"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                java { }
+                kotlin { }
+            }
+        }
+    }
+}
+
 ktlint {
     version.set("1.2.1")
+    filter {
+        exclude { element ->
+            element.file.path.contains("build/generated")
+        }
+    }
 }
 
 spotless {
     kotlin {
         ktlint()
         target("**/*.kt")
+        targetExclude("build/generated/**/*.kt")
         trimTrailingWhitespace()
         endWithNewline()
     }
@@ -78,4 +101,12 @@ spotless {
 
 tasks.test {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+}
+
+tasks.register<Copy>("copyFrontend") {
+    from("frontend/dist")
+    into("src/main/resources/META-INF/resources")
+}
+tasks.processResources {
+    dependsOn("copyFrontend")
 }
