@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.allopen") version "2.3.20"
-    id("io.quarkus") version "3.34.2"
+    id("io.quarkus") version "3.34.3"
     id("com.google.protobuf") version "0.9.6"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.4.0"
@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.2"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.3"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -64,7 +64,7 @@ allOpen {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.30.0"
+        artifact = "com.google.protobuf:protoc:4.34.1"
     }
     generateProtoTasks {
         all().forEach { task ->

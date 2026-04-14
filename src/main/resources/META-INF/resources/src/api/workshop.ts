@@ -1,6 +1,3 @@
-// src/api/workshop.ts
-
-// ── Types (mirror WorkshopResource.kt) ───────────────────────────────────────
 
 export enum ContentType {
   LEVEL = 'LEVEL',
