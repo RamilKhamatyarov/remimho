@@ -4,21 +4,20 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Whiteboard Pong</title>
-  <script type="module" crossorigin src="/assets/index-CEfro9Sz.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-CHpkUUDi.css">
 </head>
 <body>
 <div id="app"></div>
 <!--
-  Vite replaces this <script> with the correct hashed bundle path during `npm run build`.
-  When running `npm run dev` (Vite dev server on :5173), Vite serves this file directly
-  and handles the /src/main.ts import via its built-in TypeScript transform.
+  DEV:  npm run dev  →  open http://localhost:5173
+        Vite serves this file, transforms /src/main.ts on the fly (TypeScript + HMR).
 
-  DO NOT open localhost:8080 directly in dev mode — Quarkus serves the raw .ts file
-  which browsers cannot execute. Always use localhost:5173 in development.
+  PROD: npm run build  →  Vite rewrites this <script> to the hashed bundle path.
+        ./gradlew build  →  Quinoa embeds dist/ into the JAR.
+        Open http://localhost:8080
 
-  For production: run `npm run build`, then `./gradlew quarkusDev` or `./gradlew build`.
-  Quinoa will embed the dist/ output and serve it correctly from localhost:8080.
+  NEVER hardcode /assets/index-XXXXX.js here — that breaks the dev server because
+  Vite then serves the stale production bundle instead of the live source files.
 -->
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>
