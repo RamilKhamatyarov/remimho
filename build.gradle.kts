@@ -30,7 +30,7 @@ dependencies {
     implementation("io.quarkus:quarkus-scheduler")
     implementation("io.quarkus:quarkus-logging-json")
 
-    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.0")
+    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.1")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("com.google.protobuf:protobuf-java")
