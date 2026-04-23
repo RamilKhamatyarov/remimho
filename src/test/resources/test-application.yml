@@ -9,3 +9,6 @@
       category:
         "ru.rkhamatyarov":
           level: INFO
+  remimho:
+    browser:
+      open: false

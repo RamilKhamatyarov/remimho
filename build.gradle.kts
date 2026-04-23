@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.20"
     kotlin("plugin.allopen") version "2.3.20"
-    id("io.quarkus") version "3.34.3"
+    id("io.quarkus") version "3.34.5"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.4.0"
@@ -17,7 +17,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.3"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.34.5"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -64,7 +64,7 @@ allOpen {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.34.1"
+        artifact = "com.google.protobuf:protoc:4.33.2"
     }
     generateProtoTasks {
         all().forEach { task ->
@@ -103,10 +103,58 @@ tasks.test {
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }
 
-tasks.register<Copy>("copyFrontend") {
-    from("frontend/dist")
-    into("src/main/resources/META-INF/resources")
+val frontendDir = layout.projectDirectory.dir("src/main/resources/META-INF/resources")
+val frontendDistDir = frontendDir.dir("dist")
+val npmCommand = if (System.getProperty("os.name").lowercase().contains("windows")) "npm.cmd" else "npm"
+
+tasks.register<Exec>("buildFrontend") {
+    workingDir = frontendDir.asFile
+    commandLine(npmCommand, "run", "build")
+    dependsOn("installFrontend")
+
+    inputs.files(
+        frontendDir.file("package.json"),
+        frontendDir.file("package-lock.json"),
+        frontendDir.file("vite.config.ts"),
+        frontendDir.file("tsconfig.json"),
+        frontendDir.file("tsconfig.node.json"),
+    )
+    inputs.dir(frontendDir.dir("src"))
+    outputs.dir(frontendDistDir)
 }
+
+tasks.register<Exec>("installFrontend") {
+    workingDir = frontendDir.asFile
+    commandLine(npmCommand, "ci")
+
+    inputs.files(
+        frontendDir.file("package.json"),
+        frontendDir.file("package-lock.json"),
+    )
+    outputs.dir(frontendDir.dir("node_modules"))
+}
+
+tasks.register<Copy>("copyFrontend") {
+    dependsOn("buildFrontend", "processResources")
+    from(frontendDistDir)
+    into(layout.buildDirectory.dir("resources/main/META-INF/resources"))
+}
+
 tasks.processResources {
+    exclude(
+        "META-INF/resources/assets/**",
+        "META-INF/resources/dist/**",
+        "META-INF/resources/index.html",
+        "META-INF/resources/node_modules/**",
+        "META-INF/resources/package.json",
+        "META-INF/resources/package-lock.json",
+        "META-INF/resources/src/**",
+        "META-INF/resources/tsconfig.json",
+        "META-INF/resources/tsconfig.node.json",
+        "META-INF/resources/vite.config.ts",
+    )
+}
+
+tasks.classes {
     dependsOn("copyFrontend")
 }

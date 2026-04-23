@@ -58,3 +58,8 @@ quarkus:
 
   scheduler:
     enabled: true
+
+remimho:
+  browser:
+    open: true
+    url: http://localhost:8080

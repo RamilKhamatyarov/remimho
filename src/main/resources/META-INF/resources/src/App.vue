@@ -12,16 +12,16 @@
         Move the mouse over the dark canvas to control the right (green) paddle.
         Hold left-click and drag to draw a barrier line.
       -->
-      <GameCanvas @paddle-move="movePaddle" />
+      <GameCanvas :timeshift-active="isRewinding" @paddle-move="movePaddleIfLive" />
     </main>
 
     <!-- ── Timeshift slider ───────────────────────────────────────────────── -->
     <div class="timeshift-bar" :class="{ rewinding: isRewinding }">
       <div class="ts-meta">
         <span class="ts-badge" :class="{ rewinding: isRewinding }">
-          {{ isRewinding ? `⏪  ${offsetLabel}` : '🔴 LIVE' }}
+          {{ sliderStatusLabel }}
         </span>
-        <span class="ts-hint">Drag ← to rewind up to 15 s</span>
+        <span class="ts-hint">Drag or use [ ] / ← →, Enter branches</span>
       </div>
 
       <input
@@ -45,6 +45,11 @@
         <span>{{ Math.round(MAX_HISTORY_S / 2) }}s ago</span>
         <span>{{ MAX_HISTORY_S }}s ago</span>
       </div>
+
+      <div v-if="isRewinding" class="ts-actions">
+        <button class="btn-travel" @click="commitTimeTravel">Change Future</button>
+        <button class="btn-live" @click="goLive">Go Live</button>
+      </div>
     </div>
 
     <footer>
@@ -53,13 +58,14 @@
       <button class="btn-clear"    @click="clearLines">Clear Lines</button>
       <button class="btn-workshop" @click="publishLevel">Publish Level</button>
       <span v-if="gameState">{{ gameState.score.playerA }} – {{ gameState.score.playerB }}</span>
+      <span class="hotkeys">Space pause · R reset · Esc live</span>
       <span v-if="workshopMsg" class="workshop-msg">{{ workshopMsg }}</span>
     </footer>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import GameCanvas from './components/GameCanvas.vue';
 import { useGameSocket } from './composables/useGameSocket';
 import { useWorkshopApi, ContentType } from './api/workshop';
@@ -69,7 +75,7 @@ const MAX_HISTORY_S = 15;
 const {
   gameState, connected,
   movePaddle, togglePause, reset, clearLines,
-  timeshift, resume,
+  timeshift, resume, commitTimeshift,
 } = useGameSocket();
 const { publishContent } = useWorkshopApi();
 
@@ -77,37 +83,42 @@ const { publishContent } = useWorkshopApi();
 
 const sliderOffset = ref(0);
 const isRewinding  = ref(false);
-let   autoResumeTimer: ReturnType<typeof setTimeout> | null = null;
 
 const offsetLabel = computed(() => {
   const s = sliderOffset.value;
   return s === 0 ? 'now' : `${s.toFixed(2)} s ago`;
 });
 
+const sliderStatusLabel = computed(() => {
+  if (isRewinding.value) return `⏪  ${offsetLabel.value}`;
+  return gameState.value?.paused ? '⏸ PAUSED' : '🔴 LIVE';
+});
+
 const sliderStyle = computed(() => ({
   '--pct': `${(sliderOffset.value / MAX_HISTORY_S) * 100}%`,
 }));
 
-function clearAutoResume() {
-  if (autoResumeTimer) { clearTimeout(autoResumeTimer); autoResumeTimer = null; }
+function setSliderOffset(offset: number) {
+  const next = Math.max(0, Math.min(MAX_HISTORY_S, offset));
+  sliderOffset.value = next;
+  if (next === 0) {
+    goLive();
+    return;
+  }
+  isRewinding.value = true;
+  timeshift(next);
 }
 
 function onSliderGrab() {
   isRewinding.value = true;
-  clearAutoResume();
 }
 
 function onSliderMove(e: Event) {
-  const offset = parseFloat((e.target as HTMLInputElement).value);
-  sliderOffset.value = offset;
-  if (offset === 0) { goLive(); return; }
-  timeshift(offset);
+  setSliderOffset(parseFloat((e.target as HTMLInputElement).value));
 }
 
 function onSliderDrop() {
   if (sliderOffset.value === 0) { goLive(); return; }
-  clearAutoResume();
-  autoResumeTimer = setTimeout(goLive, 4000);
 }
 
 function onSliderLeave() {
@@ -115,14 +126,73 @@ function onSliderLeave() {
 }
 
 function goLive() {
-  clearAutoResume();
   isRewinding.value  = false;
   sliderOffset.value = 0;
   resume();
 }
 
+function commitTimeTravel() {
+  const offset = sliderOffset.value;
+  if (offset <= 0) { goLive(); return; }
+  isRewinding.value = false;
+  sliderOffset.value = 0;
+  commitTimeshift(offset);
+}
+
+function movePaddleIfLive(y: number) {
+  if (!isRewinding.value) movePaddle(y);
+}
+
+function handleHotkey(e: KeyboardEvent) {
+  const target = e.target as HTMLElement | null;
+  const tag = target?.tagName?.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
+
+  switch (e.key) {
+    case ' ':
+    case 'p':
+    case 'P':
+      e.preventDefault();
+      togglePause();
+      break;
+    case 'r':
+    case 'R':
+      e.preventDefault();
+      reset();
+      goLive();
+      break;
+    case 'ArrowLeft':
+    case '[':
+      e.preventDefault();
+      setSliderOffset(sliderOffset.value + 0.25);
+      break;
+    case 'ArrowRight':
+    case ']':
+      e.preventDefault();
+      setSliderOffset(sliderOffset.value - 0.25);
+      break;
+    case 'Home':
+    case 'Escape':
+      if (isRewinding.value || sliderOffset.value !== 0) {
+        e.preventDefault();
+        goLive();
+      }
+      break;
+    case 'Enter':
+      if (isRewinding.value) {
+        e.preventDefault();
+        commitTimeTravel();
+      }
+      break;
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleHotkey);
+});
+
 onUnmounted(() => {
-  clearAutoResume();
+  window.removeEventListener('keydown', handleHotkey);
   if (isRewinding.value) resume();
 });
 
@@ -172,17 +242,6 @@ h1 { font-size: 1.5rem; letter-spacing: 2px; }
 .status { font-size: 0.85rem; color: #e94560; }
 .status.connected { color: #4ecca3; }
 
-/* ── Canvas ────────────────────────────────────────────────────────────────── */
-/*
-  KEY FIX: max-width: 100% prevents the 800px canvas from overflowing narrow
-  viewports.  Without this, the right quarter of the canvas (including the
-  player's green paddle) is clipped and mouse events over that area never
-  reach the canvas element — making the paddle uncontrollable.
-
-  The canvas pixel buffer stays at 800×600 (set imperatively in draw()).
-  CSS scales only the DISPLAY size; GameCanvas.vue uses getBoundingClientRect()
-  for coordinate conversion, so the game coordinates are always correct.
-*/
 canvas {
   display: block;
   max-width: 100%;        /* ← prevents viewport overflow */
@@ -222,6 +281,7 @@ footer {
 }
 
 .workshop-msg { font-size: 0.85rem; color: #4ecca3; }
+.hotkeys { font-size: 0.72rem; color: rgba(255,255,255,0.38); }
 
 /* ── Timeshift bar ─────────────────────────────────────────────────────────── */
 .timeshift-bar {
@@ -298,5 +358,23 @@ footer {
   font-size: 0.66rem;
   color: rgba(255,255,255,0.25);
   user-select: none;
+}
+
+.ts-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.btn-travel {
+  border-color: #e94560;
+  background: #e94560;
+}
+
+.btn-live {
+  border-color: rgba(255,255,255,0.35);
+  background: transparent;
 }
 </style>
