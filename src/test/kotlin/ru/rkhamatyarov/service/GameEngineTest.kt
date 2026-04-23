@@ -4,6 +4,10 @@ import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.model.Line
+import ru.rkhamatyarov.model.Point
+import ru.rkhamatyarov.model.PowerUp
+import ru.rkhamatyarov.model.PowerUpType
 import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -26,6 +30,12 @@ class GameEngineTest {
         gameEngine.puck.vy = 0.0
         gameEngine.paddle1Y = (gameEngine.canvasHeight - gameEngine.paddleHeight) / 2
         gameEngine.paddle2Y = (gameEngine.canvasHeight - gameEngine.paddleHeight) / 2
+        gameEngine.score.playerA = 0
+        gameEngine.score.playerB = 0
+        gameEngine.clearLines()
+        gameEngine.powerUps.clear()
+        gameEngine.activePowerUpEffects.clear()
+        gameEngine.additionalPucks.clear()
     }
 
     @Test
@@ -161,5 +171,48 @@ class GameEngineTest {
         assertTrue(gameEngine.puck.x < gameEngine.canvasWidth)
         assertTrue(gameEngine.puck.y > 0.0)
         assertTrue(gameEngine.puck.y < gameEngine.canvasHeight)
+    }
+
+    @Test
+    fun `test restoreFromDelta branches game state from snapshot`() {
+        gameEngine.puck.x = 123.0
+        gameEngine.puck.y = 234.0
+        gameEngine.puck.vx = -321.0
+        gameEngine.puck.vy = 111.0
+        gameEngine.paddle1Y = 44.0
+        gameEngine.paddle2Y = 333.0
+        gameEngine.score.playerA = 2
+        gameEngine.score.playerB = 5
+        gameEngine.paused = true
+        gameEngine.lines.add(
+            Line(
+                controlPoints = mutableListOf(Point(10.0, 10.0), Point(20.0, 20.0)),
+                flattenedPoints = mutableListOf(Point(10.0, 10.0), Point(20.0, 20.0)),
+            ),
+        )
+        gameEngine.powerUps.add(PowerUp(300.0, 200.0, PowerUpType.SPEED_BOOST))
+        val snapshot = gameEngine.toGameStateDelta()
+
+        gameEngine.puck.x = 700.0
+        gameEngine.puck.y = 500.0
+        gameEngine.score.playerA = 99
+        gameEngine.lines.clear()
+        gameEngine.powerUps.clear()
+        gameEngine.paused = false
+
+        gameEngine.restoreFromDelta(snapshot)
+
+        assertEquals(123.0, gameEngine.puck.x, 0.0001)
+        assertEquals(234.0, gameEngine.puck.y, 0.0001)
+        assertEquals(-321.0, gameEngine.puck.vx, 0.0001)
+        assertEquals(111.0, gameEngine.puck.vy, 0.0001)
+        assertEquals(44.0, gameEngine.paddle1Y, 0.0001)
+        assertEquals(333.0, gameEngine.paddle2Y, 0.0001)
+        assertEquals(2, gameEngine.score.playerA)
+        assertEquals(5, gameEngine.score.playerB)
+        assertTrue(gameEngine.paused)
+        assertEquals(1, gameEngine.lines.size)
+        assertEquals(1, gameEngine.powerUps.size)
+        assertEquals(PowerUpType.SPEED_BOOST, gameEngine.powerUps.first().type)
     }
 }

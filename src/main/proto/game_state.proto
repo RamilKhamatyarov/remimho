@@ -17,6 +17,7 @@ message GameStateDelta {
   repeated Line lines = 10;
   repeated PowerUp power_ups = 11;
   repeated ActivePowerUp active_power_ups = 12;
+  optional bool full_state = 13;
 }
 
 message Line {

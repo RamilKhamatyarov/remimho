@@ -7,8 +7,10 @@ import ru.rkhamatyarov.model.AdditionalPuck
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUp
+import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
+import ru.rkhamatyarov.proto.GameStateDelta
 import kotlin.math.abs
 import kotlin.math.hypot
 
@@ -190,6 +192,129 @@ class GameEngine {
     fun clearLines() {
         lines.clear()
         currentLine = null
+    }
+
+    fun toGameStateDelta(nowNs: Long = System.nanoTime()): GameStateDelta {
+        val builder =
+            GameStateDelta
+                .newBuilder()
+                .setPuckX(puck.x)
+                .setPuckY(puck.y)
+                .setPuckVx(puck.vx)
+                .setPuckVy(puck.vy)
+                .setPaddle1Y(paddle1Y)
+                .setPaddle2Y(paddle2Y)
+                .setScoreA(score.playerA)
+                .setScoreB(score.playerB)
+                .setPaused(paused)
+                .setFullState(true)
+
+        lines.forEach { line ->
+            val lb =
+                ru.rkhamatyarov.proto.Line
+                    .newBuilder()
+                    .setWidth(line.width)
+                    .setAnimationProgress(line.animationProgress)
+                    .setIsAnimating(line.isAnimating)
+            (line.flattenedPoints ?: line.controlPoints).forEach { pt ->
+                lb.addPoints(
+                    ru.rkhamatyarov.proto.Point
+                        .newBuilder()
+                        .setX(pt.x)
+                        .setY(pt.y),
+                )
+            }
+            builder.addLines(lb)
+        }
+
+        powerUps.filter { it.isActive }.forEach { pu ->
+            builder.addPowerUps(
+                ru.rkhamatyarov.proto.PowerUp
+                    .newBuilder()
+                    .setX(pu.x)
+                    .setY(pu.y)
+                    .setRadius(pu.radius)
+                    .setType(pu.type.name)
+                    .setEmoji(pu.type.emoji)
+                    .setColor(PowerUpType.getColorCode(pu.type)),
+            )
+        }
+
+        activePowerUpEffects.filter { !it.isExpired() }.forEach { eff ->
+            val remaining = ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000_000).coerceAtLeast(0)
+            builder.addActivePowerUps(
+                ru.rkhamatyarov.proto.ActivePowerUp
+                    .newBuilder()
+                    .setType(eff.type.name)
+                    .setEmoji(eff.type.emoji)
+                    .setRemainingSeconds(remaining),
+            )
+        }
+
+        return builder.build()
+    }
+
+    fun restoreFromDelta(
+        snapshot: GameStateDelta,
+        nowNs: Long = System.nanoTime(),
+    ) {
+        if (snapshot.hasPuckX()) puck.x = snapshot.puckX
+        if (snapshot.hasPuckY()) puck.y = snapshot.puckY
+        if (snapshot.hasPuckVx()) puck.vx = snapshot.puckVx
+        if (snapshot.hasPuckVy()) puck.vy = snapshot.puckVy
+        if (snapshot.hasPaddle1Y()) paddle1Y = snapshot.paddle1Y.coerceIn(0.0, canvasHeight - paddleHeight)
+        if (snapshot.hasPaddle2Y()) paddle2Y = snapshot.paddle2Y.coerceIn(0.0, canvasHeight - paddleHeight)
+        if (snapshot.hasScoreA()) score.playerA = snapshot.scoreA
+        if (snapshot.hasScoreB()) score.playerB = snapshot.scoreB
+        if (snapshot.hasPaused()) paused = snapshot.paused
+
+        lines.clear()
+        snapshot.linesList.forEach { protoLine ->
+            val points = protoLine.pointsList.map { Point(it.x, it.y) }.toMutableList()
+            lines.add(
+                Line(
+                    controlPoints = points.toMutableList(),
+                    width = protoLine.width,
+                    flattenedPoints = points.toMutableList(),
+                    animationProgress = protoLine.animationProgress,
+                    isAnimating = protoLine.isAnimating,
+                ),
+            )
+        }
+        currentLine = null
+
+        powerUps.clear()
+        snapshot.powerUpsList.forEach { protoPowerUp ->
+            val type = runCatching { PowerUpType.valueOf(protoPowerUp.type) }.getOrNull()
+            if (type != null) {
+                powerUps.add(PowerUp(x = protoPowerUp.x, y = protoPowerUp.y, type = type))
+            }
+        }
+
+        activePowerUpEffects.clear()
+        snapshot.activePowerUpsList.forEach { protoEffect ->
+            val type = runCatching { PowerUpType.valueOf(protoEffect.type) }.getOrNull() ?: return@forEach
+            val duration = PowerUpType.getDuration(type)
+            val remainingNs = protoEffect.remainingSeconds.coerceAtLeast(0L) * 1_000_000_000L
+            val activationTime =
+                if (duration == 0L) {
+                    nowNs
+                } else {
+                    nowNs - (duration - remainingNs).coerceIn(0L, duration)
+                }
+            activePowerUpEffects.add(
+                ActivePowerUpEffect(
+                    type = type,
+                    duration = duration,
+                    activationTime = activationTime,
+                ),
+            )
+        }
+
+        additionalPucks.clear()
+        powerUpSpeedMultiplier = if (activePowerUpEffects.any { it.type == PowerUpType.SPEED_BOOST }) 1.5 else 1.0
+        isGhostMode = activePowerUpEffects.any { it.type == PowerUpType.GHOST_MODE }
+        hasPaddleShield = activePowerUpEffects.any { it.type == PowerUpType.PADDLE_SHIELD }
     }
 
     fun flattenBezierSpline(controlPoints: MutableList<Point>): MutableList<Point> = flattenPolyline(controlPoints)

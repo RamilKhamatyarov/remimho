@@ -24,6 +24,7 @@ import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
+const props = defineProps<{ timeshiftActive?: boolean }>()
 const { send } = useGameSocket()
 const isDrawing = ref(false)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -138,13 +139,11 @@ function draw(state: GameState) {
     }
   }
 
-  // ── Paddles ──────────────────────────────────────────────────────────────────
   ctx.fillStyle = '#e94560'
   ctx.fillRect(0, state.paddle1Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
   ctx.fillStyle = '#4ecca3'
   ctx.fillRect(W - PADDLE_WIDTH * sx, state.paddle2Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
 
-  // ── Puck (use smoothed position) ─────────────────────────────────────────────
   ctx.beginPath()
   ctx.arc(
     smoothPuckX * sx,
@@ -238,7 +237,7 @@ function onMouseMove(e: MouseEvent) {
   if (!sc) return
   // Send the mouse y in game space to move the right paddle
   const gameY = (e.clientY - sc.rect.top) * sc.sy
-  emit('paddleMove', gameY)
+  if (!props.timeshiftActive) emit('paddleMove', gameY)
   // If drawing, send line point
   if (isDrawing.value) {
     const pt = toGamePt(e)

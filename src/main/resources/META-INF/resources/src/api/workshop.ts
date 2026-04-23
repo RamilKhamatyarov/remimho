@@ -90,8 +90,6 @@ export async function searchContent(
   return get<WorkshopContentDTO[]>('/content', params);
 }
 
-// ── Vue composable wrapper ────────────────────────────────────────────────────
-
 export function useWorkshopApi() {
   return { publishContent, searchContent, ContentType };
 }

@@ -3,41 +3,63 @@ package ru.rkhamatyarov.service
 import io.quarkus.runtime.StartupEvent
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
 import java.io.IOException
 import java.net.Socket
+import java.net.URI
 
 @ApplicationScoped
 class BrowserOpener {
     private val log = Logger.getLogger(javaClass)
 
+    @ConfigProperty(name = "remimho.browser.open", defaultValue = "true")
+    var openBrowserOnStart: Boolean = true
+
+    @ConfigProperty(name = "remimho.browser.url", defaultValue = "http://localhost:8080")
+    lateinit var browserUrl: String
+
     fun onStart(
         @Observes event: StartupEvent,
     ) {
+        if (!openBrowserOnStart) {
+            log.debug("Browser auto-open is disabled")
+            return
+        }
+
         Thread {
             try {
-                waitForPort(8080, 5000)
-                openBrowser("http://localhost:8080")
+                val url = URI(browserUrl)
+                waitForPort(url.host ?: "localhost", resolvePort(url), 5000)
+                openBrowser(browserUrl)
             } catch (e: Exception) {
-                log.warn("Error on browswer opener", e)
+                log.warn("Error on browser opener", e)
             }
         }.start()
     }
 
+    private fun resolvePort(url: URI): Int =
+        when {
+            url.port > 0 -> url.port
+            url.scheme.equals("https", ignoreCase = true) -> 443
+            else -> 80
+        }
+
     private fun waitForPort(
+        host: String,
         port: Int,
         timeoutMillis: Long,
     ) {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeoutMillis) {
             try {
-                Socket("localhost", port).close()
+                Socket(host, port).close()
                 return
-            } catch (e: IOException) {
+            } catch (_: IOException) {
                 Thread.sleep(200)
             }
         }
-        throw RuntimeException("Port $port annaccessable $timeoutMillis ms")
+        throw RuntimeException("Port $port inaccessible after $timeoutMillis ms")
     }
 
     private fun openBrowser(url: String) {
