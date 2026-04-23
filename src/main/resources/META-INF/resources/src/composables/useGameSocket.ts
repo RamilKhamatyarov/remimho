@@ -15,7 +15,7 @@ let _initialized = false;
 const _proto = _protoStatic;
 
 function applyDelta(delta: Record<string, unknown>): void {
-  const prev = gameStateRef.value ?? makeInitialState();
+  const prev = delta['fullState'] === true ? makeInitialState() : (gameStateRef.value ?? makeInitialState());
   const next: GameState = { ...prev };
 
   if (delta['puckX']    !== undefined) next.puck  = { ...next.puck,  x:  delta['puckX']  as number };
@@ -160,21 +160,18 @@ export function useGameSocket() {
     send('CLEAR_LINES');
   };
 
-  /**
-   * Request a historical snapshot at `offsetSeconds` seconds in the past.
-   * Throttled to one message per 80 ms so rapid slider drags don't flood the server.
-   */
   const timeshift = makeThrottle((offsetSeconds: number): void => {
     send('TIMESHIFT', { offset: offsetSeconds });
-  }, 80);
+  }, 40);
 
-  /** Exit timeshift mode and rejoin the live broadcast. */
   const resume = (): void => send('RESUME');
+
+  const commitTimeshift = (offsetSeconds: number): void => send('COMMIT_TIMESHIFT', { offset: offsetSeconds });
 
   return {
     gameState: gameStateRef,
     connected: connectedRef,
     movePaddle, togglePause, reset, clearLines,
-    timeshift, resume, send,
+    timeshift, resume, commitTimeshift, send,
   };
 }

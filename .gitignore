@@ -66,3 +66,7 @@ bin/
 ### VS Code ###
 .vscode/
 
+src/main/resources/META-INF/resources/assets/
+src/main/resources/META-INF/resources/dist/
+src/main/resources/META-INF/resources/node_modules/
+

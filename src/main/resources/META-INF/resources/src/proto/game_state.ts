@@ -1,28 +1,3 @@
-/**
- * src/proto/game_state.ts
- *
- * Hand-written Protobuf binary decoder for GameStateDelta.
- * Replaces the pbjs stub — no protobufjs npm package required.
- *
- * Proto schema reference (game_state.proto):
- *   message GameStateDelta {
- *     optional double puck_x    = 1;   wire type 1 (64-bit LE double)
- *     optional double puck_y    = 2;
- *     optional double puck_vx   = 3;
- *     optional double puck_vy   = 4;
- *     optional double paddle1_y = 5;
- *     optional double paddle2_y = 6;
- *     optional int32  score_a   = 7;   wire type 0 (varint)
- *     optional int32  score_b   = 8;
- *     optional bool   paused    = 9;
- *     repeated Line            lines             = 10;  wire type 2 (length-delimited)
- *     repeated PowerUp         power_ups         = 11;
- *     repeated ActivePowerUp   active_power_ups  = 12;
- *   }
- */
-
-// ── Binary reader ─────────────────────────────────────────────────────────────
-
 class ProtoReader {
   private pos = 0;
   private view: DataView;
@@ -58,8 +33,6 @@ class ProtoReader {
   }
 }
 
-// ── Sub-message decoders ──────────────────────────────────────────────────────
-
 function readPoint(buf: Uint8Array): { x: number; y: number } {
   const r = new ProtoReader(buf);
   let x = 0, y = 0;
@@ -84,7 +57,6 @@ function readLine(buf: Uint8Array) {
     else if (f === 4 && w === 0) isAnimating = r.varint() !== 0;
     else r.skip(w);
   }
-  // Map proto points to the Line shape GameCanvas expects
   return { controlPoints: points, flattenedPoints: points.length > 1 ? points : null, width, animationProgress, isAnimating };
 }
 
@@ -117,8 +89,6 @@ function readActivePowerUp(buf: Uint8Array) {
   return { type, emoji, remainingMs: remainingSeconds * 1000 };
 }
 
-// ── Top-level decoder ─────────────────────────────────────────────────────────
-
 function decode(buf: Uint8Array): Record<string, unknown> {
   const r = new ProtoReader(buf);
   const d: Record<string, unknown> = {};
@@ -138,12 +108,11 @@ function decode(buf: Uint8Array): Record<string, unknown> {
       case 10: ((d['lines'] as unknown[]) ??= []).push(readLine(r.bytes_field()));           break;
       case 11: ((d['powerUps'] as unknown[]) ??= []).push(readPowerUp(r.bytes_field()));     break;
       case 12: ((d['activePowerUps'] as unknown[]) ??= []).push(readActivePowerUp(r.bytes_field())); break;
+      case 13: d['fullState'] = r.varint() !== 0; break;
       default: r.skip(w);
     }
   }
   return d;
 }
-
-// ── Export ────────────────────────────────────────────────────────────────────
 
 export const GameStateDelta = { decode };

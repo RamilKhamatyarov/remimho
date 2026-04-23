@@ -13,7 +13,6 @@ import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
 import org.jboss.logging.Logger
-import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.PowerUpManager
@@ -25,21 +24,27 @@ import java.util.concurrent.ConcurrentHashMap
 class GameWebSocket {
     private val log = Logger.getLogger(javaClass)
 
-    @Inject lateinit var engine: GameEngine
+    @Inject
+    lateinit var engine: GameEngine
 
-    @Inject lateinit var powerUpManager: PowerUpManager
+    @Inject
+    lateinit var powerUpManager: PowerUpManager
 
-    @Inject lateinit var mapper: ObjectMapper
+    @Inject
+    lateinit var mapper: ObjectMapper
 
-    @Inject lateinit var vertx: Vertx
+    @Inject
+    lateinit var vertx: Vertx
 
-    @Inject lateinit var history: StateHistory
+    @Inject
+    lateinit var history: StateHistory
 
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
     private var lastFullState: GameStateDelta? = null
 
     private val timeshiftSessions = ConcurrentHashMap.newKeySet<String>()
-    private var ticksSinceFullSnapshot = 0
+    private val timeshiftDrafts = ConcurrentHashMap<String, GameStateDelta>()
+    private var pauseAnchorNs: Long? = null
 
     fun onStart(
         @Observes event: StartupEvent,
@@ -59,6 +64,7 @@ class GameWebSocket {
     fun onClose(connection: WebSocketConnection) {
         sessions.remove(connection.id())
         timeshiftSessions.remove(connection.id())
+        timeshiftDrafts.remove(connection.id())
         log.info("Client disconnected: ${connection.id()} (remaining: ${sessions.size})")
     }
 
@@ -114,7 +120,7 @@ class GameWebSocket {
             }
 
             "FINISH_LINE" -> {
-                handleFinishLine()
+                handleFinishLine(connection)
             }
 
             "SET_SPEED" -> {
@@ -127,6 +133,10 @@ class GameWebSocket {
 
             "TIMESHIFT" -> {
                 handleTimeshift(data, connection)
+            }
+
+            "COMMIT_TIMESHIFT" -> {
+                handleCommitTimeshift(data, connection)
             }
 
             "RESUME" -> {
@@ -149,7 +159,7 @@ class GameWebSocket {
             sendError(connection, "TIMESHIFT requires a numeric 'offset' >= 0 (seconds)")
             return
         }
-        val snapshot = history.getByOffsetSeconds(offset)
+        val snapshot = history.getByOffsetSeconds(offset, rewindReferenceNs())
         if (snapshot == null) {
             sendError(
                 connection,
@@ -159,15 +169,49 @@ class GameWebSocket {
             )
             return
         }
+        val pausedAwareSnapshot = snapshot.withCurrentPauseState()
         timeshiftSessions.add(connection.id())
-        connection.sendBinary(snapshot).subscribe().with(
+        timeshiftDrafts[connection.id()] = GameStateDelta.parseFrom(pausedAwareSnapshot)
+        connection.sendBinary(pausedAwareSnapshot).subscribe().with(
             {},
             { t -> log.warnf(t, "Failed to send timeshift snapshot to %s", connection.id()) },
         )
     }
 
+    private fun handleCommitTimeshift(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val offset = data["offset"]?.toString()?.toDoubleOrNull()
+        if (offset == null || offset < 0.0) {
+            sendError(connection, "COMMIT_TIMESHIFT requires a numeric 'offset' >= 0 (seconds)")
+            return
+        }
+        val snapshot =
+            timeshiftDrafts[connection.id()]?.toByteArray()
+                ?: history.getByOffsetSeconds(offset, rewindReferenceNs())
+        if (snapshot == null) {
+            sendError(connection, "No snapshot available for offset ${offset}s")
+            return
+        }
+
+        try {
+            engine.restoreFromDelta(GameStateDelta.parseFrom(snapshot))
+            history.clear()
+            lastFullState = null
+            timeshiftSessions.clear()
+            timeshiftDrafts.clear()
+            broadcastFullState()
+            log.infof("Timeline branched from %.2f seconds ago by %s", offset, connection.id())
+        } catch (e: Exception) {
+            log.error("Failed to commit timeshift snapshot", e)
+            sendError(connection, "Failed to restore snapshot")
+        }
+    }
+
     private fun handleResume(connection: WebSocketConnection) {
         timeshiftSessions.remove(connection.id())
+        timeshiftDrafts.remove(connection.id())
         log.debugf("Connection %s resumed live stream", connection.id())
         connection.sendBinary(currentStateBinary(true)).subscribe().with(
             {},
@@ -189,12 +233,21 @@ class GameWebSocket {
 
     private fun handleTogglePause() {
         engine.paused = !engine.paused
+        pauseAnchorNs =
+            if (engine.paused) {
+                System.nanoTime().also { pausedAt ->
+                    history.add(buildGameStateDelta(pausedAt).toByteArray(), pausedAt)
+                }
+            } else {
+                null
+            }
     }
 
     private fun handleReset() {
         engine.resetPuck()
         engine.clearLines()
         engine.paused = false
+        pauseAnchorNs = null
     }
 
     private fun handleClearLines() {
@@ -208,6 +261,7 @@ class GameWebSocket {
         val x = data["x"]?.toString()?.toDoubleOrNull()
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
+            if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
             engine.startNewLine(x, y)
         } else {
             sendError(connection, "Invalid START_LINE: x and y required")
@@ -221,13 +275,15 @@ class GameWebSocket {
         val x = data["x"]?.toString()?.toDoubleOrNull()
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
+            if (updateTimeshiftDraftLine(connection, LineDraftCommand.UPDATE, x, y)) return
             engine.updateCurrentLine(x, y)
         } else {
             sendError(connection, "Invalid UPDATE_LINE: x and y required")
         }
     }
 
-    private fun handleFinishLine() {
+    private fun handleFinishLine(connection: WebSocketConnection) {
+        if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
         engine.finishCurrentLine()
     }
 
@@ -239,23 +295,87 @@ class GameWebSocket {
         log.info("SPAWN_POWERUP received")
     }
 
-    // ── Tick ─────────────────────────────────────────────────────────────────
-    //
-    // BUG THAT WAS HERE (now fixed):
-    //
-    // The OLD tick() called `currentStateBinary()` TWICE per tick:
-    //   1. history.add(currentStateBinary(isFull))    ← sets lastFullState = currentState
-    //   2. val binary = currentStateBinary(false)      ← computeDelta(currentState, currentState) = EMPTY!
-    //
-    // `currentStateBinary` has a side effect: it sets `lastFullState = newState`.
-    // Call 1 captured the current game state and stored it as lastFullState.
-    // Call 2 built the SAME state again (nothing changed between the two calls),
-    // diffed it against lastFullState (now identical), and produced an empty delta.
-    // Result: every live broadcast frame was an empty Protobuf message.
-    // The frontend decoder received {}, applied no updates, puck appeared frozen.
-    //
-    // FIX: Build the game state ONCE per tick. Compute the delta ONCE.
-    // Update lastFullState ONCE. Use the same delta bytes for both history and broadcast.
+    private enum class LineDraftCommand {
+        START,
+        UPDATE,
+        FINISH,
+    }
+
+    private fun updateTimeshiftDraftLine(
+        connection: WebSocketConnection,
+        command: LineDraftCommand,
+        x: Double?,
+        y: Double?,
+    ): Boolean {
+        val id = connection.id()
+        if (id !in timeshiftSessions) return false
+
+        val current =
+            timeshiftDrafts[id]
+                ?: return true.also { sendError(connection, "No active timeshift snapshot") }
+
+        val lines = current.linesList.map { it.toBuilder() }.toMutableList()
+        when (command) {
+            LineDraftCommand.START -> {
+                if (x == null || y == null) return true
+                lines.add(
+                    ru.rkhamatyarov.proto.Line
+                        .newBuilder()
+                        .setWidth(5.0)
+                        .setIsAnimating(true)
+                        .addPoints(protoPoint(x, y)),
+                )
+            }
+
+            LineDraftCommand.UPDATE -> {
+                if (x == null || y == null) return true
+                val line = lines.lastOrNull { it.isAnimating } ?: lines.lastOrNull() ?: return true
+                line.addPoints(protoPoint(x, y))
+            }
+
+            LineDraftCommand.FINISH -> {
+                lines.lastOrNull { it.isAnimating }?.setIsAnimating(false)
+            }
+        }
+
+        val updated =
+            current
+                .toBuilder()
+                .clearLines()
+                .addAllLines(lines.map { it.build() })
+                .setFullState(true)
+                .build()
+
+        timeshiftDrafts[id] = updated
+        connection.sendBinary(updated.toByteArray()).subscribe().with(
+            {},
+            { t -> log.warnf(t, "Failed to send timeshift draft to %s", id) },
+        )
+        return true
+    }
+
+    private fun protoPoint(
+        x: Double,
+        y: Double,
+    ): ru.rkhamatyarov.proto.Point =
+        ru.rkhamatyarov.proto.Point
+            .newBuilder()
+            .setX(x)
+            .setY(y)
+            .build()
+
+    private fun rewindReferenceNs(): Long = pauseAnchorNs ?: System.nanoTime()
+
+    private fun ByteArray.withCurrentPauseState(): ByteArray {
+        if (!engine.paused) return this
+        return GameStateDelta
+            .parseFrom(this)
+            .toBuilder()
+            .setPaused(true)
+            .setFullState(true)
+            .build()
+            .toByteArray()
+    }
 
     private fun tick() {
         engine.tick(deltaSeconds = 0.016)
@@ -263,10 +383,8 @@ class GameWebSocket {
 
         val now = System.nanoTime()
 
-        // ── Build current state ONCE ──────────────────────────────────────────
         val currentState = buildGameStateDelta(now)
 
-        // ── Compute live delta ONCE (vs last tick's state) ────────────────────
         val liveState =
             if (lastFullState == null) {
                 currentState
@@ -276,25 +394,18 @@ class GameWebSocket {
         val liveBytes = liveState.toByteArray()
         val fullBytes = currentState.toByteArray()
 
-        // ── Advance lastFullState to this tick ────────────────────────────────
-        // Must happen AFTER computing liveState, BEFORE anything else modifies it.
         lastFullState = currentState
 
-        // ── Record to history ring buffer ─────────────────────────────────────
-        // Full snapshots every FULL_SNAPSHOT_INTERVAL ticks (~250 ms) for timeshift;
-        // delta bytes for the frames in between.
         if (!engine.paused) {
-            val isFull = (ticksSinceFullSnapshot >= FULL_SNAPSHOT_INTERVAL)
-            history.add(if (isFull) fullBytes else liveBytes)
-            if (isFull) ticksSinceFullSnapshot = 0 else ticksSinceFullSnapshot++
+            history.add(fullBytes)
         }
 
         if (sessions.isEmpty()) return
 
-        // ── Broadcast live delta to connected non-rewinding clients ───────────
         val dead = mutableListOf<String>()
+
         sessions.forEach { (id, conn) ->
-            if (id in timeshiftSessions) return@forEach // skip rewinding clients
+            if (id in timeshiftSessions) return@forEach
             conn.sendBinary(liveBytes).subscribe().with({}, { t ->
                 log.warn("Failed to send to $id: ${t.message}")
                 dead.add(id)
@@ -306,12 +417,17 @@ class GameWebSocket {
         }
     }
 
-    fun getActiveSessionsCount(): Int = sessions.size
-
-    // ── Protobuf helpers ──────────────────────────────────────────────────────
-    //
-    // currentStateBinary() is now ONLY called from onOpen and handleResume —
-    // never from tick(). Each call correctly updates lastFullState once.
+    private fun broadcastFullState() {
+        val bytes = currentStateBinary(true)
+        val dead = mutableListOf<String>()
+        sessions.forEach { (id, conn) ->
+            conn.sendBinary(bytes).subscribe().with({}, { t ->
+                log.warn("Failed to send full state to $id: ${t.message}")
+                dead.add(id)
+            })
+        }
+        dead.forEach { sessions.remove(it) }
+    }
 
     private fun currentStateBinary(full: Boolean): ByteArray {
         val now = System.nanoTime()
@@ -326,66 +442,7 @@ class GameWebSocket {
         return result.toByteArray()
     }
 
-    private fun buildGameStateDelta(nowNs: Long): GameStateDelta {
-        val puck = engine.puck ?: return GameStateDelta.getDefaultInstance()
-        val score = engine.score ?: return GameStateDelta.getDefaultInstance()
-
-        val builder =
-            GameStateDelta
-                .newBuilder()
-                .setPuckX(puck.x)
-                .setPuckY(puck.y)
-                .setPuckVx(puck.vx)
-                .setPuckVy(puck.vy)
-                .setPaddle1Y(engine.paddle1Y)
-                .setPaddle2Y(engine.paddle2Y)
-                .setScoreA(score.playerA)
-                .setScoreB(score.playerB)
-                .setPaused(engine.paused)
-
-        (engine.lines ?: emptyList()).forEach { line ->
-            val lb =
-                ru.rkhamatyarov.proto.Line
-                    .newBuilder()
-                    .setWidth(line.width)
-                    .setAnimationProgress(line.animationProgress)
-                    .setIsAnimating(line.isAnimating)
-            line.flattenedPoints?.forEach { pt ->
-                lb.addPoints(
-                    ru.rkhamatyarov.proto.Point
-                        .newBuilder()
-                        .setX(pt.x)
-                        .setY(pt.y),
-                )
-            }
-            builder.addLines(lb)
-        }
-
-        (engine.powerUps ?: emptyList()).filter { it.isActive }.forEach { pu ->
-            builder.addPowerUps(
-                ru.rkhamatyarov.proto.PowerUp
-                    .newBuilder()
-                    .setX(pu.x)
-                    .setY(pu.y)
-                    .setRadius(pu.radius)
-                    .setType(pu.type.name)
-                    .setEmoji(pu.type.emoji)
-                    .setColor(PowerUpType.getColorCode(pu.type)),
-            )
-        }
-
-        (engine.activePowerUpEffects ?: emptyList()).filter { !it.isExpired() }.forEach { eff ->
-            val remaining = ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000_000).coerceAtLeast(0)
-            builder.addActivePowerUps(
-                ru.rkhamatyarov.proto.ActivePowerUp
-                    .newBuilder()
-                    .setType(eff.type.name)
-                    .setEmoji(eff.type.emoji)
-                    .setRemainingSeconds(remaining),
-            )
-        }
-        return builder.build()
-    }
+    private fun buildGameStateDelta(nowNs: Long): GameStateDelta = engine.toGameStateDelta(nowNs)
 
     private fun computeDelta(
         prev: GameStateDelta,
@@ -418,9 +475,5 @@ class GameWebSocket {
         } catch (e: Exception) {
             log.error("Failed to send error to ${connection.id()}", e)
         }
-    }
-
-    companion object {
-        private const val FULL_SNAPSHOT_INTERVAL = 15 // 15 × 16ms ≈ 250 ms
     }
 }

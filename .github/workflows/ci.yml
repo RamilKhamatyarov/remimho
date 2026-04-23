@@ -118,10 +118,53 @@ jobs:
         run: ./gradlew spotlessCheck
         continue-on-error: true
 
+  native-build:
+    name: GraalVM Native Build
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: Install frontend dependencies (npm ci)
+        working-directory: src/main/resources/META-INF/resources
+        run: npm ci
+
+      - name: Setup GraalVM JDK 21
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+          native-image-job-reports: 'true'
+          cache: 'gradle'
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build native executable
+        run: ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -DskipTests
+
+      - name: Upload native build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-build-output
+          path: build/*-runner*
+          if-no-files-found: ignore
+          retention-days: 14
+
   summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [build]
+    needs: [build, native-build]
     if: always()
 
     steps:

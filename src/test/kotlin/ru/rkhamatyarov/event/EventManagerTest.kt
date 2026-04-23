@@ -88,10 +88,8 @@ class EventManagerTest {
         val executor = Executors.newFixedThreadPool(8)
         val emitCount = 500
 
-        // Pre-register a listener before threads start
         manager.subscribe { received.add(it) }
 
-        // 4 threads emit events; 4 threads concurrently subscribe new listeners
         repeat(4) {
             executor.submit {
                 latch.await()
@@ -99,7 +97,7 @@ class EventManagerTest {
             }
             executor.submit {
                 latch.await()
-                manager.subscribe { /* no-op listener added mid-flight */ }
+                manager.subscribe { /* no-op */ }
             }
         }
 
@@ -107,7 +105,6 @@ class EventManagerTest {
         executor.shutdown()
         assertTrue(executor.awaitTermination(5, TimeUnit.SECONDS))
 
-        // At least the pre-registered listener must have received all emitted events
         assertTrue(received.size >= emitCount, "Expected >= $emitCount events, got ${received.size}")
     }
 }
