@@ -123,14 +123,6 @@ class GameWebSocket {
                 handleFinishLine(connection)
             }
 
-            "SET_SPEED" -> {
-                handleSetSpeed(data)
-            }
-
-            "SPAWN_POWERUP" -> {
-                handleSpawnPowerUp()
-            }
-
             "TIMESHIFT" -> {
                 handleTimeshift(data, connection)
             }
@@ -285,14 +277,6 @@ class GameWebSocket {
     private fun handleFinishLine(connection: WebSocketConnection) {
         if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
         engine.finishCurrentLine()
-    }
-
-    private fun handleSetSpeed(data: Map<*, *>) {
-        log.info("SET_SPEED received")
-    }
-
-    private fun handleSpawnPowerUp() {
-        log.info("SPAWN_POWERUP received")
     }
 
     private enum class LineDraftCommand {

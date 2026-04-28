@@ -30,7 +30,10 @@ class BrowserOpener {
         Thread {
             try {
                 val url = URI(browserUrl)
-                waitForPort(url.host ?: "localhost", resolvePort(url), 5000)
+                if (!waitForPort(url.host ?: "localhost", resolvePort(url), 5000)) {
+                    log.debug("Browser auto-open skipped because $browserUrl is not reachable")
+                    return@Thread
+                }
                 openBrowser(browserUrl)
             } catch (e: Exception) {
                 log.warn("Error on browser opener", e)
@@ -49,17 +52,17 @@ class BrowserOpener {
         host: String,
         port: Int,
         timeoutMillis: Long,
-    ) {
+    ): Boolean {
         val start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < timeoutMillis) {
             try {
                 Socket(host, port).close()
-                return
+                return true
             } catch (_: IOException) {
                 Thread.sleep(200)
             }
         }
-        throw RuntimeException("Port $port inaccessible after $timeoutMillis ms")
+        return false
     }
 
     private fun openBrowser(url: String) {

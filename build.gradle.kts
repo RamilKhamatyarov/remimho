@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
-    kotlin("jvm") version "2.3.20"
+    kotlin("jvm") version "2.3.21"
     kotlin("plugin.allopen") version "2.3.21"
     id("io.quarkus") version "3.35.0"
     id("com.google.protobuf") version "0.10.0"
@@ -28,6 +28,7 @@ dependencies {
     implementation("io.quarkus:quarkus-websockets-next")
     implementation("io.quarkus:quarkus-jackson")
     implementation("io.quarkus:quarkus-scheduler")
+    implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-logging-json")
 
     implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.1")

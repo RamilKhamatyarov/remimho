@@ -13,7 +13,6 @@ export interface WorkshopContentDTO {
   metadata: Record<string, string>;
 }
 
-// ── Result pattern (no external deps) ────────────────────────────────────────
 
 export type Ok<T> = { ok: T; error?: never };
 export type Err = { ok?: never; error: string };
@@ -26,7 +25,6 @@ function err(message: string): Err {
   return { error: message };
 }
 
-// ── API base ──────────────────────────────────────────────────────────────────
 
 const BASE = '/api/v1/workshop';
 

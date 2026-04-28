@@ -3,17 +3,6 @@ package ru.rkhamatyarov.service
 import jakarta.enterprise.context.ApplicationScoped
 import org.jboss.logging.Logger
 
-/**
- * Ring buffer that retains the last capacity serialized full game state
- * snapshots (ByteArray) together with their wall-clock timestamps.
- *
- * Storage strategy:
- *   - Every stored frame is a standalone full snapshot.
- *   - Live WebSocket clients still receive deltas; history is for rewind.
- *   - At 60 Hz / 15 s the buffer holds ≤ 900 entries.
- *   - Estimated peak memory remains small for the current game state size.
- *
- */
 @ApplicationScoped
 class StateHistory {
     private val log = Logger.getLogger(javaClass)
@@ -52,42 +41,38 @@ class StateHistory {
             return null
         }
 
-        val targetNs = referenceNs - (effectiveOffset * 1_000_000_000.0).toLong()
+        val targetNs = referenceNs - (effectiveOffset * NANOSECONDS_PER_SECOND).toLong()
 
         return synchronized(lock) {
             if (buffer.isEmpty()) return@synchronized null
+            closestSnapshotIndex(targetNs)?.let { buffer[it] }
+        }
+    }
 
-            var lo = 0
-            var hi = timestamps.size - 1
-            var before = -1
-            while (lo <= hi) {
-                val mid = (lo + hi) ushr 1
-                when {
-                    timestamps[mid] <= targetNs -> {
-                        before = mid
-                        lo = mid + 1
-                    }
+    private fun closestSnapshotIndex(targetNs: Long): Int? {
+        var lo = 0
+        var hi = timestamps.size - 1
+        var before = -1
 
-                    else -> {
-                        hi = mid - 1
-                    }
-                }
-            }
-
-            if (before < 0) {
-                null
+        while (lo <= hi) {
+            val mid = (lo + hi) ushr 1
+            if (timestamps[mid] <= targetNs) {
+                before = mid
+                lo = mid + 1
             } else {
-                val after = before + 1
-                val best =
-                    if (after < timestamps.size &&
-                        kotlin.math.abs(timestamps[after] - targetNs) < kotlin.math.abs(targetNs - timestamps[before])
-                    ) {
-                        after
-                    } else {
-                        before
-                    }
-                buffer[best]
+                hi = mid - 1
             }
+        }
+
+        if (before < 0) return null
+
+        val after = before + 1
+        return if (after < timestamps.size &&
+            kotlin.math.abs(timestamps[after] - targetNs) < kotlin.math.abs(targetNs - timestamps[before])
+        ) {
+            after
+        } else {
+            before
         }
     }
 
@@ -103,5 +88,7 @@ class StateHistory {
         const val MAX_CAPACITY: Int = 900
 
         const val MAX_RETENTION_SECONDS: Int = 15
+
+        private const val NANOSECONDS_PER_SECOND: Double = 1_000_000_000.0
     }
 }
