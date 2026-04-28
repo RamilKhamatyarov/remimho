@@ -3,7 +3,6 @@ package ru.rkhamatyarov.service
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import ru.rkhamatyarov.model.ActivePowerUpEffect
-import ru.rkhamatyarov.model.AdditionalPuck
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUp
@@ -13,6 +12,7 @@ import ru.rkhamatyarov.model.Score
 import ru.rkhamatyarov.proto.GameStateDelta
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.sign
 
 @ApplicationScoped
 class GameEngine {
@@ -47,7 +47,6 @@ class GameEngine {
 
     val powerUps: MutableList<PowerUp> = mutableListOf()
     val activePowerUpEffects: MutableList<ActivePowerUpEffect> = mutableListOf()
-    val additionalPucks: MutableList<AdditionalPuck> = mutableListOf()
     var powerUpSpeedMultiplier: Double = 1.0
     var isGhostMode: Boolean = false
     var hasPaddleShield: Boolean = false
@@ -111,7 +110,7 @@ class GameEngine {
 
         val diff = targetY - paddle1Y
         if (abs(diff) > 4.0) {
-            val move = Math.signum(diff) * aiMaxSpeed * dt
+            val move = sign(diff) * aiMaxSpeed * dt
             paddle1Y = (paddle1Y + move).coerceIn(0.0, canvasHeight - paddleHeight)
         }
     }
@@ -311,13 +310,10 @@ class GameEngine {
             )
         }
 
-        additionalPucks.clear()
         powerUpSpeedMultiplier = if (activePowerUpEffects.any { it.type == PowerUpType.SPEED_BOOST }) 1.5 else 1.0
         isGhostMode = activePowerUpEffects.any { it.type == PowerUpType.GHOST_MODE }
         hasPaddleShield = activePowerUpEffects.any { it.type == PowerUpType.PADDLE_SHIELD }
     }
-
-    fun flattenBezierSpline(controlPoints: MutableList<Point>): MutableList<Point> = flattenPolyline(controlPoints)
 
     private fun flattenPolyline(pts: List<Point>): MutableList<Point> {
         if (pts.size < 2) return pts.toMutableList()

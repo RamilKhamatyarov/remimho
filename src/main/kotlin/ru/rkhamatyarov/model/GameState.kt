@@ -1,9 +1,6 @@
 package ru.rkhamatyarov.model
 
 import io.quarkus.runtime.annotations.RegisterForReflection
-import ru.rkhamatyarov.websocket.dto.ActivePowerUpDTO
-import ru.rkhamatyarov.websocket.dto.PowerUpDTO
-import java.util.Collections.emptyList
 
 @RegisterForReflection
 data class GameState(
@@ -16,6 +13,6 @@ data class GameState(
     val paddle2Y: Double,
     val paused: Boolean,
     val lines: List<Line> = emptyList(),
-    val powerUps: List<PowerUpDTO> = emptyList(),
-    val activePowerUpEffects: List<ActivePowerUpDTO> = emptyList(),
+    val powerUps: List<PowerUp> = emptyList(),
+    val activePowerUpEffects: List<ActivePowerUpEffect> = emptyList(),
 )

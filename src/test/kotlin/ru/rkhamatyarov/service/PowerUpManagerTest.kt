@@ -20,7 +20,6 @@ class PowerUpManagerTest {
     fun setup() {
         engine.powerUps.clear()
         engine.activePowerUpEffects.clear()
-        engine.additionalPucks.clear()
         engine.powerUpSpeedMultiplier = 1.0
         engine.isGhostMode = false
         engine.hasPaddleShield = false

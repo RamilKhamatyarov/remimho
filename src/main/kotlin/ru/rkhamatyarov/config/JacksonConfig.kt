@@ -7,11 +7,6 @@ import com.fasterxml.jackson.module.kotlin.kotlinModule
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.inject.Produces
 
-/**
- * Jackson ObjectMapper configuration
- * Ensures ObjectMapper is properly configured and available for injection
- */
-
 @ApplicationScoped
 class JacksonConfig {
     @Produces
