@@ -35,7 +35,6 @@ class GameEngineTest {
         gameEngine.clearLines()
         gameEngine.powerUps.clear()
         gameEngine.activePowerUpEffects.clear()
-        gameEngine.additionalPucks.clear()
     }
 
     @Test
