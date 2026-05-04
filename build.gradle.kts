@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm") version "2.3.21"
     kotlin("plugin.allopen") version "2.3.21"
-    id("io.quarkus") version "3.35.0"
+    id("io.quarkus") version "3.35.2"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.4.0"
