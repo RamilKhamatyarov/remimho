@@ -259,10 +259,18 @@ class GameEngineTest {
                     ru.rkhamatyarov.proto.Line
                         .newBuilder()
                         .setWidth(5.0)
-                        .addPoints(ru.rkhamatyarov.proto.Point.newBuilder().setX(0.0).setY(0.0))
-                        .addPoints(ru.rkhamatyarov.proto.Point.newBuilder().setX(10.0).setY(10.0)),
-                )
-                .build()
+                        .addPoints(
+                            ru.rkhamatyarov.proto.Point
+                                .newBuilder()
+                                .setX(0.0)
+                                .setY(0.0),
+                        ).addPoints(
+                            ru.rkhamatyarov.proto.Point
+                                .newBuilder()
+                                .setX(10.0)
+                                .setY(10.0),
+                        ),
+                ).build()
 
         gameEngine.restoreFromDelta(legacy)
 

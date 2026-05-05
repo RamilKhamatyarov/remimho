@@ -215,7 +215,7 @@ class GameEngine {
                 .setPaused(paused)
                 .setFullState(true)
 
-        lines.forEach { line ->
+        ArrayList(lines).forEach { line ->
             val lb =
                 ru.rkhamatyarov.proto.Line
                     .newBuilder()
@@ -223,7 +223,7 @@ class GameEngine {
                     .setWidth(line.width)
                     .setAnimationProgress(line.animationProgress)
                     .setIsAnimating(line.isAnimating)
-            (line.flattenedPoints ?: line.controlPoints).forEach { pt ->
+            ArrayList(line.flattenedPoints ?: line.controlPoints).forEach { pt ->
                 lb.addPoints(
                     ru.rkhamatyarov.proto.Point
                         .newBuilder()
@@ -234,7 +234,7 @@ class GameEngine {
             builder.addLines(lb)
         }
 
-        powerUps.filter { it.isActive }.forEach { pu ->
+        ArrayList(powerUps).filter { it.isActive }.forEach { pu ->
             builder.addPowerUps(
                 ru.rkhamatyarov.proto.PowerUp
                     .newBuilder()
@@ -247,7 +247,7 @@ class GameEngine {
             )
         }
 
-        activePowerUpEffects.filter { !it.isExpired() }.forEach { eff ->
+        ArrayList(activePowerUpEffects).filter { !it.isExpired() }.forEach { eff ->
             val remaining = ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000_000).coerceAtLeast(0)
             builder.addActivePowerUps(
                 ru.rkhamatyarov.proto.ActivePowerUp
