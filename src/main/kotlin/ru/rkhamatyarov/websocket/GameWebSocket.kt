@@ -17,6 +17,7 @@ import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.PowerUpManager
 import ru.rkhamatyarov.service.StateHistory
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 @WebSocket(path = "/game")
@@ -121,6 +122,10 @@ class GameWebSocket {
 
             "FINISH_LINE" -> {
                 handleFinishLine(connection)
+            }
+
+            "ERASE_LINE" -> {
+                handleEraseLine(data, connection)
             }
 
             "TIMESHIFT" -> {
@@ -279,6 +284,19 @@ class GameWebSocket {
         engine.finishCurrentLine()
     }
 
+    private fun handleEraseLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val lineId = data["lineId"]?.toString()?.takeIf { it.isNotBlank() }
+        if (lineId == null) {
+            sendError(connection, "Invalid ERASE_LINE: lineId required")
+            return
+        }
+        if (eraseTimeshiftDraftLine(connection, lineId)) return
+        engine.eraseLine(lineId)
+    }
+
     private enum class LineDraftCommand {
         START,
         UPDATE,
@@ -305,6 +323,7 @@ class GameWebSocket {
                 lines.add(
                     ru.rkhamatyarov.proto.Line
                         .newBuilder()
+                        .setId(UUID.randomUUID().toString())
                         .setWidth(5.0)
                         .setIsAnimating(true)
                         .addPoints(protoPoint(x, y)),
@@ -327,6 +346,36 @@ class GameWebSocket {
                 .toBuilder()
                 .clearLines()
                 .addAllLines(lines.map { it.build() })
+                .setFullState(true)
+                .build()
+
+        timeshiftDrafts[id] = updated
+        connection.sendBinary(updated.toByteArray()).subscribe().with(
+            {},
+            { t -> log.warnf(t, "Failed to send timeshift draft to %s", id) },
+        )
+        return true
+    }
+
+    private fun eraseTimeshiftDraftLine(
+        connection: WebSocketConnection,
+        lineId: String,
+    ): Boolean {
+        val id = connection.id()
+        if (id !in timeshiftSessions) return false
+
+        val current =
+            timeshiftDrafts[id]
+                ?: return true.also { sendError(connection, "No active timeshift snapshot") }
+
+        val remaining = current.linesList.filter { it.id != lineId }
+        if (remaining.size == current.linesList.size) return true
+
+        val updated =
+            current
+                .toBuilder()
+                .clearLines()
+                .addAllLines(remaining)
                 .setFullState(true)
                 .build()
 

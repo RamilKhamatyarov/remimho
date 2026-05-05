@@ -10,6 +10,7 @@ import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
 import ru.rkhamatyarov.proto.GameStateDelta
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.sign
@@ -193,6 +194,12 @@ class GameEngine {
         currentLine = null
     }
 
+    fun eraseLine(id: String): Boolean {
+        if (id.isBlank()) return false
+        if (currentLine?.id == id) currentLine = null
+        return lines.removeAll { it.id == id }
+    }
+
     fun toGameStateDelta(nowNs: Long = System.nanoTime()): GameStateDelta {
         val builder =
             GameStateDelta
@@ -208,14 +215,15 @@ class GameEngine {
                 .setPaused(paused)
                 .setFullState(true)
 
-        lines.forEach { line ->
+        ArrayList(lines).forEach { line ->
             val lb =
                 ru.rkhamatyarov.proto.Line
                     .newBuilder()
+                    .setId(line.id)
                     .setWidth(line.width)
                     .setAnimationProgress(line.animationProgress)
                     .setIsAnimating(line.isAnimating)
-            (line.flattenedPoints ?: line.controlPoints).forEach { pt ->
+            ArrayList(line.flattenedPoints ?: line.controlPoints).forEach { pt ->
                 lb.addPoints(
                     ru.rkhamatyarov.proto.Point
                         .newBuilder()
@@ -226,7 +234,7 @@ class GameEngine {
             builder.addLines(lb)
         }
 
-        powerUps.filter { it.isActive }.forEach { pu ->
+        ArrayList(powerUps).filter { it.isActive }.forEach { pu ->
             builder.addPowerUps(
                 ru.rkhamatyarov.proto.PowerUp
                     .newBuilder()
@@ -239,7 +247,7 @@ class GameEngine {
             )
         }
 
-        activePowerUpEffects.filter { !it.isExpired() }.forEach { eff ->
+        ArrayList(activePowerUpEffects).filter { !it.isExpired() }.forEach { eff ->
             val remaining = ((eff.duration - (nowNs - eff.activationTime)) / 1_000_000_000).coerceAtLeast(0)
             builder.addActivePowerUps(
                 ru.rkhamatyarov.proto.ActivePowerUp
@@ -272,6 +280,7 @@ class GameEngine {
             val points = protoLine.pointsList.map { Point(it.x, it.y) }.toMutableList()
             lines.add(
                 Line(
+                    id = protoLine.id.ifEmpty { UUID.randomUUID().toString() },
                     controlPoints = points.toMutableList(),
                     width = protoLine.width,
                     flattenedPoints = points.toMutableList(),

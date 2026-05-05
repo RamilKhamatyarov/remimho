@@ -34,6 +34,8 @@ build/
 
 ### IntelliJ IDEA ###
 .idea
+.codex
+.claude
 *.iws
 *.iml
 *.ipr

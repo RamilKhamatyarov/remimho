@@ -4,6 +4,7 @@ export interface Puck {
 export interface Score { playerA: number; playerB: number }
 export interface Point { x: number; y: number }
 export interface Line {
+  id: string
   controlPoints: Point[]
   flattenedPoints: Point[] | null
   width: number

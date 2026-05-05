@@ -12,7 +12,7 @@
         Move the mouse over the dark canvas to control the right (green) paddle.
         Hold left-click and drag to draw a barrier line.
       -->
-      <GameCanvas :timeshift-active="isRewinding" @paddle-move="movePaddleIfLive" />
+      <GameCanvas :timeshift-active="isRewinding" :eraser-mode="eraserMode" @paddle-move="movePaddleIfLive" />
     </main>
 
     <!-- ── Timeshift slider ───────────────────────────────────────────────── -->
@@ -56,9 +56,12 @@
       <button @click="togglePause">{{ gameState?.paused ? 'Resume' : 'Pause' }}</button>
       <button @click="reset">Reset</button>
       <button class="btn-clear"    @click="clearLines">Clear Lines</button>
+      <button class="btn-eraser" :class="{ active: eraserMode }" @click="toggleEraserMode">
+        {{ eraserMode ? '✏️ Eraser ON' : '✏️ Eraser' }}
+      </button>
       <button class="btn-workshop" @click="publishLevel">Publish Level</button>
       <span v-if="gameState">{{ gameState.score.playerA }} – {{ gameState.score.playerB }}</span>
-      <span class="hotkeys">Space pause · R reset · Esc live</span>
+      <span class="hotkeys">Space pause · R reset · E eraser · right-click erase · Esc live</span>
       <span v-if="workshopMsg" class="workshop-msg">{{ workshopMsg }}</span>
     </footer>
   </div>
@@ -83,6 +86,11 @@ const { publishContent } = useWorkshopApi();
 
 const sliderOffset = ref(0);
 const isRewinding  = ref(false);
+const eraserMode   = ref(false);
+
+function toggleEraserMode() {
+  eraserMode.value = !eraserMode.value;
+}
 
 const offsetLabel = computed(() => {
   const s = sliderOffset.value;
@@ -184,6 +192,11 @@ function handleHotkey(e: KeyboardEvent) {
         commitTimeTravel();
       }
       break;
+    case 'e':
+    case 'E':
+      e.preventDefault();
+      toggleEraserMode();
+      break;
   }
 }
 
@@ -271,6 +284,10 @@ button:hover { background: #e94560; }
 
 .btn-workshop       { border-color: #4ecca3; }
 .btn-workshop:hover { background: #4ecca3; color: #000; }
+
+.btn-eraser         { border-color: #b388ff; }
+.btn-eraser:hover   { background: #b388ff; color: #000; }
+.btn-eraser.active  { background: #b388ff; color: #000; }
 
 footer {
   display: flex;

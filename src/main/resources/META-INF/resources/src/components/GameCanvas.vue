@@ -10,25 +10,32 @@
   -->
   <canvas
     ref="canvasRef"
-    :style="{ cursor: isDrawing ? 'crosshair' : 'none' }"
+    :style="{ cursor: cursorStyle }"
     @mousemove="onMouseMove"
     @mousedown="onMouseDown"
     @mouseup="onMouseUp"
     @mouseleave="onMouseLeave"
+    @contextmenu.prevent="onContextMenu"
   />
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
-import type { GameState, Point } from '../types/game'
+import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
-const props = defineProps<{ timeshiftActive?: boolean }>()
-const { send } = useGameSocket()
+const props = defineProps<{ timeshiftActive?: boolean; eraserMode?: boolean }>()
+const { send, eraseLine } = useGameSocket()
 const isDrawing = ref(false)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const PADDLE_WIDTH = 20
+const ERASE_HIT_RADIUS = 12  // px in game space — distance threshold for hit-test
+
+const cursorStyle = computed(() => {
+  if (props.eraserMode) return 'crosshair'
+  return isDrawing.value ? 'crosshair' : 'none'
+})
 
 // ── Smooth puck interpolation ─────────────────────────────────────────────────
 // Lerp toward the server-reported position each RAF frame.
@@ -249,6 +256,10 @@ function onMouseDown(e: MouseEvent) {
   if (e.button !== 0) return
   const pt = toGamePt(e)
   if (!pt) return
+  if (props.eraserMode) {
+    eraseLineAt(pt)
+    return
+  }
   isDrawing.value = true
   send('START_LINE', { x: pt.x, y: pt.y })
 }
@@ -263,5 +274,60 @@ function onMouseLeave() {
   if (!isDrawing.value) return
   isDrawing.value = false
   send('FINISH_LINE')
+}
+
+// Right-click always erases regardless of mode.
+function onContextMenu(e: MouseEvent) {
+  const pt = toGamePt(e)
+  if (!pt) return
+  // If a draw was in progress (rare with right-click but possible), abort it.
+  if (isDrawing.value) {
+    isDrawing.value = false
+    send('FINISH_LINE')
+  }
+  eraseLineAt(pt)
+}
+
+// ── Hit test: find the closest line segment to a click point ──────────────────
+//
+// Returns the id of the nearest line whose closest segment is within
+// ERASE_HIT_RADIUS, or null if no line is close enough.
+
+function eraseLineAt(pt: Point): void {
+  const state = gameStateRef.value
+  if (!state || !state.lines) return
+  const id = nearestLineId(pt, state.lines)
+  if (id) eraseLine(id)
+}
+
+function nearestLineId(pt: Point, lines: Line[]): string | null {
+  let bestId: string | null = null
+  let bestDist = ERASE_HIT_RADIUS
+  for (const line of lines) {
+    const pts = (line.flattenedPoints && line.flattenedPoints.length > 1)
+      ? line.flattenedPoints : line.controlPoints
+    if (!pts || pts.length === 0) continue
+    if (pts.length === 1) {
+      const d = Math.hypot(pts[0].x - pt.x, pts[0].y - pt.y)
+      if (d < bestDist) { bestDist = d; bestId = line.id }
+      continue
+    }
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = pointToSegmentDistance(pt, pts[i], pts[i + 1])
+      if (d < bestDist) { bestDist = d; bestId = line.id }
+    }
+  }
+  return bestId
+}
+
+function pointToSegmentDistance(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const lenSq = dx * dx + dy * dy
+  if (lenSq < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y)
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
+  const cx = a.x + t * dx
+  const cy = a.y + t * dy
+  return Math.hypot(p.x - cx, p.y - cy)
 }
 </script>
