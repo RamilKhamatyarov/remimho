@@ -10,7 +10,9 @@ import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
 import kotlin.math.abs
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @QuarkusTest
@@ -170,6 +172,103 @@ class GameEngineTest {
         assertTrue(gameEngine.puck.x < gameEngine.canvasWidth)
         assertTrue(gameEngine.puck.y > 0.0)
         assertTrue(gameEngine.puck.y < gameEngine.canvasHeight)
+    }
+
+    @Test
+    fun `test eraseLine removes line by id and returns true`() {
+        gameEngine.startNewLine(10.0, 10.0)
+        gameEngine.updateCurrentLine(20.0, 20.0)
+        gameEngine.finishCurrentLine()
+        gameEngine.startNewLine(40.0, 40.0)
+        gameEngine.finishCurrentLine()
+        assertEquals(2, gameEngine.lines.size)
+
+        val targetId = gameEngine.lines.first().id
+        val survivorId = gameEngine.lines.last().id
+
+        val erased = gameEngine.eraseLine(targetId)
+
+        assertTrue(erased, "eraseLine must return true when line exists")
+        assertEquals(1, gameEngine.lines.size)
+        assertEquals(survivorId, gameEngine.lines.single().id, "Other lines must be preserved")
+    }
+
+    @Test
+    fun `test eraseLine returns false for unknown id`() {
+        gameEngine.startNewLine(10.0, 10.0)
+        gameEngine.finishCurrentLine()
+
+        val erased = gameEngine.eraseLine("non-existent-id")
+
+        assertFalse(erased, "eraseLine must return false when no line matches")
+        assertEquals(1, gameEngine.lines.size, "Unknown id must not affect existing lines")
+    }
+
+    @Test
+    fun `test eraseLine on empty list is a no-op`() {
+        assertFalse(gameEngine.eraseLine("any-id"))
+        assertEquals(0, gameEngine.lines.size)
+    }
+
+    @Test
+    fun `test eraseLine rejects blank id`() {
+        gameEngine.startNewLine(10.0, 10.0)
+        gameEngine.finishCurrentLine()
+
+        assertFalse(gameEngine.eraseLine(""))
+        assertFalse(gameEngine.eraseLine("   "))
+        assertEquals(1, gameEngine.lines.size)
+    }
+
+    @Test
+    fun `test eraseLine clears in-progress currentLine`() {
+        gameEngine.startNewLine(10.0, 10.0)
+        gameEngine.updateCurrentLine(15.0, 15.0)
+        val inProgressId = gameEngine.lines.single().id
+
+        val erased = gameEngine.eraseLine(inProgressId)
+
+        assertTrue(erased)
+        assertEquals(0, gameEngine.lines.size)
+        // Subsequent updateCurrentLine should be a no-op (no current line)
+        gameEngine.updateCurrentLine(20.0, 20.0)
+        assertEquals(0, gameEngine.lines.size)
+    }
+
+    @Test
+    fun `test line id round-trips through proto serialization`() {
+        gameEngine.startNewLine(10.0, 10.0)
+        gameEngine.updateCurrentLine(20.0, 20.0)
+        gameEngine.finishCurrentLine()
+        val originalId = gameEngine.lines.single().id
+
+        val snapshot = gameEngine.toGameStateDelta()
+        gameEngine.clearLines()
+        gameEngine.restoreFromDelta(snapshot)
+
+        assertEquals(1, gameEngine.lines.size)
+        assertEquals(originalId, gameEngine.lines.single().id, "Line id must survive serialization")
+    }
+
+    @Test
+    fun `test restoreFromDelta synthesizes id for legacy snapshot lines`() {
+        val legacy =
+            ru.rkhamatyarov.proto.GameStateDelta
+                .newBuilder()
+                .addLines(
+                    ru.rkhamatyarov.proto.Line
+                        .newBuilder()
+                        .setWidth(5.0)
+                        .addPoints(ru.rkhamatyarov.proto.Point.newBuilder().setX(0.0).setY(0.0))
+                        .addPoints(ru.rkhamatyarov.proto.Point.newBuilder().setX(10.0).setY(10.0)),
+                )
+                .build()
+
+        gameEngine.restoreFromDelta(legacy)
+
+        val restored = gameEngine.lines.single()
+        assertNotNull(restored.id)
+        assertTrue(restored.id.isNotBlank(), "Legacy lines must get a synthesized id")
     }
 
     @Test

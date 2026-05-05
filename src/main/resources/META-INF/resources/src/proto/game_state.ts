@@ -48,16 +48,17 @@ function readPoint(buf: Uint8Array): { x: number; y: number } {
 function readLine(buf: Uint8Array) {
   const r = new ProtoReader(buf);
   const points: { x: number; y: number }[] = [];
-  let width = 3, animationProgress = 0, isAnimating = false;
+  let width = 3, animationProgress = 0, isAnimating = false, id = '';
   while (!r.done) {
     const tag = r.varint(), f = tag >>> 3, w = tag & 7;
     if      (f === 1 && w === 2) points.push(readPoint(r.bytes_field()));
     else if (f === 2 && w === 1) width = r.f64();
     else if (f === 3 && w === 1) animationProgress = r.f64();
     else if (f === 4 && w === 0) isAnimating = r.varint() !== 0;
+    else if (f === 5 && w === 2) id = r.str();
     else r.skip(w);
   }
-  return { controlPoints: points, flattenedPoints: points.length > 1 ? points : null, width, animationProgress, isAnimating };
+  return { id, controlPoints: points, flattenedPoints: points.length > 1 ? points : null, width, animationProgress, isAnimating };
 }
 
 function readPowerUp(buf: Uint8Array) {

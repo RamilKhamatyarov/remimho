@@ -25,6 +25,7 @@ message Line {
   double width = 2;
   double animation_progress = 3;
   bool is_animating = 4;
+  string id = 5;
 }
 
 message Point {

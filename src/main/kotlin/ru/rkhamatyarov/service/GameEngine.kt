@@ -10,6 +10,7 @@ import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
 import ru.rkhamatyarov.proto.GameStateDelta
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.sign
@@ -193,6 +194,12 @@ class GameEngine {
         currentLine = null
     }
 
+    fun eraseLine(id: String): Boolean {
+        if (id.isBlank()) return false
+        if (currentLine?.id == id) currentLine = null
+        return lines.removeAll { it.id == id }
+    }
+
     fun toGameStateDelta(nowNs: Long = System.nanoTime()): GameStateDelta {
         val builder =
             GameStateDelta
@@ -212,6 +219,7 @@ class GameEngine {
             val lb =
                 ru.rkhamatyarov.proto.Line
                     .newBuilder()
+                    .setId(line.id)
                     .setWidth(line.width)
                     .setAnimationProgress(line.animationProgress)
                     .setIsAnimating(line.isAnimating)
@@ -272,6 +280,7 @@ class GameEngine {
             val points = protoLine.pointsList.map { Point(it.x, it.y) }.toMutableList()
             lines.add(
                 Line(
+                    id = protoLine.id.ifEmpty { UUID.randomUUID().toString() },
                     controlPoints = points.toMutableList(),
                     width = protoLine.width,
                     flattenedPoints = points.toMutableList(),

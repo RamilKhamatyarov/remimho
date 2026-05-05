@@ -159,6 +159,16 @@ export function useGameSocket() {
     }
     send('CLEAR_LINES');
   };
+  const eraseLine   = (lineId: string): void => {
+    if (!lineId) return;
+    if (gameStateRef.value) {
+      gameStateRef.value = {
+        ...gameStateRef.value,
+        lines: gameStateRef.value.lines.filter(l => l.id !== lineId),
+      };
+    }
+    send('ERASE_LINE', { lineId });
+  };
 
   const timeshift = makeThrottle((offsetSeconds: number): void => {
     send('TIMESHIFT', { offset: offsetSeconds });
@@ -171,7 +181,7 @@ export function useGameSocket() {
   return {
     gameState: gameStateRef,
     connected: connectedRef,
-    movePaddle, togglePause, reset, clearLines,
+    movePaddle, togglePause, reset, clearLines, eraseLine,
     timeshift, resume, commitTimeshift, send,
   };
 }
