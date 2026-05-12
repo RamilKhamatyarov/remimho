@@ -12,6 +12,7 @@ import jakarta.ws.rs.core.Response
 import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
 import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
+import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
@@ -42,6 +43,7 @@ class GameResource {
                     "linesCount" to engine.lines.size,
                     "scoreA" to engine.score.playerA,
                     "scoreB" to engine.score.playerB,
+                    "aiOpponent" to engine.aiOpponentConfig,
                 ),
             ).build()
 
@@ -51,6 +53,7 @@ class GameResource {
         engine.resetPuck()
         engine.clearLines()
         engine.paused = false
+        engine.elapsedSeconds = 0.0
         return Response.ok(mapOf("message" to "Game reset successfully")).build()
     }
 
@@ -93,6 +96,18 @@ class GameResource {
                     "scoreB" to engine.score.playerB,
                 ),
             ).build()
+
+    @GET
+    @Path("/ai-opponent")
+    fun getAiOpponentConfig(): Response = Response.ok(engine.aiOpponentConfig).build()
+
+    @POST
+    @Path("/ai-opponent")
+    fun setAiOpponentConfig(config: AiOpponentConfig): Response {
+        WorkshopResource.validateAiOpponentConfig(config)?.let { return it }
+        engine.aiOpponentConfig = config
+        return WorkshopResource.aiOpponentConfigResponse(config)
+    }
 
     @POST
     @Path("/time-travel")

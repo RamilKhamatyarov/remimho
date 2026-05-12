@@ -29,8 +29,9 @@ quarkus:
     
 
   quinoa:
-    package-manager-install: true
-    node-version: 24.14.0
+    ui-dir: src/main/resources/META-INF/resources
+    build-dir: dist
+    package-manager-install: false
     dev-server:
       port: 5173
   native:

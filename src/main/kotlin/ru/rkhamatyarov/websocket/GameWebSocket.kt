@@ -244,6 +244,7 @@ class GameWebSocket {
         engine.resetPuck()
         engine.clearLines()
         engine.paused = false
+        engine.elapsedSeconds = 0.0
         pauseAnchorNs = null
     }
 

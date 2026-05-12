@@ -59,19 +59,25 @@
       <button class="btn-eraser" :class="{ active: eraserMode }" @click="toggleEraserMode">
         {{ eraserMode ? '✏️ Eraser ON' : '✏️ Eraser' }}
       </button>
-      <button class="btn-workshop" @click="publishLevel">Publish Level</button>
+      <button class="btn-workshop" @click="workshopOpen = true">🔧 Workshop</button>
       <span v-if="gameState">{{ gameState.score.playerA }} – {{ gameState.score.playerB }}</span>
       <span class="hotkeys">Space pause · R reset · E eraser · right-click erase · Esc live</span>
-      <span v-if="workshopMsg" class="workshop-msg">{{ workshopMsg }}</span>
     </footer>
+
+    <WorkshopModal
+      v-if="workshopOpen"
+      :line-count="gameState?.lines?.length ?? 0"
+      :game-lines="gameState?.lines ?? []"
+      @close="workshopOpen = false"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import GameCanvas from './components/GameCanvas.vue';
+import WorkshopModal from './components/WorkshopModal.vue';
 import { useGameSocket } from './composables/useGameSocket';
-import { useWorkshopApi, ContentType } from './api/workshop';
 
 const MAX_HISTORY_S = 15;
 
@@ -80,7 +86,6 @@ const {
   movePaddle, togglePause, reset, clearLines,
   timeshift, resume, commitTimeshift,
 } = useGameSocket();
-const { publishContent } = useWorkshopApi();
 
 // ── Timeshift state ──────────────────────────────────────────────────────────
 
@@ -209,19 +214,7 @@ onUnmounted(() => {
   if (isRewinding.value) resume();
 });
 
-// ── Workshop publish ─────────────────────────────────────────────────────────
-
-const workshopMsg = ref('');
-
-async function publishLevel(): Promise<void> {
-  const result = await publishContent(
-    ContentType.LEVEL,
-    { lines: gameState.value?.lines ?? [] },
-    { name: 'My Barrier Layout', author: 'player' },
-  );
-  workshopMsg.value = result.error ? `✗ ${result.error}` : '✓ Published!';
-  setTimeout(() => { workshopMsg.value = ''; }, 3000);
-}
+const workshopOpen = ref(false);
 </script>
 
 <style>
@@ -394,4 +387,5 @@ footer {
   border-color: rgba(255,255,255,0.35);
   background: transparent;
 }
+
 </style>

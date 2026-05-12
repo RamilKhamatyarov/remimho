@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "start": "vite --port 5173 --host 0.0.0.0",
     "dev": "vite --port 5173 --host",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",

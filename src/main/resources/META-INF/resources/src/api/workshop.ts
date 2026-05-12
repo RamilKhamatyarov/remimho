@@ -5,6 +5,23 @@ export enum ContentType {
   THEME = 'THEME',
   POWERUP_SET = 'POWERUP_SET',
   GAME_MODE = 'GAME_MODE',
+  SPEED_CONFIG = 'SPEED_CONFIG',
+  AI_OPPONENT_CONFIG = 'AI_OPPONENT_CONFIG',
+}
+
+export interface SpeedConfig {
+  baseMultiplier: number;
+  timeAccelerationRate: number;
+  levelAccelerationPerLine: number;
+  maxMultiplier: number;
+}
+
+export interface AiOpponentConfig {
+  enabled: boolean;
+  reactionDelayMs: number;
+  maxSpeed: number;
+  trackingError: number;
+  reactZoneRatio: number;
 }
 
 export interface WorkshopContentDTO {
@@ -88,6 +105,18 @@ export async function searchContent(
   return get<WorkshopContentDTO[]>('/content', params);
 }
 
+export async function setSpeedConfig(
+  config: SpeedConfig,
+): Promise<Result<{ applied: boolean; baseMultiplier: number; timeAccelerationRate: number; levelAccelerationPerLine: number; maxMultiplier: number }>> {
+  return post('/speed-config', config);
+}
+
+export async function setAiOpponentConfig(
+  config: AiOpponentConfig,
+): Promise<Result<AiOpponentConfig & { applied: boolean }>> {
+  return post('/ai-opponent-config', config);
+}
+
 export function useWorkshopApi() {
-  return { publishContent, searchContent, ContentType };
+  return { publishContent, searchContent, setSpeedConfig, setAiOpponentConfig, ContentType };
 }

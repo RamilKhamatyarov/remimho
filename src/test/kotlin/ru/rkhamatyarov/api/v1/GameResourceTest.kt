@@ -5,6 +5,7 @@ import io.restassured.RestAssured
 import jakarta.inject.Inject
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.StateHistory
 
@@ -84,5 +85,25 @@ class GameResourceTest {
         kotlin.test.assertEquals(222.0, engine.puck.y, 0.0001)
         kotlin.test.assertEquals(3, engine.score.playerA)
         kotlin.test.assertEquals(0, history.size())
+    }
+
+    @Test
+    fun `test game ai-opponent endpoint updates bot config`() {
+        engine.aiOpponentConfig = AiOpponentConfig()
+
+        RestAssured
+            .given()
+            .contentType("application/json")
+            .body("""{"enabled":true,"reactionDelayMs":120,"maxSpeed":240.0,"trackingError":4.0,"reactZoneRatio":0.8}""")
+            .`when`()
+            .post("/api/v1/game/ai-opponent")
+            .then()
+            .statusCode(200)
+            .body("applied", equalTo(true))
+            .body("reactionDelayMs", equalTo(120))
+            .body("maxSpeed", equalTo(240.0f))
+
+        kotlin.test.assertEquals(120, engine.aiOpponentConfig.reactionDelayMs)
+        kotlin.test.assertEquals(240.0, engine.aiOpponentConfig.maxSpeed, 0.0001)
     }
 }
