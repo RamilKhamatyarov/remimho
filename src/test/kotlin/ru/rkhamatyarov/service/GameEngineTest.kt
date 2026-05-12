@@ -4,10 +4,12 @@ import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.model.SpeedConfig
 import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -37,6 +39,10 @@ class GameEngineTest {
         gameEngine.clearLines()
         gameEngine.powerUps.clear()
         gameEngine.activePowerUpEffects.clear()
+        gameEngine.elapsedSeconds = 0.0
+        gameEngine.speedConfig = SpeedConfig()
+        gameEngine.aiOpponentConfig = AiOpponentConfig(reactionDelayMs = 0)
+        gameEngine.powerUpSpeedMultiplier = 1.0
     }
 
     @Test
@@ -143,6 +149,8 @@ class GameEngineTest {
     @Test
     fun `test AI paddle tracks puck upward`() {
         gameEngine.puck.y = 100.0
+        gameEngine.puck.vx = -200.0
+        gameEngine.puck.x = 100.0
         gameEngine.paddle1Y = 400.0
 
         gameEngine.tick(TICK_DT)
@@ -153,12 +161,44 @@ class GameEngineTest {
     @Test
     fun `test AI paddle stays within canvas bounds after many ticks`() {
         gameEngine.puck.y = 10.0
+        gameEngine.puck.vx = -200.0
+        gameEngine.puck.x = 100.0
         gameEngine.paddle1Y = 0.0
 
         repeat(200) { gameEngine.tick(TICK_DT) }
 
         assertTrue(gameEngine.paddle1Y >= 0.0)
         assertTrue(gameEngine.paddle1Y <= gameEngine.canvasHeight - gameEngine.paddleHeight)
+    }
+
+    @Test
+    fun `test AI paddle waits for configured reaction delay`() {
+        gameEngine.aiOpponentConfig = AiOpponentConfig(reactionDelayMs = 250, maxSpeed = 300.0, trackingError = 0.0, reactZoneRatio = 1.0)
+        gameEngine.puck.x = 100.0
+        gameEngine.puck.y = 100.0
+        gameEngine.puck.vx = -200.0
+        gameEngine.paddle1Y = 250.0
+
+        gameEngine.tick(0.1)
+
+        assertEquals(250.0, gameEngine.paddle1Y, 0.0001, "AI should not move before its reaction delay elapses")
+
+        repeat(3) { gameEngine.tick(0.1) }
+
+        assertTrue(gameEngine.paddle1Y < 250.0, "AI should track the delayed puck position once delay has elapsed")
+    }
+
+    @Test
+    fun `test disabled AI opponent leaves left paddle untouched`() {
+        gameEngine.aiOpponentConfig = AiOpponentConfig(enabled = false)
+        gameEngine.puck.x = 100.0
+        gameEngine.puck.y = 100.0
+        gameEngine.puck.vx = -200.0
+        gameEngine.paddle1Y = 300.0
+
+        repeat(10) { gameEngine.tick(TICK_DT) }
+
+        assertEquals(300.0, gameEngine.paddle1Y, 0.0001)
     }
 
     @Test
@@ -230,7 +270,6 @@ class GameEngineTest {
 
         assertTrue(erased)
         assertEquals(0, gameEngine.lines.size)
-        // Subsequent updateCurrentLine should be a no-op (no current line)
         gameEngine.updateCurrentLine(20.0, 20.0)
         assertEquals(0, gameEngine.lines.size)
     }
@@ -277,6 +316,129 @@ class GameEngineTest {
         val restored = gameEngine.lines.single()
         assertNotNull(restored.id)
         assertTrue(restored.id.isNotBlank(), "Legacy lines must get a synthesized id")
+    }
+
+    @Test
+    fun `progressive multiplier equals base when no elapsed time or lines`() {
+        assertEquals(1.0, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `progressive multiplier increases with elapsed time`() {
+        gameEngine.elapsedSeconds = 60.0
+        val expected = 1.0 + (60.0 / 60.0) * 0.05
+        assertEquals(expected, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `progressive multiplier increases with lines on whiteboard`() {
+        repeat(5) {
+            gameEngine.startNewLine(10.0 * it + 10.0, 10.0)
+            gameEngine.updateCurrentLine(10.0 * it + 20.0, 20.0)
+            gameEngine.finishCurrentLine()
+        }
+        val expected = 1.0 + 5 * 0.02
+        assertEquals(expected, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `progressive multiplier combines time and level factors`() {
+        gameEngine.elapsedSeconds = 120.0
+        repeat(3) {
+            gameEngine.startNewLine(10.0 * it + 10.0, 10.0)
+            gameEngine.updateCurrentLine(10.0 * it + 20.0, 20.0)
+            gameEngine.finishCurrentLine()
+        }
+        val expected = 1.0 + (120.0 / 60.0) * 0.05 + 3 * 0.02
+        assertEquals(expected, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `progressive multiplier is capped at maxMultiplier`() {
+        gameEngine.elapsedSeconds = 100_000.0
+        assertEquals(gameEngine.speedConfig.maxMultiplier, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `custom base multiplier applied from speed config`() {
+        gameEngine.speedConfig =
+            SpeedConfig(baseMultiplier = 2.0, timeAccelerationRate = 0.0, levelAccelerationPerLine = 0.0, maxMultiplier = 5.0)
+        assertEquals(2.0, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `zero time acceleration rate keeps multiplier at base regardless of elapsed time`() {
+        gameEngine.speedConfig = SpeedConfig(timeAccelerationRate = 0.0)
+        gameEngine.elapsedSeconds = 3600.0
+        assertEquals(1.0, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `zero level acceleration keeps multiplier at base regardless of line count`() {
+        gameEngine.speedConfig = SpeedConfig(levelAccelerationPerLine = 0.0)
+        repeat(10) {
+            gameEngine.startNewLine(10.0 * it + 10.0, 10.0)
+            gameEngine.updateCurrentLine(10.0 * it + 20.0, 20.0)
+            gameEngine.finishCurrentLine()
+        }
+        assertEquals(1.0, gameEngine.computeProgressiveSpeedMultiplier(), 0.0001)
+    }
+
+    @Test
+    fun `tick advances elapsedSeconds when not paused`() {
+        gameEngine.paused = false
+        val before = gameEngine.elapsedSeconds
+        gameEngine.tick(1.0)
+        assertEquals(before + 1.0, gameEngine.elapsedSeconds, 0.0001)
+    }
+
+    @Test
+    fun `tick does NOT advance elapsedSeconds when paused`() {
+        gameEngine.paused = true
+        val before = gameEngine.elapsedSeconds
+        gameEngine.tick(1.0)
+        assertEquals(before, gameEngine.elapsedSeconds, 0.0001)
+    }
+
+    @Test
+    fun `puck moves faster with higher elapsed time`() {
+        gameEngine.puck.vx = 100.0
+        gameEngine.puck.vy = 0.0
+        gameEngine.puck.x = 200.0
+        gameEngine.puck.y = gameEngine.canvasHeight / 2
+
+        gameEngine.tick(0.1)
+        val xAfterBaseSpeed = gameEngine.puck.x
+
+        gameEngine.puck.x = 200.0
+        gameEngine.elapsedSeconds = 600.0
+        gameEngine.tick(0.1)
+        val xAfterFasterSpeed = gameEngine.puck.x
+
+        assertTrue(xAfterFasterSpeed > xAfterBaseSpeed, "Puck should move further with higher elapsed time")
+    }
+
+    @Test
+    fun `puck moves faster with more lines on whiteboard`() {
+        gameEngine.puck.vx = 100.0
+        gameEngine.puck.vy = 0.0
+        gameEngine.puck.x = 200.0
+        gameEngine.puck.y = gameEngine.canvasHeight / 2
+
+        gameEngine.tick(0.1)
+        val xWithNoLines = gameEngine.puck.x
+
+        gameEngine.puck.x = 200.0
+        gameEngine.elapsedSeconds = 0.0
+        repeat(10) {
+            gameEngine.startNewLine(10.0 * it + 10.0, 10.0)
+            gameEngine.updateCurrentLine(10.0 * it + 20.0, 20.0)
+            gameEngine.finishCurrentLine()
+        }
+        gameEngine.tick(0.1)
+        val xWithLines = gameEngine.puck.x
+
+        assertTrue(xWithLines > xWithNoLines, "Puck should move further with more whiteboard lines")
     }
 
     @Test

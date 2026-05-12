@@ -3,14 +3,17 @@ package ru.rkhamatyarov.service
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.inject.Inject
 import ru.rkhamatyarov.model.ActivePowerUpEffect
+import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.Line
 import ru.rkhamatyarov.model.Point
 import ru.rkhamatyarov.model.PowerUp
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.Puck
 import ru.rkhamatyarov.model.Score
+import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.GameStateDelta
 import java.util.UUID
+import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.sign
@@ -22,12 +25,6 @@ class GameEngine {
 
     val paddleHeight: Double = 100.0
     private val paddleWidth: Double = 20.0
-
-    private val aiMaxSpeed: Double = 160.0
-
-    private val aiReactZone: Double = canvasWidth * 0.65
-
-    private val aiInaccuracy: Double = 12.0
 
     var paddle1Y: Double = (canvasHeight - paddleHeight) / 2
     var paddle2Y: Double = (canvasHeight - paddleHeight) / 2
@@ -52,13 +49,34 @@ class GameEngine {
     var isGhostMode: Boolean = false
     var hasPaddleShield: Boolean = false
 
+    var elapsedSeconds: Double = 0.0
+    var speedConfig: SpeedConfig = SpeedConfig()
+    var aiOpponentConfig: AiOpponentConfig = AiOpponentConfig()
+
+    private data class AiPuckSample(
+        val atSeconds: Double,
+        val x: Double,
+        val y: Double,
+        val vx: Double,
+    )
+
+    private val aiPuckSamples = ConcurrentLinkedDeque<AiPuckSample>()
+
     @Inject
     lateinit var powerUpManager: PowerUpManager
+
+    fun computeProgressiveSpeedMultiplier(): Double {
+        val timeFactor = (elapsedSeconds / 60.0) * speedConfig.timeAccelerationRate
+        val levelFactor = lines.size * speedConfig.levelAccelerationPerLine
+        return (speedConfig.baseMultiplier + timeFactor + levelFactor)
+            .coerceAtMost(speedConfig.maxMultiplier)
+    }
 
     fun tick(deltaSeconds: Double) {
         if (paused) return
 
-        val speed = powerUpSpeedMultiplier
+        elapsedSeconds += deltaSeconds
+        val speed = powerUpSpeedMultiplier * computeProgressiveSpeedMultiplier()
 
         puck.x += puck.vx * speed * deltaSeconds
         puck.y += puck.vy * speed * deltaSeconds
@@ -100,20 +118,49 @@ class GameEngine {
     }
 
     private fun updateAI(dt: Double) {
-        val shouldReact = puck.vx < 0 && puck.x < aiReactZone
+        val config = aiOpponentConfig
+        if (!config.enabled) {
+            aiPuckSamples.clear()
+            return
+        }
+
+        recordAiPuckSample()
+        val observedPuck = delayedAiPuckSample(config.reactionDelayMs) ?: return
+        val shouldReact = observedPuck.vx < 0 && observedPuck.x < canvasWidth * config.reactZoneRatio
 
         val targetY =
             if (shouldReact) {
-                puck.y - paddleHeight / 2 + aiInaccuracy
+                observedPuck.y - paddleHeight / 2 + config.trackingError
             } else {
                 (canvasHeight - paddleHeight) / 2
             }
 
         val diff = targetY - paddle1Y
         if (abs(diff) > 4.0) {
-            val move = sign(diff) * aiMaxSpeed * dt
+            val move = sign(diff) * config.maxSpeed * dt
             paddle1Y = (paddle1Y + move).coerceIn(0.0, canvasHeight - paddleHeight)
         }
+    }
+
+    private fun recordAiPuckSample() {
+        aiPuckSamples.addLast(AiPuckSample(elapsedSeconds, puck.x, puck.y, puck.vx))
+        val oldestUseful = elapsedSeconds - (aiOpponentConfig.reactionDelayMs / 1000.0) - 1.0
+        while (aiPuckSamples.peekFirst()?.atSeconds?.let { it < oldestUseful } == true) {
+            aiPuckSamples.pollFirst()
+        }
+    }
+
+    private fun delayedAiPuckSample(reactionDelayMs: Long): AiPuckSample? {
+        val targetTime = elapsedSeconds - reactionDelayMs / 1000.0
+        if (aiPuckSamples.isEmpty() || aiPuckSamples.peekFirst().atSeconds > targetTime) return null
+        var observed = aiPuckSamples.peekFirst()
+        val iterator = aiPuckSamples.iterator()
+        while (iterator.hasNext()) {
+            val sample = iterator.next()
+            if (sample.atSeconds > targetTime) break
+            observed = sample
+        }
+        return observed
     }
 
     private fun deflectOffLines() {
@@ -165,6 +212,7 @@ class GameEngine {
         puck.y = canvasHeight / 2
         puck.vx = if (puck.vx > 0) 300.0 else -300.0
         puck.vy = 200.0
+        aiPuckSamples.clear()
     }
 
     fun startNewLine(

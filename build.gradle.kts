@@ -135,27 +135,40 @@ tasks.register<Exec>("installFrontend") {
     outputs.dir(frontendDir.dir("node_modules"))
 }
 
-tasks.register<Copy>("copyFrontend") {
+tasks.register<Sync>("copyFrontend") {
     dependsOn("buildFrontend", "processResources")
     from(frontendDistDir)
     into(layout.buildDirectory.dir("resources/main/META-INF/resources"))
 }
 
 tasks.processResources {
-    exclude(
-        "META-INF/resources/assets/**",
-        "META-INF/resources/dist/**",
-        "META-INF/resources/index.html",
-        "META-INF/resources/node_modules/**",
-        "META-INF/resources/package.json",
-        "META-INF/resources/package-lock.json",
-        "META-INF/resources/src/**",
-        "META-INF/resources/tsconfig.json",
-        "META-INF/resources/tsconfig.node.json",
-        "META-INF/resources/vite.config.ts",
-    )
+    mustRunAfter("installFrontend", "buildFrontend")
+    exclude { details ->
+        val rel = details.relativePath.pathString.replace('\\', '/')
+        val tail = rel.removePrefix("META-INF/resources/")
+        tail.startsWith("dist/") ||
+            tail.startsWith("node_modules/") ||
+            tail.startsWith("src/") ||
+            tail == "index.html" ||
+            tail == "package.json" ||
+            tail == "package-lock.json" ||
+            tail == "tsconfig.json" ||
+            tail == "tsconfig.node.json" ||
+            tail == "vite.config.ts"
+    }
 }
 
 tasks.classes {
     dependsOn("copyFrontend")
+}
+
+if ("nativeBuild" in gradle.startParameter.taskNames) {
+    System.setProperty("quarkus.package.type", "native")
+    tasks.named("build").configure { mustRunAfter("clean") }
+}
+
+tasks.register("nativeBuild") {
+    group = "build"
+    description = "Cleans and builds a native executable (equivalent to: clean build -Dquarkus.package.type=native)"
+    dependsOn("clean", "build")
 }
