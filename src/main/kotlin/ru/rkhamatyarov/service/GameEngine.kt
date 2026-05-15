@@ -114,7 +114,9 @@ class GameEngine {
 
         deflectOffLines()
 
-        powerUpManager.update(deltaSeconds)
+        if (::powerUpManager.isInitialized) {
+            powerUpManager.update(deltaSeconds)
+        }
     }
 
     private fun updateAI(dt: Double) {

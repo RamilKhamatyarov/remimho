@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import type { Ref } from 'vue';
 import type { GameState } from '../types/game';
 import { GameStateDelta as _protoStatic } from '../proto/game_state';
+import { configureGameLoop, enqueueDelta } from './useGameLoop';
 
 export const gameStateRef: Ref<GameState | null> = ref<GameState | null>(null);
 export const connectedRef: Ref<boolean> = ref(false);
@@ -11,11 +12,12 @@ const USE_JSON_FALLBACK = true;
 let _ws: WebSocket | null = null;
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _initialized = false;
+let _roomId = new URL(window.location.href).searchParams.get('roomId') ?? window.location.pathname.split('/').filter(Boolean)[0] ?? 'default';
 
 const _proto = _protoStatic;
 
-function applyDelta(delta: Record<string, unknown>): void {
-  const prev = delta['fullState'] === true ? makeInitialState() : (gameStateRef.value ?? makeInitialState());
+function mergeDelta(delta: Record<string, unknown>, base?: GameState | null): GameState {
+  const prev = delta['fullState'] === true ? makeInitialState() : (base ?? gameStateRef.value ?? makeInitialState());
   const next: GameState = { ...prev };
 
   if (delta['puckX']    !== undefined) next.puck  = { ...next.puck,  x:  delta['puckX']  as number };
@@ -38,7 +40,11 @@ function applyDelta(delta: Record<string, unknown>): void {
     }));
   }
 
-  gameStateRef.value = next;
+  return next;
+}
+
+function applyDelta(delta: Record<string, unknown>): void {
+  gameStateRef.value = mergeDelta(delta);
 }
 
 function makeInitialState(): GameState {
@@ -57,12 +63,13 @@ function initSocket(): void {
   if (_initialized) return;
   _initialized = true;
 
+  loadClientConfig();
   const proto  = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  const wsUrl  = `${proto}://${window.location.host}/game`;
 
   function connect(): void {
     if (_reconnectTimer) { clearTimeout(_reconnectTimer); _reconnectTimer = null; }
 
+    const wsUrl = `${proto}://${window.location.host}/game?roomId=${encodeURIComponent(_roomId)}`;
     _ws = new WebSocket(wsUrl);
     _ws.binaryType = 'arraybuffer';
 
@@ -75,7 +82,8 @@ function initSocket(): void {
       // ── Binary path (Protobuf) ──────────────────────────────────────────
       if (event.data instanceof ArrayBuffer) {
         try {
-          applyDelta(_proto.decode(new Uint8Array(event.data)));
+          const delta = _proto.decode(new Uint8Array(event.data));
+          if (!enqueueDelta(delta)) applyDelta(delta);
         } catch (e) {
           console.error('[WS] Protobuf decode error', e);
         }
@@ -128,6 +136,39 @@ function initSocket(): void {
   }
 
   connect();
+}
+
+async function loadClientConfig(): Promise<void> {
+  try {
+    const res = await fetch('/api/v1/game/client-config', { headers: { Accept: 'application/json' } });
+    if (!res.ok) return;
+    const config = await res.json() as { clientInterpolation?: boolean };
+    configureGameLoop({
+      clientInterpolation: config.clientInterpolation === true,
+      gameState: gameStateRef,
+      mergeDelta,
+    });
+  } catch (e) {
+    console.warn('[WS] Client config unavailable', e);
+  }
+}
+
+export function setSocketRoom(roomId: string): void {
+  const next = roomId.trim() || 'default';
+  if (_roomId === next) return;
+  _roomId = next;
+  _initialized = false;
+  if (_reconnectTimer) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+  if (_ws) {
+    _ws.onclose = null;
+    _ws.close();
+  }
+  _ws = null;
+  gameStateRef.value = null;
+  initSocket();
 }
 
 // ── Throttle helper for slider scrubbing ─────────────────────────────────────

@@ -61,6 +61,15 @@ quarkus:
     enabled: true
 
 remimho:
+  client:
+    interpolation-enabled: false
+  coroutines:
+    state-flow-enabled: false
+  rooms:
+    enabled: true
+  engine:
+    mvi:
+      enabled: false
   browser:
     open: true
     url: http://localhost:8080

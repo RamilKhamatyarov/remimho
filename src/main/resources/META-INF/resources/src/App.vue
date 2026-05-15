@@ -5,6 +5,7 @@
       <div class="status" :class="{ connected }">
         {{ connected ? '● Connected' : '○ Connecting…' }}
       </div>
+      <Lobby :room-id="roomId" @join="joinRoom" />
     </header>
 
     <main>
@@ -76,8 +77,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import GameCanvas from './components/GameCanvas.vue';
+import Lobby from './components/Lobby.vue';
 import WorkshopModal from './components/WorkshopModal.vue';
-import { useGameSocket } from './composables/useGameSocket';
+import { setSocketRoom, useGameSocket } from './composables/useGameSocket';
+import { useRoomStore } from './stores/roomStore';
 
 const MAX_HISTORY_S = 15;
 
@@ -86,6 +89,13 @@ const {
   movePaddle, togglePause, reset, clearLines,
   timeshift, resume, commitTimeshift,
 } = useGameSocket();
+const { roomId, joinRoom: setRoom } = useRoomStore();
+
+function joinRoom(nextRoomId: string): void {
+  setRoom(nextRoomId);
+  setSocketRoom(nextRoomId);
+  goLive();
+}
 
 // ── Timeshift state ──────────────────────────────────────────────────────────
 

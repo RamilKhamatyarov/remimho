@@ -9,6 +9,7 @@ import jakarta.ws.rs.Path
 import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
 import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
@@ -25,6 +26,12 @@ class GameResource {
     @Inject lateinit var engine: GameEngine
 
     @Inject lateinit var history: StateHistory
+
+    @ConfigProperty(name = "remimho.client.interpolation-enabled", defaultValue = "false")
+    var clientInterpolationEnabled: Boolean = false
+
+    @ConfigProperty(name = "remimho.rooms.enabled", defaultValue = "false")
+    var roomsEnabled: Boolean = false
 
     @GET
     @Path("/state")
@@ -44,6 +51,17 @@ class GameResource {
                     "scoreA" to engine.score.playerA,
                     "scoreB" to engine.score.playerB,
                     "aiOpponent" to engine.aiOpponentConfig,
+                ),
+            ).build()
+
+    @GET
+    @Path("/client-config")
+    fun getClientConfig(): Response =
+        Response
+            .ok(
+                mapOf(
+                    "clientInterpolation" to clientInterpolationEnabled,
+                    "roomsEnabled" to roomsEnabled,
                 ),
             ).build()
 

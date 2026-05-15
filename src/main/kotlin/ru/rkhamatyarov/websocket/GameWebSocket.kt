@@ -12,11 +12,27 @@ import io.vertx.core.Vertx
 import jakarta.enterprise.context.ApplicationScoped
 import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.PowerUpManager
+import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
+import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.MviGameEngine
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -40,12 +56,39 @@ class GameWebSocket {
     @Inject
     lateinit var history: StateHistory
 
+    @Inject
+    lateinit var roomRegistry: RoomRegistry
+
+    @Inject
+    lateinit var mviEngine: MviGameEngine
+
+    @ConfigProperty(name = "remimho.coroutines.state-flow-enabled", defaultValue = "false")
+    var stateFlowEnabled: Boolean = false
+
+    @ConfigProperty(name = "remimho.rooms.enabled", defaultValue = "false")
+    var roomsEnabled: Boolean = false
+
+    @ConfigProperty(name = "remimho.engine.mvi.enabled", defaultValue = "false")
+    var mviEnabled: Boolean = false
+
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
-    private var lastFullState: GameStateDelta? = null
+    private val connectionRooms = ConcurrentHashMap<String, String>()
+    private val collectorJobs = ConcurrentHashMap<String, Job>()
+    private val lastFullStateByRoom = ConcurrentHashMap<String, GameStateDelta>()
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val timeshiftSessions = ConcurrentHashMap.newKeySet<String>()
     private val timeshiftDrafts = ConcurrentHashMap<String, GameStateDelta>()
-    private var pauseAnchorNs: Long? = null
+    private val pauseAnchorNsByRoom = ConcurrentHashMap<String, Long>()
+
+    private val mutableStateFlow =
+        MutableSharedFlow<ByteArray>(
+            replay = 0,
+            extraBufferCapacity = 3,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+
+    val stateFlow: SharedFlow<ByteArray> = mutableStateFlow.asSharedFlow()
 
     fun onStart(
         @Observes event: StartupEvent,
@@ -55,19 +98,68 @@ class GameWebSocket {
 
     @OnOpen
     fun onOpen(connection: WebSocketConnection) {
+        val roomId = roomId(connection)
+        if (roomsEnabled) roomRegistry.get(roomId)
+        connectionRooms[connection.id()] = roomId
         sessions[connection.id()] = connection
-        log.info("Client connected: ${connection.id()} (total: ${sessions.size})")
-        lastFullState = null
-        connection.sendBinary(currentStateBinary(true))
+        log.info("Client connected: ${connection.id()} room=$roomId (total: ${sessions.size})")
+        lastFullStateByRoom.remove(roomId)
+        if (stateFlowEnabled) launchStateCollector(connection, roomId)
+        connection.sendBinary(currentStateBinary(roomId, true))
     }
 
     @OnClose
     fun onClose(connection: WebSocketConnection) {
         sessions.remove(connection.id())
+        connectionRooms.remove(connection.id())
+        collectorJobs.remove(connection.id())?.cancel()
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
         log.info("Client disconnected: ${connection.id()} (remaining: ${sessions.size})")
     }
+
+    private fun launchStateCollector(
+        connection: WebSocketConnection,
+        roomId: String,
+    ) {
+        val flow = if (roomsEnabled) roomRegistry.get(roomId).stateFlow else stateFlow
+        collectorJobs[connection.id()] =
+            applicationScope.launch {
+                flow.collectLatest { bytes ->
+                    if (connection.id() in timeshiftSessions || connection.isClosed) return@collectLatest
+                    connection.sendBinary(bytes).subscribe().with(
+                        {},
+                        { t -> log.warn("Failed to send flow frame to ${connection.id()}: ${t.message}") },
+                    )
+                }
+            }
+    }
+
+    private fun roomId(connection: WebSocketConnection): String {
+        if (!roomsEnabled) return RoomRegistry.DEFAULT_ROOM_ID
+        val query = connection.handshakeRequest().query() ?: return RoomRegistry.DEFAULT_ROOM_ID
+        return query
+            .split("&")
+            .firstOrNull { it.substringBefore("=") == "roomId" }
+            ?.substringAfter("=", "")
+            ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8) }
+            ?.takeIf { it.isNotBlank() }
+            ?: RoomRegistry.DEFAULT_ROOM_ID
+    }
+
+    private fun engineFor(roomId: String): GameEngine =
+        if (roomsEnabled) {
+            roomRegistry.get(roomId).engine
+        } else {
+            engine
+        }
+
+    private fun historyFor(roomId: String): StateHistory =
+        if (roomsEnabled) {
+            roomRegistry.get(roomId).history
+        } else {
+            history
+        }
 
     @OnTextMessage
     fun onMessage(
@@ -101,15 +193,15 @@ class GameWebSocket {
             }
 
             "TOGGLE_PAUSE" -> {
-                handleTogglePause()
+                handleTogglePause(connection)
             }
 
             "RESET" -> {
-                handleReset()
+                handleReset(connection)
             }
 
             "CLEAR_LINES" -> {
-                handleClearLines()
+                handleClearLines(connection)
             }
 
             "START_LINE" -> {
@@ -151,22 +243,25 @@ class GameWebSocket {
         data: Map<*, *>,
         connection: WebSocketConnection,
     ) {
+        val roomId = roomId(connection)
+        val roomHistory = historyFor(roomId)
+        val roomEngine = engineFor(roomId)
         val offset = data["offset"]?.toString()?.toDoubleOrNull()
         if (offset == null || offset < 0.0) {
             sendError(connection, "TIMESHIFT requires a numeric 'offset' >= 0 (seconds)")
             return
         }
-        val snapshot = history.getByOffsetSeconds(offset, rewindReferenceNs())
+        val snapshot = roomHistory.getByOffsetSeconds(offset, rewindReferenceNs(roomId))
         if (snapshot == null) {
             sendError(
                 connection,
                 "No snapshot available for offset ${offset}s " +
-                    "(history has ${history.size()} frames, " +
+                    "(history has ${roomHistory.size()} frames, " +
                     "max retention ${StateHistory.MAX_RETENTION_SECONDS}s)",
             )
             return
         }
-        val pausedAwareSnapshot = snapshot.withCurrentPauseState()
+        val pausedAwareSnapshot = snapshot.withCurrentPauseState(roomEngine.paused)
         timeshiftSessions.add(connection.id())
         timeshiftDrafts[connection.id()] = GameStateDelta.parseFrom(pausedAwareSnapshot)
         connection.sendBinary(pausedAwareSnapshot).subscribe().with(
@@ -179,6 +274,9 @@ class GameWebSocket {
         data: Map<*, *>,
         connection: WebSocketConnection,
     ) {
+        val roomId = roomId(connection)
+        val roomEngine = engineFor(roomId)
+        val roomHistory = historyFor(roomId)
         val offset = data["offset"]?.toString()?.toDoubleOrNull()
         if (offset == null || offset < 0.0) {
             sendError(connection, "COMMIT_TIMESHIFT requires a numeric 'offset' >= 0 (seconds)")
@@ -186,19 +284,19 @@ class GameWebSocket {
         }
         val snapshot =
             timeshiftDrafts[connection.id()]?.toByteArray()
-                ?: history.getByOffsetSeconds(offset, rewindReferenceNs())
+                ?: roomHistory.getByOffsetSeconds(offset, rewindReferenceNs(roomId))
         if (snapshot == null) {
             sendError(connection, "No snapshot available for offset ${offset}s")
             return
         }
 
         try {
-            engine.restoreFromDelta(GameStateDelta.parseFrom(snapshot))
-            history.clear()
-            lastFullState = null
+            roomEngine.restoreFromDelta(GameStateDelta.parseFrom(snapshot))
+            roomHistory.clear()
+            lastFullStateByRoom.remove(roomId)
             timeshiftSessions.clear()
             timeshiftDrafts.clear()
-            broadcastFullState()
+            broadcastFullState(roomId)
             log.infof("Timeline branched from %.2f seconds ago by %s", offset, connection.id())
         } catch (e: Exception) {
             log.error("Failed to commit timeshift snapshot", e)
@@ -210,7 +308,7 @@ class GameWebSocket {
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
         log.debugf("Connection %s resumed live stream", connection.id())
-        connection.sendBinary(currentStateBinary(true)).subscribe().with(
+        connection.sendBinary(currentStateBinary(roomId(connection), true)).subscribe().with(
             {},
             { t -> log.warnf(t, "Failed to send resume snapshot to %s", connection.id()) },
         )
@@ -222,34 +320,51 @@ class GameWebSocket {
     ) {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (y != null) {
-            engine.movePaddle2(y)
+            if (mviEnabled && !roomsEnabled) {
+                mviEngine.tryDispatch(GameAction.MovePaddle(y))
+            } else {
+                engineFor(roomId(connection)).movePaddle2(y)
+            }
         } else {
             sendError(connection, "Invalid MOVE_PADDLE: y required")
         }
     }
 
-    private fun handleTogglePause() {
-        engine.paused = !engine.paused
-        pauseAnchorNs =
-            if (engine.paused) {
+    private fun handleTogglePause(connection: WebSocketConnection) {
+        val roomId = roomId(connection)
+        val roomEngine = engineFor(roomId)
+        if (mviEnabled && !roomsEnabled) {
+            mviEngine.tryDispatch(GameAction.TogglePause)
+            return
+        }
+        roomEngine.paused = !roomEngine.paused
+        if (roomEngine.paused) {
+            pauseAnchorNsByRoom[roomId] =
                 System.nanoTime().also { pausedAt ->
-                    history.add(buildGameStateDelta(pausedAt).toByteArray(), pausedAt)
+                    historyFor(roomId).add(buildGameStateDelta(roomId, pausedAt).toByteArray(), pausedAt)
                 }
-            } else {
-                null
-            }
+        } else {
+            pauseAnchorNsByRoom.remove(roomId)
+        }
     }
 
-    private fun handleReset() {
-        engine.resetPuck()
-        engine.clearLines()
-        engine.paused = false
-        engine.elapsedSeconds = 0.0
-        pauseAnchorNs = null
+    private fun handleReset(connection: WebSocketConnection) {
+        val roomId = roomId(connection)
+        if (mviEnabled && !roomsEnabled) {
+            mviEngine.tryDispatch(GameAction.Reset)
+            pauseAnchorNsByRoom.remove(roomId)
+            return
+        }
+        val roomEngine = engineFor(roomId)
+        roomEngine.resetPuck()
+        roomEngine.clearLines()
+        roomEngine.paused = false
+        roomEngine.elapsedSeconds = 0.0
+        pauseAnchorNsByRoom.remove(roomId)
     }
 
-    private fun handleClearLines() {
-        engine.clearLines()
+    private fun handleClearLines(connection: WebSocketConnection) {
+        engineFor(roomId(connection)).clearLines()
     }
 
     private fun handleStartLine(
@@ -260,7 +375,7 @@ class GameWebSocket {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
-            engine.startNewLine(x, y)
+            engineFor(roomId(connection)).startNewLine(x, y)
         } else {
             sendError(connection, "Invalid START_LINE: x and y required")
         }
@@ -274,7 +389,7 @@ class GameWebSocket {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             if (updateTimeshiftDraftLine(connection, LineDraftCommand.UPDATE, x, y)) return
-            engine.updateCurrentLine(x, y)
+            engineFor(roomId(connection)).updateCurrentLine(x, y)
         } else {
             sendError(connection, "Invalid UPDATE_LINE: x and y required")
         }
@@ -282,7 +397,7 @@ class GameWebSocket {
 
     private fun handleFinishLine(connection: WebSocketConnection) {
         if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
-        engine.finishCurrentLine()
+        engineFor(roomId(connection)).finishCurrentLine()
     }
 
     private fun handleEraseLine(
@@ -295,7 +410,7 @@ class GameWebSocket {
             return
         }
         if (eraseTimeshiftDraftLine(connection, lineId)) return
-        engine.eraseLine(lineId)
+        engineFor(roomId(connection)).eraseLine(lineId)
     }
 
     private enum class LineDraftCommand {
@@ -398,10 +513,10 @@ class GameWebSocket {
             .setY(y)
             .build()
 
-    private fun rewindReferenceNs(): Long = pauseAnchorNs ?: System.nanoTime()
+    private fun rewindReferenceNs(roomId: String): Long = pauseAnchorNsByRoom[roomId] ?: System.nanoTime()
 
-    private fun ByteArray.withCurrentPauseState(): ByteArray {
-        if (!engine.paused) return this
+    private fun ByteArray.withCurrentPauseState(paused: Boolean): ByteArray {
+        if (!paused) return this
         return GameStateDelta
             .parseFrom(this)
             .toBuilder()
@@ -412,71 +527,111 @@ class GameWebSocket {
     }
 
     private fun tick() {
-        engine.tick(deltaSeconds = 0.016)
-        powerUpManager.update(0.016)
+        if (roomsEnabled) {
+            roomRegistry.activeRooms().forEach { tickRoom(it.id, it.engine, it.history, it::tryEmit) }
+            return
+        }
+
+        if (mviEnabled) {
+            val emitted = mviEngine.tryDispatch(GameAction.Tick(0.016))
+            if (!emitted) log.warn("MVI tick action was dropped")
+        }
+
+        tickRoom(RoomRegistry.DEFAULT_ROOM_ID, engine, history, mutableStateFlow::tryEmit)
+    }
+
+    private fun tickRoom(
+        roomId: String,
+        roomEngine: GameEngine,
+        roomHistory: StateHistory,
+        emit: (ByteArray) -> Boolean,
+    ) {
+        if (!mviEnabled || roomsEnabled) {
+            roomEngine.tick(deltaSeconds = 0.016)
+        }
 
         val now = System.nanoTime()
 
-        val currentState = buildGameStateDelta(now)
+        val currentState = buildGameStateDelta(roomId, now)
+        val lastFullState = lastFullStateByRoom[roomId]
 
         val liveState =
             if (lastFullState == null) {
                 currentState
             } else {
-                computeDelta(lastFullState!!, currentState)
+                computeDelta(lastFullState, currentState)
             }
         val liveBytes = liveState.toByteArray()
         val fullBytes = currentState.toByteArray()
 
-        lastFullState = currentState
+        lastFullStateByRoom[roomId] = currentState
 
-        if (!engine.paused) {
-            history.add(fullBytes)
+        if (!roomEngine.paused) {
+            roomHistory.add(fullBytes)
         }
 
         if (sessions.isEmpty()) return
 
+        if (stateFlowEnabled) {
+            if (!emit(liveBytes)) log.warnf("State flow buffer full for room %s; oldest frame dropped", roomId)
+            return
+        }
+
+        broadcastBytes(roomId, liveBytes)
+    }
+
+    private fun broadcastBytes(
+        roomId: String,
+        bytes: ByteArray,
+    ) {
         val dead = mutableListOf<String>()
 
         sessions.forEach { (id, conn) ->
+            if (connectionRooms[id] != roomId) return@forEach
             if (id in timeshiftSessions) return@forEach
-            conn.sendBinary(liveBytes).subscribe().with({}, { t ->
+            conn.sendBinary(bytes).subscribe().with({}, { t ->
                 log.warn("Failed to send to $id: ${t.message}")
                 dead.add(id)
             })
         }
         dead.forEach {
             sessions.remove(it)
+            connectionRooms.remove(it)
+            collectorJobs.remove(it)?.cancel()
             timeshiftSessions.remove(it)
         }
     }
 
-    private fun broadcastFullState() {
-        val bytes = currentStateBinary(true)
-        val dead = mutableListOf<String>()
-        sessions.forEach { (id, conn) ->
-            conn.sendBinary(bytes).subscribe().with({}, { t ->
-                log.warn("Failed to send full state to $id: ${t.message}")
-                dead.add(id)
-            })
-        }
-        dead.forEach { sessions.remove(it) }
+    private fun broadcastFullState(roomId: String) {
+        broadcastBytes(roomId, currentStateBinary(roomId, true))
     }
 
-    private fun currentStateBinary(full: Boolean): ByteArray {
+    private fun currentStateBinary(
+        roomId: String,
+        full: Boolean,
+    ): ByteArray {
         val now = System.nanoTime()
-        val newState = buildGameStateDelta(now)
+        val newState = buildGameStateDelta(roomId, now)
+        val lastFullState = lastFullStateByRoom[roomId]
         val result =
             if (full || lastFullState == null) {
                 newState
             } else {
-                computeDelta(lastFullState!!, newState)
+                computeDelta(lastFullState, newState)
             }
-        lastFullState = newState
+        lastFullStateByRoom[roomId] = newState
         return result.toByteArray()
     }
 
-    private fun buildGameStateDelta(nowNs: Long): GameStateDelta = engine.toGameStateDelta(nowNs)
+    private fun buildGameStateDelta(
+        roomId: String,
+        nowNs: Long,
+    ): GameStateDelta =
+        if (mviEnabled && !roomsEnabled) {
+            mviEngine.toGameStateDelta()
+        } else {
+            engineFor(roomId).toGameStateDelta(nowNs)
+        }
 
     private fun computeDelta(
         prev: GameStateDelta,
