@@ -6,7 +6,7 @@ plugins {
     id("io.quarkus") version "3.35.2"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
-    id("com.diffplug.spotless") version "8.4.0"
+    id("com.diffplug.spotless") version "8.5.1"
 }
 
 group = "ru.rkhamatyarov"
