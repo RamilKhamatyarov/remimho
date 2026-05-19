@@ -4,7 +4,7 @@ plugins {
     kotlin("jvm") version "2.3.21"
     kotlin("plugin.allopen") version "2.3.21"
     kotlin("plugin.serialization") version "2.3.21"
-    id("io.quarkus") version "3.35.2"
+    id("io.quarkus") version "3.35.3"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.5.1"
