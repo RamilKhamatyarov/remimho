@@ -28,6 +28,25 @@ export interface WorkshopContentDTO {
   type: ContentType;
   data: unknown;
   metadata: Record<string, string>;
+  version?: number;
+  checksum?: string;
+}
+
+export interface CompileResponse {
+  ok: boolean;
+  config?: unknown;
+  version: number;
+  checksum?: string;
+  errors: string[];
+}
+
+export interface PreviewResponse {
+  ok: boolean;
+  checksum?: string;
+  collisionCount: number;
+  frameTimeMs: number;
+  memoryBytes: number;
+  errors: string[];
 }
 
 
@@ -117,6 +136,17 @@ export async function setAiOpponentConfig(
   return post('/ai-opponent-config', config);
 }
 
+export async function compileConfig(
+  source: string,
+  format: string,
+): Promise<Result<CompileResponse>> {
+  return post('/compile', { source, format });
+}
+
+export async function previewConfig(config: unknown): Promise<Result<PreviewResponse>> {
+  return post('/preview', config);
+}
+
 export function useWorkshopApi() {
-  return { publishContent, searchContent, setSpeedConfig, setAiOpponentConfig, ContentType };
+  return { publishContent, searchContent, setSpeedConfig, setAiOpponentConfig, compileConfig, previewConfig, ContentType };
 }

@@ -249,4 +249,33 @@ class WorkshopResourceTest {
             .statusCode(201)
             .body("type", equalTo("AI_OPPONENT_CONFIG"))
     }
+
+    @Test
+    fun `POST compile with YAML returns checksum`() {
+        given()
+            .contentType(ContentType.JSON)
+            .body("""{"format":"yaml","source":"name: Solo Rules\nspeed:\n  baseMultiplier: 1.2"}""")
+            .`when`()
+            .post("/api/v1/workshop/compile")
+            .then()
+            .statusCode(200)
+            .body("ok", equalTo(true))
+            .body("config.name", equalTo("Solo Rules"))
+    }
+
+    @Test
+    fun `POST preview dry run does not mutate live engine`() {
+        val beforeX = engine.puck.x
+
+        given()
+            .contentType(ContentType.JSON)
+            .body("""{"name":"Preview","version":1,"speed":{"baseMultiplier":1.0},"ai":{"enabled":true}}""")
+            .`when`()
+            .post("/api/v1/workshop/preview")
+            .then()
+            .statusCode(200)
+            .body("ok", equalTo(true))
+
+        assertEquals(beforeX, engine.puck.x, 0.001)
+    }
 }

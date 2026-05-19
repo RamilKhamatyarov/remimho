@@ -8,6 +8,34 @@
           <button class="ws-close" @click="emit('close')" aria-label="Close">✕</button>
         </header>
 
+        <!-- ── Config File Loader ─────────────────────────────────────────── -->
+        <section class="ws-section">
+          <h3 class="ws-section-title">Config File</h3>
+          <div class="file-row">
+            <button class="btn-load-config" @click="openConfigFile('json')">Load JSON</button>
+            <button class="btn-load-config" @click="openConfigFile('yaml')">Load YAML</button>
+            <button class="btn-load-config" @click="openConfigFile('toml')">Load TOML</button>
+            <input
+              ref="configFileInput"
+              class="file-input hidden-file-input"
+              type="file"
+              :accept="configAccept"
+              @change="onConfigFile"
+            />
+            <span v-once class="ws-hint">JSON, YAML, or TOML</span>
+          </div>
+          <div v-if="previewOverlay" class="preview-overlay" v-memo="[previewOverlay.version]">
+            <span class="pv-label">Checksum</span>
+            <span class="pv-val">{{ previewOverlay.checksum?.slice(0, 12) ?? 'pending' }}</span>
+            <span class="pv-label">Collisions</span>
+            <span class="pv-val">{{ previewOverlay.collisionCount }}</span>
+            <span class="pv-label">Frame time</span>
+            <span class="pv-val">{{ previewOverlay.frameTimeMs.toFixed(3) }}ms</span>
+            <span class="pv-label">Memory</span>
+            <span class="pv-val">{{ previewOverlay.memoryBytes }}B</span>
+          </div>
+        </section>
+
         <!-- ── Speed Mode ─────────────────────────────────────────────────── -->
         <section class="ws-section">
           <h3 class="ws-section-title">Speed Mode</h3>
@@ -154,9 +182,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, markRaw, shallowRef } from 'vue';
 import { useWorkshopApi, ContentType } from '../api/workshop';
-import type { AiOpponentConfig, SpeedConfig } from '../api/workshop';
+import type { AiOpponentConfig, PreviewResponse, SpeedConfig } from '../api/workshop';
 
 const props = defineProps<{ lineCount: number; gameLines: unknown[] }>();
 const emit  = defineEmits<{ close: [] }>();
@@ -260,6 +288,25 @@ const customAi      = reactive<AiOpponentConfig>({ enabled: true, reactionDelayM
 
 const statusMsg = ref('');
 const publishing = ref(false);
+const previewOverlay = shallowRef<(PreviewResponse & { version: number }) | null>(null);
+const configFileInput = ref<HTMLInputElement | null>(null);
+const requestedConfigFormat = ref<'json' | 'yaml' | 'toml'>('yaml');
+const worker = markRaw(new Worker(new URL('../workers/config-worker.ts', import.meta.url), { type: 'module' }));
+
+const configAccept = computed(() => {
+  if (requestedConfigFormat.value === 'json') return '.json,application/json';
+  if (requestedConfigFormat.value === 'toml') return '.toml';
+  return '.yaml,.yml';
+});
+
+worker.onmessage = (event: MessageEvent<{ ok: boolean; preview?: PreviewResponse; error?: string }>) => {
+  if (!event.data.ok || !event.data.preview) {
+    showStatus(`✗ ${event.data.error ?? 'Config preview failed'}`);
+    return;
+  }
+  previewOverlay.value = markRaw({ ...event.data.preview, version: Date.now() });
+  showStatus('✓ Preview sandbox passed');
+};
 
 // ── Computed config preview ───────────────────────────────────────────────────
 
@@ -292,6 +339,32 @@ const aiPreview = computed<AiOpponentConfig>(() => {
 function showStatus(msg: string, ms = 3000) {
   statusMsg.value = msg;
   setTimeout(() => { statusMsg.value = ''; }, ms);
+}
+
+function openConfigFile(format: 'json' | 'yaml' | 'toml'): void {
+  requestedConfigFormat.value = format;
+  if (configFileInput.value) {
+    configFileInput.value.value = '';
+    configFileInput.value.click();
+  }
+}
+
+function onConfigFile(e: Event): void {
+  const file = (e.target as HTMLInputElement).files?.[0];
+  if (!file) return;
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  const format = ext === 'json' || ext === 'toml' || ext === 'yaml' || ext === 'yml' ? ext : requestedConfigFormat.value;
+  file.text().then(source => {
+    requestIdle(() => {
+      worker.postMessage({ id: crypto.randomUUID(), source, format });
+      showStatus('Previewing config…', 1500);
+    });
+  }).catch(error => showStatus(`✗ ${error instanceof Error ? error.message : String(error)}`));
+}
+
+function requestIdle(callback: () => void): void {
+  const idle = window.requestIdleCallback ?? ((cb: IdleRequestCallback) => window.setTimeout(() => cb({ didTimeout: false, timeRemaining: () => 0 }), 0));
+  idle(() => callback());
 }
 
 async function onApply(): Promise<void> {
@@ -385,6 +458,45 @@ async function onPublish(): Promise<void> {
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.45);
   margin-top: 4px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.file-input {
+  color: rgba(255, 255, 255, 0.72);
+  font-family: monospace;
+  font-size: 0.78rem;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.btn-load-config {
+  border-color: #40c4ff;
+  padding: 7px 12px;
+  font-size: 0.78rem;
+}
+
+.btn-load-config:hover {
+  background: #40c4ff;
+  color: #000;
+}
+
+.preview-overlay {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(78, 204, 163, 0.28);
+  border-radius: 6px;
+  background: rgba(78, 204, 163, 0.06);
 }
 
 .ws-card-row {
