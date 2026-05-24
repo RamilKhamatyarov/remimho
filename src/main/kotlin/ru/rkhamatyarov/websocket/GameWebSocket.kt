@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -232,6 +233,10 @@ class GameWebSocket {
                 handleResume(connection)
             }
 
+            "PLAY_GHOST" -> {
+                handlePlayGhost(data, connection)
+            }
+
             else -> {
                 log.warn("Unknown command: $type")
                 sendError(connection, "Unknown command: $type")
@@ -312,6 +317,54 @@ class GameWebSocket {
             {},
             { t -> log.warnf(t, "Failed to send resume snapshot to %s", connection.id()) },
         )
+    }
+
+    private fun handlePlayGhost(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val startOffset = data["startOffset"]?.toString()?.toDoubleOrNull() ?: 0.0
+        val endOffset =
+            data["endOffset"]?.toString()?.toDoubleOrNull()
+                ?: StateHistory.MAX_RETENTION_SECONDS.toDouble()
+        if (startOffset < 0.0 ||
+            endOffset < startOffset ||
+            endOffset > StateHistory.MAX_RETENTION_SECONDS
+        ) {
+            sendError(
+                connection,
+                "PLAY_GHOST requires 0 <= startOffset <= endOffset <= ${StateHistory.MAX_RETENTION_SECONDS}",
+            )
+            return
+        }
+
+        val roomId = roomId(connection)
+        val ghostFrames = historyFor(roomId).exportRange(startOffset, endOffset)
+        if (ghostFrames.isEmpty()) {
+            sendError(connection, "No ghost data available for range ${startOffset}s..${endOffset}s")
+            return
+        }
+
+        timeshiftSessions.add(connection.id())
+        timeshiftDrafts.remove(connection.id())
+        applicationScope.launch {
+            try {
+                var previousTimestampNs: Long? = null
+                for ((timestampNs, bytes) in ghostFrames.asReversed()) {
+                    if (connection.isClosed) break
+                    previousTimestampNs?.let {
+                        delay(((timestampNs - it) / 1_000_000L).coerceAtLeast(0L))
+                    }
+                    connection.sendBinary(bytes).subscribe().with(
+                        {},
+                        { t -> log.warn("Failed to send ghost frame to ${connection.id()}: ${t.message}") },
+                    )
+                    previousTimestampNs = timestampNs
+                }
+            } finally {
+                timeshiftSessions.remove(connection.id())
+            }
+        }
     }
 
     private fun handleMovePaddle(

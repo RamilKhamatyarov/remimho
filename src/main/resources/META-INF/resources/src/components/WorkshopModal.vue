@@ -8,7 +8,6 @@
           <button class="ws-close" @click="emit('close')" aria-label="Close">✕</button>
         </header>
 
-        <!-- ── Config File Loader ─────────────────────────────────────────── -->
         <section class="ws-section">
           <h3 class="ws-section-title">Config File</h3>
           <div class="file-row">
@@ -36,7 +35,6 @@
           </div>
         </section>
 
-        <!-- ── Speed Mode ─────────────────────────────────────────────────── -->
         <section class="ws-section">
           <h3 class="ws-section-title">Speed Mode</h3>
           <div class="ws-card-row">
@@ -69,7 +67,6 @@
           </Transition>
         </section>
 
-        <!-- ── Difficulty Level ───────────────────────────────────────────── -->
         <section class="ws-section">
           <h3 class="ws-section-title">Difficulty Level</h3>
           <div class="ws-level-row">
@@ -90,7 +87,6 @@
           </div>
         </section>
 
-        <!-- ── AI Opponent ────────────────────────────────────────────────── -->
         <section class="ws-section">
           <h3 class="ws-section-title">AI Opponent</h3>
           <div class="ws-card-row">
@@ -129,7 +125,6 @@
           </Transition>
         </section>
 
-        <!-- ── Preview ────────────────────────────────────────────────────── -->
         <section class="ws-section ws-preview">
           <h3 class="ws-section-title">Config Preview</h3>
           <div class="preview-grid">
@@ -152,7 +147,6 @@
           </div>
         </section>
 
-        <!-- ── Publish ────────────────────────────────────────────────────── -->
         <section class="ws-section ws-publish-row">
           <div class="publish-info">
             <h3 class="ws-section-title">Publish Layout</h3>
@@ -191,8 +185,6 @@ const emit  = defineEmits<{ close: [] }>();
 
 const { setSpeedConfig, setAiOpponentConfig, publishContent } = useWorkshopApi();
 
-// ── Speed mode presets ────────────────────────────────────────────────────────
-
 interface SpeedMode {
   id: string;
   icon: string;
@@ -208,8 +200,6 @@ const SPEED_MODES: SpeedMode[] = [
   { id: 'turbo',  icon: '💥', name: 'Turbo',  base: 2.2, max: 5.0 },
   { id: 'custom', icon: '⚙',  name: 'Custom', base: 0,   max: 0   },
 ];
-
-// ── Difficulty level presets ──────────────────────────────────────────────────
 
 interface GameLevel {
   id: string;
@@ -228,8 +218,6 @@ const GAME_LEVELS: GameLevel[] = [
   { id: 'l5', num: 'V',   name: 'Insane',   tier: 5, timeRate: 0.20, lineRate: 0.05 },
 ];
 
-// ── AI opponent presets ──────────────────────────────────────────────────────
-
 interface AiPreset extends AiOpponentConfig {
   id: string;
   icon: string;
@@ -243,8 +231,6 @@ const AI_PRESETS: AiPreset[] = [
   { id: 'hard',     icon: 'III',name: 'Hard',    enabled: true,  reactionDelayMs: 80,  maxSpeed: 260, trackingError: 2,  reactZoneRatio: 0.85 },
   { id: 'custom',   icon: '⚙', name: 'Custom',   enabled: true,  reactionDelayMs: 180, maxSpeed: 180, trackingError: 10, reactZoneRatio: 0.7 },
 ];
-
-// ── Custom slider definitions ─────────────────────────────────────────────────
 
 interface SliderDef {
   key: keyof SpeedConfig;
@@ -278,8 +264,6 @@ const AI_SLIDERS: AiSliderDef[] = [
   { key: 'reactZoneRatio',  label: 'React Zone',     min: 0.35, max: 1,   step: 0.01, display: c => `${(c.reactZoneRatio * 100).toFixed(0)}%` },
 ];
 
-// ── State ─────────────────────────────────────────────────────────────────────
-
 const selectedMode  = ref<string>('normal');
 const selectedLevel = ref<string>('l3');
 const selectedAiPreset = ref<string>('normal');
@@ -308,8 +292,6 @@ worker.onmessage = (event: MessageEvent<{ ok: boolean; preview?: PreviewResponse
   showStatus('✓ Preview sandbox passed');
 };
 
-// ── Computed config preview ───────────────────────────────────────────────────
-
 const preview = computed<SpeedConfig>(() => {
   if (selectedMode.value === 'custom') return { ...customCfg };
   const mode  = SPEED_MODES.find(m => m.id === selectedMode.value)!;
@@ -333,8 +315,6 @@ const aiPreview = computed<AiOpponentConfig>(() => {
     reactZoneRatio: preset.reactZoneRatio,
   };
 });
-
-// ── Actions ───────────────────────────────────────────────────────────────────
 
 function showStatus(msg: string, ms = 3000) {
   statusMsg.value = msg;

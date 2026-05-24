@@ -4,8 +4,10 @@ import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.proto.GameStateDelta
 
 class StateHistoryTest {
     private lateinit var history: StateHistory
@@ -137,6 +139,72 @@ class StateHistoryTest {
     }
 
     @Test
+    fun `export import roundtrip preserves deltas`() {
+        val now = 10_000_000_000L
+        val older = deltaBytes(1.0)
+        val newer = deltaBytes(2.0)
+        history.add(older, now - 1_000_000_000L)
+        history.add(newer, now - 500_000_000L)
+
+        val exported = history.exportRange(0.0, 2.0, now)
+        val fresh = StateHistory()
+        fresh.importRange(exported)
+        val reimported = fresh.exportRange(0.0, 2.0, now)
+
+        assertEquals(2, exported.size)
+        assertEquals(now - 500_000_000L, exported[0].first)
+        assertEquals(2.0, GameStateDelta.parseFrom(reimported[0].second).puckX)
+    }
+
+    @Test
+    fun `exportRange returns empty when buffer is empty`() {
+        val exported = history.exportRange(0.0, 15.0, 10_000_000_000L)
+
+        assertTrue(exported.isEmpty())
+    }
+
+    @Test
+    fun `exportRange returns empty for invalid range`() {
+        history.add(deltaBytes(1.0), 9_000_000_000L)
+
+        val exported = history.exportRange(5.0, 1.0, 10_000_000_000L)
+
+        assertTrue(exported.isEmpty())
+    }
+
+    @Test
+    fun `importRange ignores malformed protobuf frames`() {
+        history.importRange(listOf(1_000_000_000L to byteArrayOf(1, 2, 3)))
+
+        assertEquals(0, history.size())
+    }
+
+    @Test
+    fun `importRange does not mutate source arrays`() {
+        val now = 10_000_000_000L
+        val bytes = deltaBytes(3.0)
+        history.importRange(listOf(now to bytes))
+
+        bytes[0] = 0
+        val exported = history.exportRange(0.0, 1.0, now)
+
+        assertEquals(3.0, GameStateDelta.parseFrom(exported[0].second).puckX)
+    }
+
+    @Test
+    fun `importRange does not exceed max capacity`() {
+        val now = 10_000_000_000L
+        val frames =
+            List(StateHistory.MAX_CAPACITY + 10) { i ->
+                now + i to deltaBytes(i.toDouble())
+            }
+
+        history.importRange(frames)
+
+        assertEquals(StateHistory.MAX_CAPACITY, history.size())
+    }
+
+    @Test
     fun `concurrent add and read do not throw`() {
         val writeThread =
             Thread {
@@ -160,4 +228,11 @@ class StateHistoryTest {
 
         assert(history.size() <= StateHistory.MAX_CAPACITY)
     }
+
+    private fun deltaBytes(puckX: Double): ByteArray =
+        GameStateDelta
+            .newBuilder()
+            .setPuckX(puckX)
+            .build()
+            .toByteArray()
 }

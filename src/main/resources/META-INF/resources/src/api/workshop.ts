@@ -95,13 +95,6 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<Re
     return err(e instanceof Error ? e.message : String(e));
   }
 }
-
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Publish a workshop content item.
- * Maps to: POST /api/v1/workshop/content
- */
 export async function publishContent(
   type: ContentType,
   data: unknown,
@@ -111,10 +104,6 @@ export async function publishContent(
   return post<WorkshopContentDTO>('/content', dto);
 }
 
-/**
- * Search published workshop content by type.
- * Maps to: GET /api/v1/workshop/content?type=LEVEL&query=foo
- */
 export async function searchContent(
   type: ContentType,
   query?: string,

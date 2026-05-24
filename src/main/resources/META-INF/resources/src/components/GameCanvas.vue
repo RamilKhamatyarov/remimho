@@ -1,333 +1,362 @@
 <template>
-  <!--
-    No :width/:height reactive props — the canvas sizes itself imperatively from
-    state.canvasWidth/Height inside draw(). Reactive props would clear the bitmap
-    on every re-render.
-
-    CSS max-width:100% is applied in App.vue so the canvas shrinks on narrow
-    viewports instead of overflowing.  All coordinate calculations use
-    getBoundingClientRect() to account for CSS scaling.
-  -->
   <canvas
     ref="canvasRef"
     :style="{ cursor: cursorStyle }"
     @mousemove="onMouseMove"
     @mousedown="onMouseDown"
-    @mouseup="onMouseUp"
-    @mouseleave="onMouseLeave"
+    @mouseup="finishDrawing"
+    @mouseleave="finishDrawing"
     @contextmenu.prevent="onContextMenu"
   />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
 const props = defineProps<{ timeshiftActive?: boolean; eraserMode?: boolean }>()
-const { send, eraseLine } = useGameSocket()
-const isDrawing = ref(false)
+const { eraseLine, send } = useGameSocket()
+
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const isDrawing = ref(false)
+
 const PADDLE_WIDTH = 20
-const ERASE_HIT_RADIUS = 12  // px in game space — distance threshold for hit-test
+const ERASE_HIT_RADIUS = 12
+const PUCK_LERP = 0.35
+const PUCK_SNAP_DISTANCE = 60
+const DEFAULT_PUCK_X = 400
+const DEFAULT_PUCK_Y = 300
+
+let smoothPuckX = DEFAULT_PUCK_X
+let smoothPuckY = DEFAULT_PUCK_Y
+let animationFrameId = 0
 
 const cursorStyle = computed(() => {
   if (props.eraserMode) return 'crosshair'
   return isDrawing.value ? 'crosshair' : 'none'
 })
 
-// ── Smooth puck interpolation ─────────────────────────────────────────────────
-// Lerp toward the server-reported position each RAF frame.
-// When drift > SNAP_THRESHOLD (goal reset / teleport), snap immediately.
-let smoothPuckX = 400
-let smoothPuckY = 300
-const LERP        = 0.35   // interpolation factor per frame (~60fps)
-const SNAP_THRESH = 60     // px: snap instead of lerp on large jumps
+onMounted(() => {
+  animationFrameId = requestAnimationFrame(renderLoop)
+})
 
-// ── RAF loop ──────────────────────────────────────────────────────────────────
+onUnmounted(() => {
+  cancelAnimationFrame(animationFrameId)
+})
 
-let rafId = 0
-function loop() {
+function renderLoop() {
   const state = gameStateRef.value
   if (state) {
-    const dx = state.puck.x - smoothPuckX
-    const dy = state.puck.y - smoothPuckY
-    if (Math.abs(dx) > SNAP_THRESH || Math.abs(dy) > SNAP_THRESH) {
-      // Puck teleported (goal reset) — snap to new position immediately
-      smoothPuckX = state.puck.x
-      smoothPuckY = state.puck.y
-    } else {
-      smoothPuckX += dx * LERP
-      smoothPuckY += dy * LERP
-    }
+    updateSmoothPuck(state)
     draw(state)
   }
-  rafId = requestAnimationFrame(loop)
+  animationFrameId = requestAnimationFrame(renderLoop)
 }
-onMounted(() => { rafId = requestAnimationFrame(loop) })
-onUnmounted(() => { cancelAnimationFrame(rafId) })
 
-// ── Drawing ───────────────────────────────────────────────────────────────────
+function updateSmoothPuck(state: GameState) {
+  const dx = state.puck.x - smoothPuckX
+  const dy = state.puck.y - smoothPuckY
+  if (Math.abs(dx) > PUCK_SNAP_DISTANCE || Math.abs(dy) > PUCK_SNAP_DISTANCE) {
+    smoothPuckX = state.puck.x
+    smoothPuckY = state.puck.y
+    return
+  }
+
+  smoothPuckX += dx * PUCK_LERP
+  smoothPuckY += dy * PUCK_LERP
+}
 
 function draw(state: GameState) {
   const canvas = canvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx || !state.puck || typeof state.canvasWidth !== 'number') return
+  const ctx = canvas?.getContext('2d')
+  if (!canvas || !ctx || !state.puck || typeof state.canvasWidth !== 'number') return
 
-  // Size the canvas pixel buffer from server dimensions.
-  // Only reassign when they actually differ — assigning the same value still
-  // clears the bitmap.
-  if (canvas.width !== state.canvasWidth || canvas.height !== state.canvasHeight) {
-    canvas.width  = state.canvasWidth
-    canvas.height = state.canvasHeight
+  resizeCanvasToGameState(canvas, state)
+
+  const scale = getPixelScale(canvas, state)
+  drawBackground(ctx, canvas)
+  drawCenterLine(ctx, canvas)
+  drawBarrierLines(ctx, state.lines, scale)
+  drawPowerUps(ctx, state, scale)
+  drawPaddles(ctx, state, canvas, scale)
+  drawPuck(ctx, state, scale)
+  drawScore(ctx, state, canvas, scale)
+  drawActivePowerUpEffects(ctx, state, canvas, scale)
+  drawHint(ctx, state, canvas, scale)
+  drawPauseOverlay(ctx, state, canvas, scale)
+}
+
+function resizeCanvasToGameState(canvas: HTMLCanvasElement, state: GameState) {
+  if (canvas.width === state.canvasWidth && canvas.height === state.canvasHeight) return
+  canvas.width = state.canvasWidth
+  canvas.height = state.canvasHeight
+}
+
+function getPixelScale(canvas: HTMLCanvasElement, state: GameState): Point {
+  return {
+    x: canvas.width / state.canvasWidth,
+    y: canvas.height / state.canvasHeight,
   }
+}
 
-  const W  = canvas.width
-  const H  = canvas.height
-  // sx/sy are always 1.0 because canvas pixel dims = game dims.
-  // Kept as variables so the drawing code is explicit.
-  const sx = W / state.canvasWidth
-  const sy = H / state.canvasHeight
-
-  // ── Background ──────────────────────────────────────────────────────────────
+function drawBackground(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
   ctx.fillStyle = '#1a1a2e'
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+}
 
-  // ── Centre line ─────────────────────────────────────────────────────────────
+function drawCenterLine(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) {
   ctx.save()
   ctx.setLineDash([10, 10])
   ctx.strokeStyle = 'rgba(255,255,255,0.2)'
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H)
+  ctx.moveTo(canvas.width / 2, 0)
+  ctx.lineTo(canvas.width / 2, canvas.height)
   ctx.stroke()
   ctx.restore()
+}
 
-  // ── Barrier lines ───────────────────────────────────────────────────────────
-  if (state.lines && state.lines.length > 0) {
+function drawBarrierLines(ctx: CanvasRenderingContext2D, lines: Line[], scale: Point) {
+  if (!lines.length) return
+
+  ctx.save()
+  ctx.strokeStyle = '#f0a500'
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+
+  for (const line of lines) {
+    const points = drawableLinePoints(line)
+    if (points.length < 2) continue
+
+    ctx.lineWidth = (line.width ?? 5) * Math.min(scale.x, scale.y)
+    ctx.beginPath()
+    ctx.moveTo(points[0].x * scale.x, points[0].y * scale.y)
+    for (let index = 1; index < points.length; index++) {
+      ctx.lineTo(points[index].x * scale.x, points[index].y * scale.y)
+    }
+    ctx.stroke()
+  }
+
+  ctx.restore()
+}
+
+function drawPowerUps(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {
+  if (!state.powerUps.length) return
+
+  const time = performance.now() / 600
+  for (const powerUp of state.powerUps) {
+    const radius = powerUp.radius * Math.min(scale.x, scale.y) * (1 + 0.12 * Math.sin(time + powerUp.x))
+    const x = powerUp.x * scale.x
+    const y = powerUp.y * scale.y
+
     ctx.save()
-    ctx.strokeStyle = '#f0a500'
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    for (const line of state.lines) {
-      const pts: Point[] = (line.flattenedPoints && line.flattenedPoints.length > 1)
-        ? line.flattenedPoints : line.controlPoints
-      if (pts.length < 2) continue
-      ctx.lineWidth = (line.width ?? 5) * Math.min(sx, sy)
-      ctx.beginPath()
-      ctx.moveTo(pts[0].x * sx, pts[0].y * sy)
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x * sx, pts[i].y * sy)
-      ctx.stroke()
-    }
+    ctx.shadowBlur = 18
+    ctx.shadowColor = powerUp.color
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fillStyle = `${powerUp.color}44`
+    ctx.fill()
+    ctx.strokeStyle = powerUp.color
+    ctx.lineWidth = 2 * Math.min(scale.x, scale.y)
+    ctx.stroke()
     ctx.restore()
-  }
 
-  // ── Power-up pickups ─────────────────────────────────────────────────────────
-  if (state.powerUps && state.powerUps.length > 0) {
-    const t = performance.now() / 600
-    for (const pu of state.powerUps) {
-      const pulse = 1 + 0.12 * Math.sin(t + pu.x)
-      const r     = pu.radius * Math.min(sx, sy) * pulse
-      const cx    = pu.x * sx
-      const cy    = pu.y * sy
-      ctx.save()
-      ctx.shadowBlur  = 18
-      ctx.shadowColor = pu.color
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2)
-      ctx.fillStyle = pu.color + '44'; ctx.fill()
-      ctx.strokeStyle = pu.color; ctx.lineWidth = 2 * Math.min(sx, sy); ctx.stroke()
-      ctx.restore()
-      ctx.font = `${Math.round(r * 1.3)}px serif`
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-      ctx.fillText(pu.emoji, cx, cy)
-      ctx.textBaseline = 'alphabetic'
-    }
-  }
-
-  ctx.fillStyle = '#e94560'
-  ctx.fillRect(0, state.paddle1Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
-  ctx.fillStyle = '#4ecca3'
-  ctx.fillRect(W - PADDLE_WIDTH * sx, state.paddle2Y * sy, PADDLE_WIDTH * sx, state.paddleHeight * sy)
-
-  ctx.beginPath()
-  ctx.arc(
-    smoothPuckX * sx,
-    smoothPuckY * sy,
-    state.puck.radius * Math.min(sx, sy),
-    0, Math.PI * 2,
-  )
-  ctx.fillStyle = '#ffffff'
-  ctx.fill()
-
-  // ── Score ────────────────────────────────────────────────────────────────────
-  ctx.font = `bold ${Math.round(32 * sx)}px monospace`
-  ctx.fillStyle = 'rgba(255,255,255,0.7)'
-  ctx.textAlign = 'center'
-  ctx.fillText(String(state.score.playerA), W * 0.25, 50 * sy)
-  ctx.fillText(String(state.score.playerB), W * 0.75, 50 * sy)
-
-  // ── Active power-up effect badges ────────────────────────────────────────────
-  if (state.activePowerUpEffects && state.activePowerUpEffects.length > 0) {
-    const badgeW = 54 * sx
-    const badgeH = 28 * sy
-    const pad    = 6  * sx
-    let bx = W / 2 - (state.activePowerUpEffects.length * (badgeW + pad)) / 2
-    for (const eff of state.activePowerUpEffects) {
-      const secs = (eff.remainingMs / 1000).toFixed(1)
-      ctx.fillStyle = 'rgba(0,0,0,0.55)'
-      ctx.beginPath(); ctx.roundRect(bx, H - badgeH - 8 * sy, badgeW, badgeH, 6); ctx.fill()
-      ctx.font = `${Math.round(14 * sx)}px serif`; ctx.textAlign = 'center'
-      ctx.fillText(eff.emoji, bx + badgeW * 0.3, H - badgeH / 2 - 8 * sy + 5 * sy)
-      ctx.font = `${Math.round(10 * sx)}px monospace`; ctx.fillStyle = '#fff'
-      ctx.fillText(secs + 's', bx + badgeW * 0.7, H - badgeH / 2 - 8 * sy + 5 * sy)
-      bx += badgeW + pad
-    }
-  }
-
-  // ── Drawing hint ─────────────────────────────────────────────────────────────
-  if (!isDrawing.value && (!state.activePowerUpEffects || state.activePowerUpEffects.length === 0)) {
-    ctx.font = `${Math.round(11 * sx)}px monospace`
-    ctx.fillStyle = 'rgba(255,255,255,0.25)'
+    ctx.font = `${Math.round(radius * 1.3)}px serif`
     ctx.textAlign = 'center'
-    ctx.fillText('Hold & drag to draw a barrier line', W / 2, H - 8)
-  }
-
-  // ── Pause overlay ─────────────────────────────────────────────────────────────
-  if (state.paused) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)'
-    ctx.fillRect(0, 0, W, H)
-    ctx.fillStyle = '#ffffff'
-    ctx.font = `bold ${Math.round(48 * sx)}px monospace`
-    ctx.textAlign = 'center'
-    ctx.fillText('PAUSED', W / 2, H / 2)
+    ctx.textBaseline = 'middle'
+    ctx.fillText(powerUp.emoji, x, y)
+    ctx.textBaseline = 'alphabetic'
   }
 }
 
-// ── Coordinate helpers ────────────────────────────────────────────────────────
-//
-// CRITICAL: use getBoundingClientRect().width/.height (CSS-rendered dimensions)
-// NOT canvas.width/canvas.height (pixel-buffer dimensions).
-//
-// When CSS scales the canvas (max-width:100% makes it narrower than 800px),
-// canvas.width stays 800 but r.width shrinks. Using canvas.width for scaling
-// would map mouse coordinates incorrectly, causing the paddle to jump to the
-// wrong position and effectively making it uncontrollable.
+function drawPaddles(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  ctx.fillStyle = '#e94560'
+  ctx.fillRect(0, state.paddle1Y * scale.y, PADDLE_WIDTH * scale.x, state.paddleHeight * scale.y)
+  ctx.fillStyle = '#4ecca3'
+  ctx.fillRect(canvas.width - PADDLE_WIDTH * scale.x, state.paddle2Y * scale.y, PADDLE_WIDTH * scale.x, state.paddleHeight * scale.y)
+}
 
-function getCanvasScale(): { sx: number; sy: number; rect: DOMRect } | null {
+function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {
+  ctx.beginPath()
+  ctx.arc(
+    smoothPuckX * scale.x,
+    smoothPuckY * scale.y,
+    state.puck.radius * Math.min(scale.x, scale.y),
+    0,
+    Math.PI * 2,
+  )
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+}
+
+function drawScore(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  ctx.font = `bold ${Math.round(32 * scale.x)}px monospace`
+  ctx.fillStyle = 'rgba(255,255,255,0.7)'
+  ctx.textAlign = 'center'
+  ctx.fillText(String(state.score.playerA), canvas.width * 0.25, 50 * scale.y)
+  ctx.fillText(String(state.score.playerB), canvas.width * 0.75, 50 * scale.y)
+}
+
+function drawActivePowerUpEffects(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  if (!state.activePowerUpEffects.length) return
+
+  const badgeWidth = 54 * scale.x
+  const badgeHeight = 28 * scale.y
+  const badgeGap = 6 * scale.x
+  let x = canvas.width / 2 - (state.activePowerUpEffects.length * (badgeWidth + badgeGap)) / 2
+
+  for (const effect of state.activePowerUpEffects) {
+    const y = canvas.height - badgeHeight - 8 * scale.y
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'
+    ctx.beginPath()
+    ctx.roundRect(x, y, badgeWidth, badgeHeight, 6)
+    ctx.fill()
+    ctx.font = `${Math.round(14 * scale.x)}px serif`
+    ctx.textAlign = 'center'
+    ctx.fillText(effect.emoji, x + badgeWidth * 0.3, y + badgeHeight / 2 + 5 * scale.y)
+    ctx.font = `${Math.round(10 * scale.x)}px monospace`
+    ctx.fillStyle = '#fff'
+    ctx.fillText(`${(effect.remainingMs / 1000).toFixed(1)}s`, x + badgeWidth * 0.7, y + badgeHeight / 2 + 5 * scale.y)
+    x += badgeWidth + badgeGap
+  }
+}
+
+function drawHint(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  if (isDrawing.value || state.activePowerUpEffects.length > 0) return
+  ctx.font = `${Math.round(11 * scale.x)}px monospace`
+  ctx.fillStyle = 'rgba(255,255,255,0.25)'
+  ctx.textAlign = 'center'
+  ctx.fillText('Hold & drag to draw a barrier line', canvas.width / 2, canvas.height - 8)
+}
+
+function drawPauseOverlay(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  if (!state.paused) return
+  ctx.fillStyle = 'rgba(0,0,0,0.55)'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `bold ${Math.round(48 * scale.x)}px monospace`
+  ctx.textAlign = 'center'
+  ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2)
+}
+
+function getCanvasCoordinateSpace(): { scale: Point; rect: DOMRect } | null {
   const canvas = canvasRef.value
-  const state  = gameStateRef.value
+  const state = gameStateRef.value
   if (!canvas || !state) return null
+
   const rect = canvas.getBoundingClientRect()
   if (rect.width === 0 || rect.height === 0) return null
+
   return {
-    sx: state.canvasWidth  / rect.width,
-    sy: state.canvasHeight / rect.height,
+    scale: {
+      x: state.canvasWidth / rect.width,
+      y: state.canvasHeight / rect.height,
+    },
     rect,
   }
 }
 
-function toGamePt(e: MouseEvent): Point | null {
-  const sc = getCanvasScale()
-  if (!sc) return null
+function eventToGamePoint(event: MouseEvent): Point | null {
+  const coordinateSpace = getCanvasCoordinateSpace()
+  if (!coordinateSpace) return null
+
   return {
-    x: (e.clientX - sc.rect.left) * sc.sx,
-    y: (e.clientY - sc.rect.top)  * sc.sy,
+    x: (event.clientX - coordinateSpace.rect.left) * coordinateSpace.scale.x,
+    y: (event.clientY - coordinateSpace.rect.top) * coordinateSpace.scale.y,
   }
 }
 
-// ── Event handlers ────────────────────────────────────────────────────────────
+function onMouseMove(event: MouseEvent) {
+  const point = eventToGamePoint(event)
+  if (!point) return
 
-function onMouseMove(e: MouseEvent) {
-  const sc = getCanvasScale()
-  if (!sc) return
-  // Send the mouse y in game space to move the right paddle
-  const gameY = (e.clientY - sc.rect.top) * sc.sy
-  if (!props.timeshiftActive) emit('paddleMove', gameY)
-  // If drawing, send line point
-  if (isDrawing.value) {
-    const pt = toGamePt(e)
-    if (pt) send('UPDATE_LINE', { x: pt.x, y: pt.y })
-  }
+  if (!props.timeshiftActive) emit('paddleMove', point.y)
+  if (isDrawing.value) sendLinePoint('UPDATE_LINE', point)
 }
 
-function onMouseDown(e: MouseEvent) {
-  if (e.button !== 0) return
-  const pt = toGamePt(e)
-  if (!pt) return
+function onMouseDown(event: MouseEvent) {
+  if (event.button !== 0) return
+
+  const point = eventToGamePoint(event)
+  if (!point) return
+
   if (props.eraserMode) {
-    eraseLineAt(pt)
+    eraseLineAt(point)
     return
   }
+
   isDrawing.value = true
-  send('START_LINE', { x: pt.x, y: pt.y })
+  sendLinePoint('START_LINE', point)
 }
 
-function onMouseUp() {
+function finishDrawing() {
   if (!isDrawing.value) return
   isDrawing.value = false
   send('FINISH_LINE')
 }
 
-function onMouseLeave() {
-  if (!isDrawing.value) return
-  isDrawing.value = false
-  send('FINISH_LINE')
+function onContextMenu(event: MouseEvent) {
+  const point = eventToGamePoint(event)
+  if (!point) return
+
+  finishDrawing()
+  eraseLineAt(point)
 }
 
-// Right-click always erases regardless of mode.
-function onContextMenu(e: MouseEvent) {
-  const pt = toGamePt(e)
-  if (!pt) return
-  // If a draw was in progress (rare with right-click but possible), abort it.
-  if (isDrawing.value) {
-    isDrawing.value = false
-    send('FINISH_LINE')
-  }
-  eraseLineAt(pt)
+function sendLinePoint(type: 'START_LINE' | 'UPDATE_LINE', point: Point) {
+  send(type, { x: point.x, y: point.y })
 }
 
-// ── Hit test: find the closest line segment to a click point ──────────────────
-//
-// Returns the id of the nearest line whose closest segment is within
-// ERASE_HIT_RADIUS, or null if no line is close enough.
-
-function eraseLineAt(pt: Point): void {
+function eraseLineAt(point: Point) {
   const state = gameStateRef.value
-  if (!state || !state.lines) return
-  const id = nearestLineId(pt, state.lines)
-  if (id) eraseLine(id)
+  if (!state) return
+
+  const lineId = nearestLineId(point, state.lines)
+  if (lineId) eraseLine(lineId)
 }
 
-function nearestLineId(pt: Point, lines: Line[]): string | null {
-  let bestId: string | null = null
-  let bestDist = ERASE_HIT_RADIUS
+function nearestLineId(point: Point, lines: Line[]): string | null {
+  let nearestId: string | null = null
+  let nearestDistance = ERASE_HIT_RADIUS
+
   for (const line of lines) {
-    const pts = (line.flattenedPoints && line.flattenedPoints.length > 1)
-      ? line.flattenedPoints : line.controlPoints
-    if (!pts || pts.length === 0) continue
-    if (pts.length === 1) {
-      const d = Math.hypot(pts[0].x - pt.x, pts[0].y - pt.y)
-      if (d < bestDist) { bestDist = d; bestId = line.id }
-      continue
-    }
-    for (let i = 0; i < pts.length - 1; i++) {
-      const d = pointToSegmentDistance(pt, pts[i], pts[i + 1])
-      if (d < bestDist) { bestDist = d; bestId = line.id }
+    const points = drawableLinePoints(line)
+    const distance = nearestDistanceToLine(point, points)
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestId = line.id
     }
   }
-  return bestId
+
+  return nearestId
 }
 
-function pointToSegmentDistance(p: Point, a: Point, b: Point): number {
-  const dx = b.x - a.x
-  const dy = b.y - a.y
-  const lenSq = dx * dx + dy * dy
-  if (lenSq < 1e-9) return Math.hypot(p.x - a.x, p.y - a.y)
-  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq))
-  const cx = a.x + t * dx
-  const cy = a.y + t * dy
-  return Math.hypot(p.x - cx, p.y - cy)
+function nearestDistanceToLine(point: Point, points: Point[]): number {
+  if (points.length === 0) return Number.POSITIVE_INFINITY
+  if (points.length === 1) return Math.hypot(points[0].x - point.x, points[0].y - point.y)
+
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (let index = 0; index < points.length - 1; index++) {
+    nearestDistance = Math.min(nearestDistance, pointToSegmentDistance(point, points[index], points[index + 1]))
+  }
+  return nearestDistance
+}
+
+function drawableLinePoints(line: Line): Point[] {
+  return line.flattenedPoints && line.flattenedPoints.length > 1 ? line.flattenedPoints : line.controlPoints
+}
+
+function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  const lengthSquared = dx * dx + dy * dy
+  if (lengthSquared < 1e-9) return Math.hypot(point.x - start.x, point.y - start.y)
+
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared))
+  const closestX = start.x + t * dx
+  const closestY = start.y + t * dy
+  return Math.hypot(point.x - closestX, point.y - closestY)
 }
 </script>

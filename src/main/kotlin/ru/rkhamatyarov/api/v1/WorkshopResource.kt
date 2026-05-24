@@ -162,30 +162,7 @@ class WorkshopResource {
     @POST
     @Path("/speed-config")
     fun applySpeedConfig(config: SpeedConfig): Response {
-        if (config.baseMultiplier !in 0.1..5.0) {
-            return Response
-                .status(Response.Status.BAD_REQUEST)
-                .entity(mapOf("error" to "baseMultiplier must be between 0.1 and 5.0"))
-                .build()
-        }
-        if (config.timeAccelerationRate !in 0.0..1.0) {
-            return Response
-                .status(Response.Status.BAD_REQUEST)
-                .entity(mapOf("error" to "timeAccelerationRate must be between 0.0 and 1.0"))
-                .build()
-        }
-        if (config.levelAccelerationPerLine !in 0.0..0.5) {
-            return Response
-                .status(Response.Status.BAD_REQUEST)
-                .entity(mapOf("error" to "levelAccelerationPerLine must be between 0.0 and 0.5"))
-                .build()
-        }
-        if (config.maxMultiplier !in 1.0..10.0) {
-            return Response
-                .status(Response.Status.BAD_REQUEST)
-                .entity(mapOf("error" to "maxMultiplier must be between 1.0 and 10.0"))
-                .build()
-        }
+        validateSpeedConfig(config)?.let { return it }
         engine.speedConfig = config
         return Response
             .ok(
@@ -218,28 +195,32 @@ class WorkshopResource {
 
         fun validateAiOpponentConfig(config: AiOpponentConfig): Response? {
             if (config.reactionDelayMs !in 0..1500) {
-                return Response
-                    .status(Response.Status.BAD_REQUEST)
-                    .entity(mapOf("error" to "reactionDelayMs must be between 0 and 1500"))
-                    .build()
+                return badRequest("reactionDelayMs must be between 0 and 1500")
             }
             if (config.maxSpeed !in 40.0..600.0) {
-                return Response
-                    .status(Response.Status.BAD_REQUEST)
-                    .entity(mapOf("error" to "maxSpeed must be between 40.0 and 600.0"))
-                    .build()
+                return badRequest("maxSpeed must be between 40.0 and 600.0")
             }
             if (config.trackingError !in -80.0..80.0) {
-                return Response
-                    .status(Response.Status.BAD_REQUEST)
-                    .entity(mapOf("error" to "trackingError must be between -80.0 and 80.0"))
-                    .build()
+                return badRequest("trackingError must be between -80.0 and 80.0")
             }
             if (config.reactZoneRatio !in 0.25..1.0) {
-                return Response
-                    .status(Response.Status.BAD_REQUEST)
-                    .entity(mapOf("error" to "reactZoneRatio must be between 0.25 and 1.0"))
-                    .build()
+                return badRequest("reactZoneRatio must be between 0.25 and 1.0")
+            }
+            return null
+        }
+
+        fun validateSpeedConfig(config: SpeedConfig): Response? {
+            if (config.baseMultiplier !in 0.1..5.0) {
+                return badRequest("baseMultiplier must be between 0.1 and 5.0")
+            }
+            if (config.timeAccelerationRate !in 0.0..1.0) {
+                return badRequest("timeAccelerationRate must be between 0.0 and 1.0")
+            }
+            if (config.levelAccelerationPerLine !in 0.0..0.5) {
+                return badRequest("levelAccelerationPerLine must be between 0.0 and 0.5")
+            }
+            if (config.maxMultiplier !in 1.0..10.0) {
+                return badRequest("maxMultiplier must be between 1.0 and 10.0")
             }
             return null
         }
@@ -256,5 +237,11 @@ class WorkshopResource {
                         "reactZoneRatio" to config.reactZoneRatio,
                     ),
                 ).build()
+
+        private fun badRequest(message: String): Response =
+            Response
+                .status(Response.Status.BAD_REQUEST)
+                .entity(mapOf("error" to message))
+                .build()
     }
 }

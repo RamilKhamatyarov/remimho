@@ -9,14 +9,9 @@
     </header>
 
     <main>
-      <!--
-        Move the mouse over the dark canvas to control the right (green) paddle.
-        Hold left-click and drag to draw a barrier line.
-      -->
       <GameCanvas :timeshift-active="isRewinding" :eraser-mode="eraserMode" @paddle-move="movePaddleIfLive" />
     </main>
 
-    <!-- ── Timeshift slider ───────────────────────────────────────────────── -->
     <div class="timeshift-bar" :class="{ rewinding: isRewinding }">
       <div class="ts-meta">
         <span class="ts-badge" :class="{ rewinding: isRewinding }">
@@ -96,8 +91,6 @@ function joinRoom(nextRoomId: string): void {
   setSocketRoom(nextRoomId);
   goLive();
 }
-
-// ── Timeshift state ──────────────────────────────────────────────────────────
 
 const sliderOffset = ref(0);
 const isRewinding  = ref(false);
@@ -228,7 +221,6 @@ const workshopOpen = ref(false);
 </script>
 
 <style>
-/* ── Reset ─────────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
@@ -242,7 +234,6 @@ body {
   padding: 16px 8px;
 }
 
-/* ── App shell ─────────────────────────────────────────────────────────────── */
 .app {
   display: flex;
   flex-direction: column;
@@ -260,15 +251,14 @@ h1 { font-size: 1.5rem; letter-spacing: 2px; }
 
 canvas {
   display: block;
-  max-width: 100%;        /* ← prevents viewport overflow */
-  height: auto;           /* ← maintains aspect ratio when width shrinks */
+  max-width: 100%;
+  height: auto;
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 4px;
   cursor: none;
-  touch-action: none;     /* ← prevents scroll on touch devices */
+  touch-action: none;
 }
 
-/* ── Buttons ───────────────────────────────────────────────────────────────── */
 button {
   background: #0f3460;
   color: #fff;
@@ -303,7 +293,6 @@ footer {
 .workshop-msg { font-size: 0.85rem; color: #4ecca3; }
 .hotkeys { font-size: 0.72rem; color: rgba(255,255,255,0.38); }
 
-/* ── Timeshift bar ─────────────────────────────────────────────────────────── */
 .timeshift-bar {
   width: 100%;
   display: flex;
