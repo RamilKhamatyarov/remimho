@@ -7,17 +7,6 @@
 </head>
 <body>
 <div id="app"></div>
-<!--
-  DEV:  npm run dev  →  open http://localhost:5173
-        Vite serves this file, transforms /src/main.ts on the fly (TypeScript + HMR).
-
-  PROD: npm run build  →  Vite rewrites this <script> to the hashed bundle path.
-        ./gradlew build  →  Quinoa embeds dist/ into the JAR.
-        Open http://localhost:8080
-
-  NEVER hardcode /assets/index-XXXXX.js here — that breaks the dev server because
-  Vite then serves the stale production bundle instead of the live source files.
--->
 <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

@@ -6,7 +6,9 @@ import jakarta.ws.rs.DELETE
 import jakarta.ws.rs.GET
 import jakarta.ws.rs.POST
 import jakarta.ws.rs.Path
+import jakarta.ws.rs.PathParam
 import jakarta.ws.rs.Produces
+import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.eclipse.microprofile.config.inject.ConfigProperty
@@ -17,7 +19,9 @@ import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
+import java.util.Base64
 
 @Path("/api/v1/game")
 @Produces(MediaType.APPLICATION_JSON)
@@ -26,6 +30,8 @@ class GameResource {
     @Inject lateinit var engine: GameEngine
 
     @Inject lateinit var history: StateHistory
+
+    @Inject lateinit var roomRegistry: RoomRegistry
 
     @ConfigProperty(name = "remimho.client.interpolation-enabled", defaultValue = "false")
     var clientInterpolationEnabled: Boolean = false
@@ -169,4 +175,50 @@ class GameResource {
                 .entity(mapOf("error" to "Invalid power-up type: ${request.type}"))
                 .build()
         }
+
+    @GET
+    @Path("/ghost/{roomId}")
+    fun exportGhost(
+        @PathParam("roomId") roomId: String,
+        @QueryParam("start") startOffset: Double?,
+        @QueryParam("end") endOffset: Double?,
+    ): Response {
+        if (!roomsEnabled) {
+            return Response
+                .status(Response.Status.BAD_REQUEST)
+                .entity(mapOf("error" to "rooms must be enabled"))
+                .build()
+        }
+
+        val start = startOffset ?: 0.0
+        val end = endOffset ?: StateHistory.MAX_RETENTION_SECONDS.toDouble()
+        if (start < 0.0 || end < start || end > StateHistory.MAX_RETENTION_SECONDS) {
+            return Response
+                .status(Response.Status.BAD_REQUEST)
+                .entity(mapOf("error" to "Range must satisfy 0 <= start <= end <= ${StateHistory.MAX_RETENTION_SECONDS}"))
+                .build()
+        }
+
+        val frames =
+            roomRegistry
+                .get(roomId)
+                .history
+                .exportRange(start, end)
+                .map { (timestampNs, bytes) ->
+                    mapOf(
+                        "timestampNs" to timestampNs,
+                        "delta" to Base64.getEncoder().encodeToString(bytes),
+                    )
+                }
+
+        return Response
+            .ok(
+                mapOf(
+                    "roomId" to roomId,
+                    "startOffset" to start,
+                    "endOffset" to end,
+                    "frames" to frames,
+                ),
+            ).build()
+    }
 }

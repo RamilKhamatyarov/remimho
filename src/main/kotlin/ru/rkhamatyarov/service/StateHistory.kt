@@ -2,6 +2,7 @@ package ru.rkhamatyarov.service
 
 import jakarta.enterprise.context.ApplicationScoped
 import org.jboss.logging.Logger
+import ru.rkhamatyarov.proto.GameStateDelta
 
 @ApplicationScoped
 class StateHistory {
@@ -83,6 +84,50 @@ class StateHistory {
             buffer.clear()
             timestamps.clear()
         }
+
+    fun exportRange(
+        startOffsetSeconds: Double,
+        endOffsetSeconds: Double,
+        referenceNs: Long = System.nanoTime(),
+    ): List<Pair<Long, ByteArray>> {
+        if (startOffsetSeconds < 0.0 ||
+            endOffsetSeconds < startOffsetSeconds ||
+            endOffsetSeconds > MAX_RETENTION_SECONDS
+        ) {
+            return emptyList()
+        }
+
+        val newestNs = referenceNs - (startOffsetSeconds * NANOSECONDS_PER_SECOND).toLong()
+        val oldestNs = referenceNs - (endOffsetSeconds * NANOSECONDS_PER_SECOND).toLong()
+
+        return synchronized(lock) {
+            timestamps
+                .indices
+                .asSequence()
+                .filter { timestamps[it] in oldestNs..newestNs }
+                .map { timestamps[it] to buffer[it].copyOf() }
+                .sortedByDescending { it.first }
+                .toList()
+        }
+    }
+
+    fun importRange(frames: List<Pair<Long, ByteArray>>) =
+        synchronized(lock) {
+            frames
+                .asSequence()
+                .filter { (_, bytes) -> bytes.isValidGameStateDelta() }
+                .sortedBy { it.first }
+                .forEach { (timestampNs, bytes) ->
+                    if (buffer.size >= MAX_CAPACITY) {
+                        buffer.removeFirst()
+                        timestamps.removeFirst()
+                    }
+                    buffer.addLast(bytes.copyOf())
+                    timestamps.addLast(timestampNs)
+                }
+        }
+
+    private fun ByteArray.isValidGameStateDelta(): Boolean = runCatching { GameStateDelta.parseFrom(this) }.isSuccess
 
     companion object {
         const val MAX_CAPACITY: Int = 900
