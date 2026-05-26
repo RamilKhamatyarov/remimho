@@ -13,6 +13,8 @@ plugins {
 group = "ru.rkhamatyarov"
 version = "1.0.0"
 
+val protobufVersion = "4.35.0"
+
 repositories {
     mavenCentral()
 }
@@ -37,8 +39,8 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
-    implementation("com.google.protobuf:protobuf-java")
-    implementation("com.google.protobuf:protobuf-kotlin")
+    implementation("com.google.protobuf:protobuf-java:$protobufVersion")
+    implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
 
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
@@ -69,7 +71,7 @@ allOpen {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:4.35.0"
+        artifact = "com.google.protobuf:protoc:$protobufVersion"
     }
     generateProtoTasks {
         all().forEach { task ->
@@ -79,6 +81,13 @@ protobuf {
             }
         }
     }
+}
+
+configurations.configureEach {
+    resolutionStrategy.force(
+        "com.google.protobuf:protobuf-java:$protobufVersion",
+        "com.google.protobuf:protobuf-kotlin:$protobufVersion",
+    )
 }
 
 ktlint {
