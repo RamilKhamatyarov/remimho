@@ -34,7 +34,7 @@ dependencies {
     implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-logging-json")
 
-    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.1")
+    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.2")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
