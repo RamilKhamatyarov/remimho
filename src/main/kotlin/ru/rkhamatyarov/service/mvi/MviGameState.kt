@@ -2,6 +2,7 @@ package ru.rkhamatyarov.service.mvi
 
 import ru.rkhamatyarov.proto.GameStateDelta
 import kotlin.math.abs
+import kotlin.math.hypot
 
 data class MviPuck(
     val x: Double = 400.0,
@@ -37,6 +38,7 @@ data class MviGameState(
     val canvasHeight: Double = 600.0,
     val paddleHeight: Double = 100.0,
     val lines: List<MviLine> = emptyList(),
+    val teleports: Map<String, String> = emptyMap(),
 ) {
     fun toDelta(): GameStateDelta =
         GameStateDelta
@@ -54,6 +56,33 @@ data class MviGameState(
             .addAllLines(lines.map { it.toProto() })
             .build()
 }
+
+fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
+    MviGameState(
+        puck =
+            MviPuck(
+                x = if (delta.hasPuckX()) delta.puckX else 400.0,
+                y = if (delta.hasPuckY()) delta.puckY else 300.0,
+                vx = if (delta.hasPuckVx()) delta.puckVx else 300.0,
+                vy = if (delta.hasPuckVy()) delta.puckVy else 200.0,
+            ),
+        score =
+            MviScore(
+                playerA = if (delta.hasScoreA()) delta.scoreA else 0,
+                playerB = if (delta.hasScoreB()) delta.scoreB else 0,
+            ),
+        paddle1Y = if (delta.hasPaddle1Y()) delta.paddle1Y else 250.0,
+        paddle2Y = if (delta.hasPaddle2Y()) delta.paddle2Y else 250.0,
+        paused = if (delta.hasPaused()) delta.paused else false,
+        lines =
+            delta.linesList.map { protoLine ->
+                MviLine(
+                    id = protoLine.id,
+                    points = protoLine.pointsList.map { MviPoint(it.x, it.y) },
+                    width = protoLine.width,
+                )
+            },
+    )
 
 fun reduce(
     state: MviGameState,
@@ -97,6 +126,18 @@ fun reduce(
         is GameAction.EraseLine -> {
             state.copy(lines = state.lines.filterNot { it.id == action.lineId })
         }
+
+        GameAction.ClearLines -> {
+            state.copy(lines = emptyList())
+        }
+
+        is GameAction.RestoreSnapshot -> {
+            action.state
+        }
+
+        is GameAction.ApplyTeleports -> {
+            state.copy(teleports = action.portals)
+        }
     }
 
 private fun reduceTick(
@@ -117,6 +158,8 @@ private fun reduceTick(
         puck = puck.copy(y = state.canvasHeight - puck.radius, vy = -abs(puck.vy))
     }
 
+    puck = applyLineCollisions(puck, state.lines, state.teleports)
+
     val score =
         when {
             puck.x - puck.radius <= 0.0 -> state.score.copy(playerB = state.score.playerB + 1)
@@ -135,6 +178,75 @@ private fun reduceTick(
     }
 
     return state.copy(puck = puck, score = score)
+}
+
+private fun applyLineCollisions(
+    puck: MviPuck,
+    lines: List<MviLine>,
+    teleports: Map<String, String>,
+): MviPuck {
+    for (line in lines) {
+        val pts = line.points
+        for (i in 0 until pts.size - 1) {
+            val a = pts[i]
+            val b = pts[i + 1]
+            if (!segmentCircleIntersects(a, b, puck.x, puck.y, puck.radius)) continue
+
+            val partnerLineId = teleports[line.id]
+            if (partnerLineId != null) {
+                val partner = lines.firstOrNull { it.id == partnerLineId }
+                if (partner != null) {
+                    val mid = lineMidpoint(partner)
+                    return puck.copy(x = mid.x, y = mid.y)
+                }
+            }
+
+            val (newVx, newVy) = reflectVelocity(puck.vx, puck.vy, a, b)
+            return puck.copy(vx = newVx, vy = newVy)
+        }
+    }
+    return puck
+}
+
+private fun segmentCircleIntersects(
+    a: MviPoint,
+    b: MviPoint,
+    px: Double,
+    py: Double,
+    radius: Double,
+): Boolean {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    val fx = a.x - px
+    val fy = a.y - py
+    val lenSq = dx * dx + dy * dy
+    if (lenSq < 1e-9) return false
+    val t = ((-fx * dx - fy * dy) / lenSq).coerceIn(0.0, 1.0)
+    val closestX = a.x + t * dx - px
+    val closestY = a.y + t * dy - py
+    return closestX * closestX + closestY * closestY <= radius * radius
+}
+
+private fun reflectVelocity(
+    vx: Double,
+    vy: Double,
+    a: MviPoint,
+    b: MviPoint,
+): Pair<Double, Double> {
+    val nx = -(b.y - a.y)
+    val ny = b.x - a.x
+    val len = hypot(nx, ny)
+    if (len < 1e-9) return vx to vy
+    val nnx = nx / len
+    val nny = ny / len
+    val dot = vx * nnx + vy * nny
+    return (vx - 2 * dot * nnx) to (vy - 2 * dot * nny)
+}
+
+private fun lineMidpoint(line: MviLine): MviPoint {
+    val pts = line.points
+    if (pts.isEmpty()) return MviPoint(0.0, 0.0)
+    return MviPoint(pts.sumOf { it.x } / pts.size, pts.sumOf { it.y } / pts.size)
 }
 
 private fun MviLine.toProto(): ru.rkhamatyarov.proto.Line =

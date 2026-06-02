@@ -20,4 +20,14 @@ sealed interface GameAction {
     data class EraseLine(
         val lineId: String,
     ) : GameAction
+
+    data object ClearLines : GameAction
+
+    data class RestoreSnapshot(
+        val state: MviGameState,
+    ) : GameAction
+
+    data class ApplyTeleports(
+        val portals: Map<String, String>,
+    ) : GameAction
 }

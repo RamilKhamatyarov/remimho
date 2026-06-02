@@ -14,28 +14,22 @@ import jakarta.enterprise.event.Observes
 import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.proto.GameStateDelta
-import ru.rkhamatyarov.service.GameEngine
-import ru.rkhamatyarov.service.PowerUpManager
+import ru.rkhamatyarov.service.GameRoom
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
 import ru.rkhamatyarov.service.mvi.EphemeralEvent
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
-import ru.rkhamatyarov.service.mvi.MviGameEngine
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.mviStateFromDelta
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -47,53 +41,27 @@ class GameWebSocket {
     private val log = Logger.getLogger(javaClass)
 
     @Inject
-    lateinit var engine: GameEngine
-
-    @Inject
-    lateinit var powerUpManager: PowerUpManager
-
-    @Inject
     lateinit var mapper: ObjectMapper
 
     @Inject
     lateinit var vertx: Vertx
 
     @Inject
-    lateinit var history: StateHistory
-
-    @Inject
     lateinit var roomRegistry: RoomRegistry
-
-    @Inject
-    lateinit var mviEngine: MviGameEngine
 
     @ConfigProperty(name = "remimho.coroutines.state-flow-enabled", defaultValue = "false")
     var stateFlowEnabled: Boolean = false
 
-    @ConfigProperty(name = "remimho.rooms.enabled", defaultValue = "false")
-    var roomsEnabled: Boolean = false
-
-    @ConfigProperty(name = "remimho.engine.mvi.enabled", defaultValue = "false")
-    var mviEnabled: Boolean = false
-
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
     private val connectionRooms = ConcurrentHashMap<String, String>()
-    private val collectorJobs = ConcurrentHashMap<String, Job>()
+    private val collectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val lastFullStateByRoom = ConcurrentHashMap<String, GameStateDelta>()
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val timeshiftSessions = ConcurrentHashMap.newKeySet<String>()
     private val timeshiftDrafts = ConcurrentHashMap<String, GameStateDelta>()
     private val pauseAnchorNsByRoom = ConcurrentHashMap<String, Long>()
-
-    private val mutableStateFlow =
-        MutableSharedFlow<ByteArray>(
-            replay = 0,
-            extraBufferCapacity = 3,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        )
-
-    val stateFlow: SharedFlow<ByteArray> = mutableStateFlow.asSharedFlow()
+    private val connectionDrawingLines = ConcurrentHashMap<String, MviLine>()
 
     fun onStart(
         @Observes event: StartupEvent,
@@ -104,13 +72,13 @@ class GameWebSocket {
     @OnOpen
     fun onOpen(connection: WebSocketConnection) {
         val roomId = roomId(connection)
-        if (roomsEnabled) roomRegistry.get(roomId)
+        roomRegistry.get(roomId)
         connectionRooms[connection.id()] = roomId
         sessions[connection.id()] = connection
         log.info("Client connected: ${connection.id()} room=$roomId (total: ${sessions.size})")
         lastFullStateByRoom.remove(roomId)
         if (stateFlowEnabled) launchStateCollector(connection, roomId)
-        connection.sendBinary(currentStateBinary(roomId, true))
+        connection.sendBinary(currentStateBinary(roomId))
     }
 
     @OnClose
@@ -120,6 +88,7 @@ class GameWebSocket {
         collectorJobs.remove(connection.id())?.cancel()
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
+        connectionDrawingLines.remove(connection.id())
         log.info("Client disconnected: ${connection.id()} (remaining: ${sessions.size})")
     }
 
@@ -127,10 +96,9 @@ class GameWebSocket {
         connection: WebSocketConnection,
         roomId: String,
     ) {
-        val flow = if (roomsEnabled) roomRegistry.get(roomId).stateFlow else stateFlow
         collectorJobs[connection.id()] =
             applicationScope.launch {
-                flow.collectLatest { bytes ->
+                roomRegistry.get(roomId).stateFlow.collectLatest { bytes ->
                     if (connection.id() in timeshiftSessions || connection.isClosed) return@collectLatest
                     connection.sendBinary(bytes).subscribe().with(
                         {},
@@ -141,7 +109,6 @@ class GameWebSocket {
     }
 
     private fun roomId(connection: WebSocketConnection): String {
-        if (!roomsEnabled) return RoomRegistry.DEFAULT_ROOM_ID
         val query = connection.handshakeRequest().query() ?: return RoomRegistry.DEFAULT_ROOM_ID
         return query
             .split("&")
@@ -152,26 +119,7 @@ class GameWebSocket {
             ?: RoomRegistry.DEFAULT_ROOM_ID
     }
 
-    private fun engineFor(roomId: String): GameEngine =
-        if (roomsEnabled) {
-            roomRegistry.get(roomId).engine
-        } else {
-            engine
-        }
-
-    private fun historyFor(roomId: String): StateHistory =
-        if (roomsEnabled) {
-            roomRegistry.get(roomId).history
-        } else {
-            history
-        }
-
-    private fun dispatchRoomIntent(
-        roomId: String,
-        intent: GameIntent,
-    ) {
-        if (roomsEnabled) roomRegistry.get(roomId).dispatch(intent)
-    }
+    private fun historyFor(roomId: String): StateHistory = roomRegistry.get(roomId).history
 
     @OnTextMessage
     fun onMessage(
@@ -248,11 +196,119 @@ class GameWebSocket {
                 handlePlayGhost(data, connection)
             }
 
+            "P2P_TELEMETRY" -> {
+                handleP2pTelemetry(data, connection)
+            }
+
             else -> {
                 log.warn("Unknown command: $type")
                 sendError(connection, "Unknown command: $type")
             }
         }
+    }
+
+    private fun handleMovePaddle(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val y = data["y"]?.toString()?.toDoubleOrNull()
+        if (y == null) {
+            sendError(connection, "Invalid MOVE_PADDLE: y required")
+            return
+        }
+        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y)))
+    }
+
+    private fun handleTogglePause(connection: WebSocketConnection) {
+        val roomId = roomId(connection)
+        val room = roomRegistry.get(roomId)
+        val wasPaused = room.reliableState.value.paused
+        room.dispatch(GameIntent.Reliable(GameAction.TogglePause))
+        if (!wasPaused) {
+            val now = System.nanoTime()
+            pauseAnchorNsByRoom[roomId] = now
+            historyFor(roomId).add(
+                room.reliableState.value
+                    .toDelta()
+                    .toByteArray(),
+                now,
+            )
+        } else {
+            pauseAnchorNsByRoom.remove(roomId)
+        }
+    }
+
+    private fun handleReset(connection: WebSocketConnection) {
+        val roomId = roomId(connection)
+        pauseAnchorNsByRoom.remove(roomId)
+        roomRegistry.get(roomId).dispatch(GameIntent.Reliable(GameAction.Reset))
+    }
+
+    private fun handleClearLines(connection: WebSocketConnection) {
+        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.ClearLines))
+    }
+
+    private fun handleStartLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val x = data["x"]?.toString()?.toDoubleOrNull()
+        val y = data["y"]?.toString()?.toDoubleOrNull()
+        if (x == null || y == null) {
+            sendError(connection, "Invalid START_LINE: x and y required")
+            return
+        }
+        if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
+
+        val lineId = UUID.randomUUID().toString()
+        connectionDrawingLines[connection.id()] = MviLine(id = lineId, points = listOf(MviPoint(x, y)))
+        val roomId = roomId(connection)
+        roomRegistry.get(roomId).dispatch(GameIntent.Ephemeral(EphemeralEvent.LineDraft(lineId, x, y)))
+    }
+
+    private fun handleUpdateLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val x = data["x"]?.toString()?.toDoubleOrNull()
+        val y = data["y"]?.toString()?.toDoubleOrNull()
+        if (x == null || y == null) {
+            sendError(connection, "Invalid UPDATE_LINE: x and y required")
+            return
+        }
+        if (updateTimeshiftDraftLine(connection, LineDraftCommand.UPDATE, x, y)) return
+
+        val current = connectionDrawingLines[connection.id()] ?: return
+        connectionDrawingLines[connection.id()] = current.copy(points = current.points + MviPoint(x, y))
+        roomRegistry.get(roomId(connection)).dispatch(
+            GameIntent.Ephemeral(EphemeralEvent.LineDraft(current.id, x, y)),
+        )
+    }
+
+    private fun handleFinishLine(connection: WebSocketConnection) {
+        if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
+
+        val line = connectionDrawingLines.remove(connection.id()) ?: return
+        val roomId = roomId(connection)
+        val room = roomRegistry.get(roomId)
+        room.dispatch(GameIntent.Reliable(GameAction.CommitLine(line)))
+        room.dispatch(GameIntent.Ephemeral(EphemeralEvent.LineFinished(line.id)))
+    }
+
+    private fun handleEraseLine(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val lineId = data["lineId"]?.toString()?.takeIf { it.isNotBlank() }
+        if (lineId == null) {
+            sendError(connection, "Invalid ERASE_LINE: lineId required")
+            return
+        }
+        if (eraseTimeshiftDraftLine(connection, lineId)) return
+        val roomId = roomId(connection)
+        val room = roomRegistry.get(roomId)
+        room.dispatch(GameIntent.Reliable(GameAction.EraseLine(lineId)))
+        room.dispatch(GameIntent.Ephemeral(EphemeralEvent.EraseLineDraft(lineId)))
     }
 
     private fun handleTimeshift(
@@ -261,7 +317,6 @@ class GameWebSocket {
     ) {
         val roomId = roomId(connection)
         val roomHistory = historyFor(roomId)
-        val roomEngine = engineFor(roomId)
         val offset = data["offset"]?.toString()?.toDoubleOrNull()
         if (offset == null || offset < 0.0) {
             sendError(connection, "TIMESHIFT requires a numeric 'offset' >= 0 (seconds)")
@@ -277,7 +332,11 @@ class GameWebSocket {
             )
             return
         }
-        val pausedAwareSnapshot = snapshot.withCurrentPauseState(roomEngine.paused)
+        val paused =
+            roomRegistry
+                .get(roomId)
+                .reliableState.value.paused
+        val pausedAwareSnapshot = snapshot.withCurrentPauseState(paused)
         timeshiftSessions.add(connection.id())
         timeshiftDrafts[connection.id()] = GameStateDelta.parseFrom(pausedAwareSnapshot)
         connection.sendBinary(pausedAwareSnapshot).subscribe().with(
@@ -291,7 +350,6 @@ class GameWebSocket {
         connection: WebSocketConnection,
     ) {
         val roomId = roomId(connection)
-        val roomEngine = engineFor(roomId)
         val roomHistory = historyFor(roomId)
         val offset = data["offset"]?.toString()?.toDoubleOrNull()
         if (offset == null || offset < 0.0) {
@@ -307,7 +365,8 @@ class GameWebSocket {
         }
 
         try {
-            roomEngine.restoreFromDelta(GameStateDelta.parseFrom(snapshot))
+            val mviState = mviStateFromDelta(GameStateDelta.parseFrom(snapshot))
+            roomRegistry.get(roomId).dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(mviState)))
             roomHistory.clear()
             lastFullStateByRoom.remove(roomId)
             timeshiftSessions.clear()
@@ -324,7 +383,7 @@ class GameWebSocket {
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
         log.debugf("Connection %s resumed live stream", connection.id())
-        connection.sendBinary(currentStateBinary(roomId(connection), true)).subscribe().with(
+        connection.sendBinary(currentStateBinary(roomId(connection))).subscribe().with(
             {},
             { t -> log.warnf(t, "Failed to send resume snapshot to %s", connection.id()) },
         )
@@ -378,127 +437,121 @@ class GameWebSocket {
         }
     }
 
-    private fun handleMovePaddle(
+    private fun handleP2pTelemetry(
         data: Map<*, *>,
         connection: WebSocketConnection,
     ) {
-        val y = data["y"]?.toString()?.toDoubleOrNull()
-        if (y != null) {
-            val roomId = roomId(connection)
-            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.MovePaddle(y)))
-            if (mviEnabled && !roomsEnabled) {
-                mviEngine.tryDispatch(GameAction.MovePaddle(y))
+        val status = data["status"]?.toString()?.lowercase()
+        if (status != "success" && status != "failure") {
+            sendError(connection, "P2P_TELEMETRY requires 'status' of 'success' or 'failure'")
+            return
+        }
+        val peerId = data["peerId"]?.toString()?.takeIf { it.isNotBlank() } ?: "unknown"
+        log.infof(
+            "P2P telemetry room=%s connection=%s peer=%s status=%s",
+            roomId(connection),
+            connection.id(),
+            peerId,
+            status,
+        )
+    }
+
+    private fun rewindReferenceNs(roomId: String): Long = pauseAnchorNsByRoom[roomId] ?: System.nanoTime()
+
+    private fun tick() {
+        val rooms = roomRegistry.activeRooms()
+        if (rooms.isEmpty()) return
+        rooms.forEach { room ->
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016)))
+            tickRoom(room)
+        }
+    }
+
+    private fun tickRoom(room: GameRoom) {
+        val roomId = room.id
+        val roomHistory = room.history
+
+        val now = System.nanoTime()
+        val currentState = room.reliableState.value.toDelta()
+        val lastFullState = lastFullStateByRoom[roomId]
+
+        val liveBytes =
+            if (lastFullState == null) {
+                currentState.toByteArray()
             } else {
-                engineFor(roomId).movePaddle2(y)
+                computeDelta(lastFullState, currentState).toByteArray()
             }
-        } else {
-            sendError(connection, "Invalid MOVE_PADDLE: y required")
-        }
-    }
+        val fullBytes = currentState.toByteArray()
 
-    private fun handleTogglePause(connection: WebSocketConnection) {
-        val roomId = roomId(connection)
-        val roomEngine = engineFor(roomId)
-        dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.TogglePause))
-        if (mviEnabled && !roomsEnabled) {
-            mviEngine.tryDispatch(GameAction.TogglePause)
+        lastFullStateByRoom[roomId] = currentState
+
+        if (!room.reliableState.value.paused) {
+            roomHistory.add(fullBytes, now)
+        }
+
+        if (sessions.isEmpty()) return
+
+        if (stateFlowEnabled) {
+            if (!room.tryEmit(liveBytes)) {
+                log.warnf("State flow buffer full for room %s; oldest frame dropped", roomId)
+            }
             return
         }
-        roomEngine.paused = !roomEngine.paused
-        if (roomEngine.paused) {
-            pauseAnchorNsByRoom[roomId] =
-                System.nanoTime().also { pausedAt ->
-                    historyFor(roomId).add(buildGameStateDelta(roomId, pausedAt).toByteArray(), pausedAt)
-                }
-        } else {
-            pauseAnchorNsByRoom.remove(roomId)
-        }
+
+        broadcastBytes(roomId, liveBytes)
     }
 
-    private fun handleReset(connection: WebSocketConnection) {
-        val roomId = roomId(connection)
-        dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.Reset))
-        if (mviEnabled && !roomsEnabled) {
-            mviEngine.tryDispatch(GameAction.Reset)
-            pauseAnchorNsByRoom.remove(roomId)
-            return
-        }
-        val roomEngine = engineFor(roomId)
-        roomEngine.resetPuck()
-        roomEngine.clearLines()
-        roomEngine.paused = false
-        roomEngine.elapsedSeconds = 0.0
-        pauseAnchorNsByRoom.remove(roomId)
-    }
-
-    private fun handleClearLines(connection: WebSocketConnection) {
-        engineFor(roomId(connection)).clearLines()
-    }
-
-    private fun handleStartLine(
-        data: Map<*, *>,
-        connection: WebSocketConnection,
+    private fun broadcastBytes(
+        roomId: String,
+        bytes: ByteArray,
     ) {
-        val x = data["x"]?.toString()?.toDoubleOrNull()
-        val y = data["y"]?.toString()?.toDoubleOrNull()
-        if (x != null && y != null) {
-            if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
-            val roomId = roomId(connection)
-            val roomEngine = engineFor(roomId)
-            roomEngine.startNewLine(x, y)
-            roomEngine.lines.lastOrNull()?.let { line ->
-                dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineDraft(line.id, x, y)))
-            }
-        } else {
-            sendError(connection, "Invalid START_LINE: x and y required")
+        val dead = mutableListOf<String>()
+
+        sessions.forEach { (id, conn) ->
+            if (connectionRooms[id] != roomId) return@forEach
+            if (id in timeshiftSessions) return@forEach
+            conn.sendBinary(bytes).subscribe().with({}, { t ->
+                log.warn("Failed to send to $id: ${t.message}")
+                dead.add(id)
+            })
+        }
+        dead.forEach {
+            sessions.remove(it)
+            connectionRooms.remove(it)
+            collectorJobs.remove(it)?.cancel()
+            timeshiftSessions.remove(it)
         }
     }
 
-    private fun handleUpdateLine(
-        data: Map<*, *>,
-        connection: WebSocketConnection,
-    ) {
-        val x = data["x"]?.toString()?.toDoubleOrNull()
-        val y = data["y"]?.toString()?.toDoubleOrNull()
-        if (x != null && y != null) {
-            if (updateTimeshiftDraftLine(connection, LineDraftCommand.UPDATE, x, y)) return
-            val roomId = roomId(connection)
-            val roomEngine = engineFor(roomId)
-            roomEngine.updateCurrentLine(x, y)
-            roomEngine.lines.lastOrNull()?.let { line ->
-                dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineDraft(line.id, x, y)))
-            }
-        } else {
-            sendError(connection, "Invalid UPDATE_LINE: x and y required")
-        }
+    private fun broadcastFullState(roomId: String) {
+        broadcastBytes(roomId, currentStateBinary(roomId))
     }
 
-    private fun handleFinishLine(connection: WebSocketConnection) {
-        if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
-        val roomId = roomId(connection)
-        val roomEngine = engineFor(roomId)
-        roomEngine.finishCurrentLine()
-        roomEngine.lines.lastOrNull()?.let { line ->
-            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.CommitLine(line.toMviLine())))
-            dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineFinished(line.id)))
-        }
+    private fun currentStateBinary(roomId: String): ByteArray {
+        val state = roomRegistry.get(roomId).reliableState.value
+        val delta = state.toDelta()
+        lastFullStateByRoom[roomId] = delta
+        return delta.toByteArray()
     }
 
-    private fun handleEraseLine(
-        data: Map<*, *>,
-        connection: WebSocketConnection,
-    ) {
-        val lineId = data["lineId"]?.toString()?.takeIf { it.isNotBlank() }
-        if (lineId == null) {
-            sendError(connection, "Invalid ERASE_LINE: lineId required")
-            return
-        }
-        if (eraseTimeshiftDraftLine(connection, lineId)) return
-        val roomId = roomId(connection)
-        if (engineFor(roomId).eraseLine(lineId)) {
-            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.EraseLine(lineId)))
-            dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.EraseLineDraft(lineId)))
-        }
+    private fun computeDelta(
+        prev: GameStateDelta,
+        curr: GameStateDelta,
+    ): GameStateDelta {
+        val b = GameStateDelta.newBuilder()
+        if (curr.puckX != prev.puckX) b.puckX = curr.puckX
+        if (curr.puckY != prev.puckY) b.puckY = curr.puckY
+        if (curr.puckVx != prev.puckVx) b.puckVx = curr.puckVx
+        if (curr.puckVy != prev.puckVy) b.puckVy = curr.puckVy
+        if (curr.paddle1Y != prev.paddle1Y) b.paddle1Y = curr.paddle1Y
+        if (curr.paddle2Y != prev.paddle2Y) b.paddle2Y = curr.paddle2Y
+        if (curr.scoreA != prev.scoreA) b.scoreA = curr.scoreA
+        if (curr.scoreB != prev.scoreB) b.scoreB = curr.scoreB
+        if (curr.paused != prev.paused) b.paused = curr.paused
+        if (curr.linesList != prev.linesList) b.addAllLines(curr.linesList)
+        if (curr.powerUpsList != prev.powerUpsList) b.addAllPowerUps(curr.powerUpsList)
+        if (curr.activePowerUpsList != prev.activePowerUpsList) b.addAllActivePowerUps(curr.activePowerUpsList)
+        return b.build()
     }
 
     private enum class LineDraftCommand {
@@ -601,8 +654,6 @@ class GameWebSocket {
             .setY(y)
             .build()
 
-    private fun rewindReferenceNs(roomId: String): Long = pauseAnchorNsByRoom[roomId] ?: System.nanoTime()
-
     private fun ByteArray.withCurrentPauseState(paused: Boolean): ByteArray {
         if (!paused) return this
         return GameStateDelta
@@ -612,136 +663,6 @@ class GameWebSocket {
             .setFullState(true)
             .build()
             .toByteArray()
-    }
-
-    private fun tick() {
-        if (roomsEnabled) {
-            roomRegistry.activeRooms().forEach {
-                it.dispatch(GameIntent.Reliable(GameAction.Tick(0.016)))
-                tickRoom(it.id, it.engine, it.history, it::tryEmit)
-            }
-            return
-        }
-
-        if (mviEnabled) {
-            val emitted = mviEngine.tryDispatch(GameAction.Tick(0.016))
-            if (!emitted) log.warn("MVI tick action was dropped")
-        }
-
-        tickRoom(RoomRegistry.DEFAULT_ROOM_ID, engine, history, mutableStateFlow::tryEmit)
-    }
-
-    private fun tickRoom(
-        roomId: String,
-        roomEngine: GameEngine,
-        roomHistory: StateHistory,
-        emit: (ByteArray) -> Boolean,
-    ) {
-        if (!mviEnabled || roomsEnabled) {
-            roomEngine.tick(deltaSeconds = 0.016)
-        }
-
-        val now = System.nanoTime()
-
-        val currentState = buildGameStateDelta(roomId, now)
-        val lastFullState = lastFullStateByRoom[roomId]
-
-        val liveState =
-            if (lastFullState == null) {
-                currentState
-            } else {
-                computeDelta(lastFullState, currentState)
-            }
-        val liveBytes = liveState.toByteArray()
-        val fullBytes = currentState.toByteArray()
-
-        lastFullStateByRoom[roomId] = currentState
-
-        if (!roomEngine.paused) {
-            roomHistory.add(fullBytes)
-        }
-
-        if (sessions.isEmpty()) return
-
-        if (stateFlowEnabled) {
-            if (!emit(liveBytes)) log.warnf("State flow buffer full for room %s; oldest frame dropped", roomId)
-            return
-        }
-
-        broadcastBytes(roomId, liveBytes)
-    }
-
-    private fun broadcastBytes(
-        roomId: String,
-        bytes: ByteArray,
-    ) {
-        val dead = mutableListOf<String>()
-
-        sessions.forEach { (id, conn) ->
-            if (connectionRooms[id] != roomId) return@forEach
-            if (id in timeshiftSessions) return@forEach
-            conn.sendBinary(bytes).subscribe().with({}, { t ->
-                log.warn("Failed to send to $id: ${t.message}")
-                dead.add(id)
-            })
-        }
-        dead.forEach {
-            sessions.remove(it)
-            connectionRooms.remove(it)
-            collectorJobs.remove(it)?.cancel()
-            timeshiftSessions.remove(it)
-        }
-    }
-
-    private fun broadcastFullState(roomId: String) {
-        broadcastBytes(roomId, currentStateBinary(roomId, true))
-    }
-
-    private fun currentStateBinary(
-        roomId: String,
-        full: Boolean,
-    ): ByteArray {
-        val now = System.nanoTime()
-        val newState = buildGameStateDelta(roomId, now)
-        val lastFullState = lastFullStateByRoom[roomId]
-        val result =
-            if (full || lastFullState == null) {
-                newState
-            } else {
-                computeDelta(lastFullState, newState)
-            }
-        lastFullStateByRoom[roomId] = newState
-        return result.toByteArray()
-    }
-
-    private fun buildGameStateDelta(
-        roomId: String,
-        nowNs: Long,
-    ): GameStateDelta =
-        if (mviEnabled && !roomsEnabled) {
-            mviEngine.toGameStateDelta()
-        } else {
-            engineFor(roomId).toGameStateDelta(nowNs)
-        }
-
-    private fun computeDelta(
-        prev: GameStateDelta,
-        curr: GameStateDelta,
-    ): GameStateDelta {
-        val b = GameStateDelta.newBuilder()
-        if (curr.puckX != prev.puckX) b.puckX = curr.puckX
-        if (curr.puckY != prev.puckY) b.puckY = curr.puckY
-        if (curr.puckVx != prev.puckVx) b.puckVx = curr.puckVx
-        if (curr.puckVy != prev.puckVy) b.puckVy = curr.puckVy
-        if (curr.paddle1Y != prev.paddle1Y) b.paddle1Y = curr.paddle1Y
-        if (curr.paddle2Y != prev.paddle2Y) b.paddle2Y = curr.paddle2Y
-        if (curr.scoreA != prev.scoreA) b.scoreA = curr.scoreA
-        if (curr.scoreB != prev.scoreB) b.scoreB = curr.scoreB
-        if (curr.paused != prev.paused) b.paused = curr.paused
-        if (curr.linesList != prev.linesList) b.addAllLines(curr.linesList)
-        if (curr.powerUpsList != prev.powerUpsList) b.addAllPowerUps(curr.powerUpsList)
-        if (curr.activePowerUpsList != prev.activePowerUpsList) b.addAllActivePowerUps(curr.activePowerUpsList)
-        return b.build()
     }
 
     private fun sendError(
@@ -756,11 +677,4 @@ class GameWebSocket {
             log.error("Failed to send error to ${connection.id()}", e)
         }
     }
-
-    private fun ru.rkhamatyarov.model.Line.toMviLine(): MviLine =
-        MviLine(
-            id = id,
-            points = (flattenedPoints ?: controlPoints).map { MviPoint(it.x, it.y) },
-            width = width,
-        )
 }
