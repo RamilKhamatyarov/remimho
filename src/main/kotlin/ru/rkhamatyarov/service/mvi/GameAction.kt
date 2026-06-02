@@ -12,4 +12,12 @@ sealed interface GameAction {
     data object TogglePause : GameAction
 
     data object Reset : GameAction
+
+    data class CommitLine(
+        val line: MviLine,
+    ) : GameAction
+
+    data class EraseLine(
+        val lineId: String,
+    ) : GameAction
 }

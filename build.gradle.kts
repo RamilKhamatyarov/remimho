@@ -175,13 +175,22 @@ tasks.classes {
     dependsOn("copyFrontend")
 }
 
-if ("nativeBuild" in gradle.startParameter.taskNames) {
+val nativeBuildTaskNames = setOf("nativeBuild", "nativeCompile")
+val nativeBuildRequested = gradle.startParameter.taskNames.any { it in nativeBuildTaskNames }
+
+if (nativeBuildRequested) {
     System.setProperty("quarkus.package.type", "native")
     tasks.named("build").configure { mustRunAfter("clean") }
 }
 
+tasks.register("nativeCompile") {
+    group = "build"
+    description = "Cleans and builds a native executable"
+    dependsOn("clean", "build")
+}
+
 tasks.register("nativeBuild") {
     group = "build"
-    description = "Cleans and builds a native executable (equivalent to: clean build -Dquarkus.package.type=native)"
-    dependsOn("clean", "build")
+    description = "Alias for nativeCompile"
+    dependsOn("nativeCompile")
 }
