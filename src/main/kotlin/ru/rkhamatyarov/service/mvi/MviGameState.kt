@@ -16,6 +16,17 @@ data class MviScore(
     val playerB: Int = 0,
 )
 
+data class MviPoint(
+    val x: Double,
+    val y: Double,
+)
+
+data class MviLine(
+    val id: String,
+    val points: List<MviPoint>,
+    val width: Double = 5.0,
+)
+
 data class MviGameState(
     val puck: MviPuck = MviPuck(),
     val score: MviScore = MviScore(),
@@ -25,6 +36,7 @@ data class MviGameState(
     val canvasWidth: Double = 800.0,
     val canvasHeight: Double = 600.0,
     val paddleHeight: Double = 100.0,
+    val lines: List<MviLine> = emptyList(),
 ) {
     fun toDelta(): GameStateDelta =
         GameStateDelta
@@ -39,6 +51,7 @@ data class MviGameState(
             .setScoreB(score.playerB)
             .setPaused(paused)
             .setFullState(true)
+            .addAllLines(lines.map { it.toProto() })
             .build()
 }
 
@@ -69,7 +82,20 @@ fun reduce(
                         vy = 200.0,
                     ),
                 paused = false,
+                lines = emptyList(),
             )
+        }
+
+        is GameAction.CommitLine -> {
+            if (action.line.id.isBlank()) {
+                state
+            } else {
+                state.copy(lines = state.lines.filterNot { it.id == action.line.id } + action.line)
+            }
+        }
+
+        is GameAction.EraseLine -> {
+            state.copy(lines = state.lines.filterNot { it.id == action.lineId })
         }
     }
 
@@ -110,3 +136,18 @@ private fun reduceTick(
 
     return state.copy(puck = puck, score = score)
 }
+
+private fun MviLine.toProto(): ru.rkhamatyarov.proto.Line =
+    ru.rkhamatyarov.proto.Line
+        .newBuilder()
+        .setId(id)
+        .setWidth(width)
+        .addAllPoints(points.map { it.toProto() })
+        .build()
+
+private fun MviPoint.toProto(): ru.rkhamatyarov.proto.Point =
+    ru.rkhamatyarov.proto.Point
+        .newBuilder()
+        .setX(x)
+        .setY(y)
+        .build()

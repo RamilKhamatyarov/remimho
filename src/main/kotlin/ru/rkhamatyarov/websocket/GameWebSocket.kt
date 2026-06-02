@@ -30,8 +30,12 @@ import ru.rkhamatyarov.service.GameEngine
 import ru.rkhamatyarov.service.PowerUpManager
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
+import ru.rkhamatyarov.service.mvi.EphemeralEvent
 import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameEngine
+import ru.rkhamatyarov.service.mvi.MviLine
+import ru.rkhamatyarov.service.mvi.MviPoint
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -161,6 +165,13 @@ class GameWebSocket {
         } else {
             history
         }
+
+    private fun dispatchRoomIntent(
+        roomId: String,
+        intent: GameIntent,
+    ) {
+        if (roomsEnabled) roomRegistry.get(roomId).dispatch(intent)
+    }
 
     @OnTextMessage
     fun onMessage(
@@ -373,10 +384,12 @@ class GameWebSocket {
     ) {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (y != null) {
+            val roomId = roomId(connection)
+            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.MovePaddle(y)))
             if (mviEnabled && !roomsEnabled) {
                 mviEngine.tryDispatch(GameAction.MovePaddle(y))
             } else {
-                engineFor(roomId(connection)).movePaddle2(y)
+                engineFor(roomId).movePaddle2(y)
             }
         } else {
             sendError(connection, "Invalid MOVE_PADDLE: y required")
@@ -386,6 +399,7 @@ class GameWebSocket {
     private fun handleTogglePause(connection: WebSocketConnection) {
         val roomId = roomId(connection)
         val roomEngine = engineFor(roomId)
+        dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.TogglePause))
         if (mviEnabled && !roomsEnabled) {
             mviEngine.tryDispatch(GameAction.TogglePause)
             return
@@ -403,6 +417,7 @@ class GameWebSocket {
 
     private fun handleReset(connection: WebSocketConnection) {
         val roomId = roomId(connection)
+        dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.Reset))
         if (mviEnabled && !roomsEnabled) {
             mviEngine.tryDispatch(GameAction.Reset)
             pauseAnchorNsByRoom.remove(roomId)
@@ -428,7 +443,12 @@ class GameWebSocket {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
-            engineFor(roomId(connection)).startNewLine(x, y)
+            val roomId = roomId(connection)
+            val roomEngine = engineFor(roomId)
+            roomEngine.startNewLine(x, y)
+            roomEngine.lines.lastOrNull()?.let { line ->
+                dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineDraft(line.id, x, y)))
+            }
         } else {
             sendError(connection, "Invalid START_LINE: x and y required")
         }
@@ -442,7 +462,12 @@ class GameWebSocket {
         val y = data["y"]?.toString()?.toDoubleOrNull()
         if (x != null && y != null) {
             if (updateTimeshiftDraftLine(connection, LineDraftCommand.UPDATE, x, y)) return
-            engineFor(roomId(connection)).updateCurrentLine(x, y)
+            val roomId = roomId(connection)
+            val roomEngine = engineFor(roomId)
+            roomEngine.updateCurrentLine(x, y)
+            roomEngine.lines.lastOrNull()?.let { line ->
+                dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineDraft(line.id, x, y)))
+            }
         } else {
             sendError(connection, "Invalid UPDATE_LINE: x and y required")
         }
@@ -450,7 +475,13 @@ class GameWebSocket {
 
     private fun handleFinishLine(connection: WebSocketConnection) {
         if (updateTimeshiftDraftLine(connection, LineDraftCommand.FINISH, null, null)) return
-        engineFor(roomId(connection)).finishCurrentLine()
+        val roomId = roomId(connection)
+        val roomEngine = engineFor(roomId)
+        roomEngine.finishCurrentLine()
+        roomEngine.lines.lastOrNull()?.let { line ->
+            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.CommitLine(line.toMviLine())))
+            dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.LineFinished(line.id)))
+        }
     }
 
     private fun handleEraseLine(
@@ -463,7 +494,11 @@ class GameWebSocket {
             return
         }
         if (eraseTimeshiftDraftLine(connection, lineId)) return
-        engineFor(roomId(connection)).eraseLine(lineId)
+        val roomId = roomId(connection)
+        if (engineFor(roomId).eraseLine(lineId)) {
+            dispatchRoomIntent(roomId, GameIntent.Reliable(GameAction.EraseLine(lineId)))
+            dispatchRoomIntent(roomId, GameIntent.Ephemeral(EphemeralEvent.EraseLineDraft(lineId)))
+        }
     }
 
     private enum class LineDraftCommand {
@@ -581,7 +616,10 @@ class GameWebSocket {
 
     private fun tick() {
         if (roomsEnabled) {
-            roomRegistry.activeRooms().forEach { tickRoom(it.id, it.engine, it.history, it::tryEmit) }
+            roomRegistry.activeRooms().forEach {
+                it.dispatch(GameIntent.Reliable(GameAction.Tick(0.016)))
+                tickRoom(it.id, it.engine, it.history, it::tryEmit)
+            }
             return
         }
 
@@ -718,4 +756,11 @@ class GameWebSocket {
             log.error("Failed to send error to ${connection.id()}", e)
         }
     }
+
+    private fun ru.rkhamatyarov.model.Line.toMviLine(): MviLine =
+        MviLine(
+            id = id,
+            points = (flattenedPoints ?: controlPoints).map { MviPoint(it.x, it.y) },
+            width = width,
+        )
 }

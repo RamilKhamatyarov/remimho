@@ -7,27 +7,87 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import ru.rkhamatyarov.service.mvi.EphemeralEvent
+import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.MviGameState
+import ru.rkhamatyarov.service.mvi.reduce
 import java.util.concurrent.ConcurrentHashMap
 
-data class GameRoom(
+class GameRoom(
     val id: String,
     val engine: GameEngine = GameEngine(),
     val history: StateHistory = StateHistory(),
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
 ) {
+    private val intents = Channel<GameIntent>(Channel.UNLIMITED)
+    private val mutableReliableState = MutableStateFlow(MviGameState())
+    private val mutableEphemeralEvents =
+        MutableSharedFlow<EphemeralEvent>(
+            replay = 0,
+            extraBufferCapacity = EPHEMERAL_BUFFER_CAPACITY,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
     private val mutableStateFlow =
         MutableSharedFlow<ByteArray>(
             replay = 0,
-            extraBufferCapacity = 3,
+            extraBufferCapacity = STATE_BUFFER_CAPACITY,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
+    private val replayLog = ArrayDeque<GameIntent.Reliable>(REPLAY_LOG_CAPACITY)
 
+    val reliableState: StateFlow<MviGameState> = mutableReliableState.asStateFlow()
+    val ephemeralEvents: SharedFlow<EphemeralEvent> = mutableEphemeralEvents.asSharedFlow()
     val stateFlow: SharedFlow<ByteArray> = mutableStateFlow.asSharedFlow()
 
+    init {
+        scope.launch {
+            for (intent in intents) {
+                apply(intent)
+            }
+        }
+    }
+
+    fun dispatch(intent: GameIntent): Boolean = intents.trySend(intent).isSuccess
+
+    fun getReplayLog(): List<GameIntent> = replayLog.toList()
+
     fun tryEmit(bytes: ByteArray): Boolean = mutableStateFlow.tryEmit(bytes)
+
+    fun shutdown() {
+        intents.close()
+        scope.cancel()
+    }
+
+    private fun apply(intent: GameIntent) {
+        when (intent) {
+            is GameIntent.Reliable -> applyReliable(intent)
+            is GameIntent.Ephemeral -> mutableEphemeralEvents.tryEmit(intent.event)
+        }
+    }
+
+    private fun applyReliable(intent: GameIntent.Reliable) {
+        appendReplayIntent(intent)
+        mutableReliableState.value = reduce(mutableReliableState.value, intent.action)
+    }
+
+    private fun appendReplayIntent(intent: GameIntent.Reliable) {
+        if (replayLog.size >= REPLAY_LOG_CAPACITY) replayLog.removeFirst()
+        replayLog.addLast(intent)
+    }
+
+    companion object {
+        private const val STATE_BUFFER_CAPACITY = 3
+        private const val EPHEMERAL_BUFFER_CAPACITY = 64
+        private const val REPLAY_LOG_CAPACITY = 1024
+    }
 }
 
 @ApplicationScoped
@@ -42,7 +102,7 @@ class RoomRegistry {
 
     @PreDestroy
     fun shutdown() {
-        rooms.values.forEach { it.scope.cancel() }
+        rooms.values.forEach { it.shutdown() }
         rooms.clear()
     }
 
