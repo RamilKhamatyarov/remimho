@@ -23,7 +23,7 @@ class SignalingWebSocketTest {
     private val mapper = jacksonObjectMapper()
 
     @Test
-    fun test_relayOffer_deliversToTargetedPeerInSameRoom() {
+    fun `relay offer delivers to targeted peer in same room`() {
         // g
         val alice = connect("alpha")
         val bob = connect("alpha")
@@ -44,7 +44,7 @@ class SignalingWebSocketTest {
     }
 
     @Test
-    fun test_relayBroadcast_isIsolatedToRoom() {
+    fun `relay broadcast is isolated to room`() {
         // g
         val alice = connect("alpha")
         val bob = connect("alpha")
@@ -56,7 +56,7 @@ class SignalingWebSocketTest {
         // t
         val received = awaitType(bob, "WEBRTC_ANSWER")
         assertEquals(alice.peerId, received["from"])
-        assertNoMessageOfType(carol, "WEBRTC_ANSWER")
+        assertNoWebRtcAnswer(carol)
 
         alice.close()
         bob.close()
@@ -64,7 +64,7 @@ class SignalingWebSocketTest {
     }
 
     @Test
-    fun test_relayToNonExistentPeer_returnsError() {
+    fun `relay to non-existent peer returns error`() {
         // g
         val alice = connect("alpha")
 
@@ -79,7 +79,7 @@ class SignalingWebSocketTest {
     }
 
     @Test
-    fun test_malformedJson_returnsError() {
+    fun `malformed JSON returns error`() {
         // g
         val alice = connect("alpha")
 
@@ -94,7 +94,7 @@ class SignalingWebSocketTest {
     }
 
     @Test
-    fun test_unknownSignalType_returnsError() {
+    fun `unknown signal type returns error`() {
         // g
         val alice = connect("alpha")
 
@@ -135,20 +135,18 @@ class SignalingWebSocketTest {
         fail("Expected signaling message of type '$type' was not received")
     }
 
-    private fun assertNoMessageOfType(
-        client: TestClient,
-        type: String,
-    ) {
+    private fun assertNoWebRtcAnswer(client: TestClient) {
         val deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(QUIET_WINDOW_SECONDS)
         while (System.nanoTime() < deadlineNs) {
             val message = client.poll(QUIET_WINDOW_SECONDS) ?: return
-            if (parse(message)["type"] == type) fail("Unexpected message of type '$type' leaked across rooms")
+            if (parse(message)["type"] == WEBRTC_ANSWER) fail("Unexpected message of type '$WEBRTC_ANSWER' leaked across rooms")
         }
     }
 
     private companion object {
         const val AWAIT_SECONDS = 5L
         const val QUIET_WINDOW_SECONDS = 1L
+        const val WEBRTC_ANSWER = "WEBRTC_ANSWER"
     }
 }
 

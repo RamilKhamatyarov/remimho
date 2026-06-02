@@ -1,8 +1,13 @@
 package ru.rkhamatyarov.service.mvi
 
+import ru.rkhamatyarov.model.AiOpponentConfig
+import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.GameStateDelta
 import kotlin.math.abs
 import kotlin.math.hypot
+import kotlin.math.sign
+import kotlin.math.sin
 
 data class MviPuck(
     val x: Double = 400.0,
@@ -28,6 +33,26 @@ data class MviLine(
     val width: Double = 5.0,
 )
 
+data class MviPowerUp(
+    val id: String,
+    val x: Double,
+    val y: Double,
+    val type: PowerUpType,
+    val createdNs: Long,
+    val lifetimeNs: Long = 15_000_000_000L,
+    val radius: Double = 15.0,
+)
+
+data class MviActivePowerUp(
+    val type: PowerUpType,
+    val activatedNs: Long,
+    val durationNs: Long,
+) {
+    fun isExpired(nowNs: Long): Boolean = durationNs > 0L && nowNs - activatedNs > durationNs
+
+    fun remainingSeconds(nowNs: Long): Long = ((durationNs - (nowNs - activatedNs)).coerceAtLeast(0L) / 1_000_000_000L)
+}
+
 data class MviGameState(
     val puck: MviPuck = MviPuck(),
     val score: MviScore = MviScore(),
@@ -39,9 +64,19 @@ data class MviGameState(
     val paddleHeight: Double = 100.0,
     val lines: List<MviLine> = emptyList(),
     val teleports: Map<String, String> = emptyMap(),
+    val speedConfig: SpeedConfig = SpeedConfig(),
+    val elapsedSeconds: Double = 0.0,
+    val aiConfig: AiOpponentConfig = AiOpponentConfig(),
+    val aiSmoothedPuckY: Double = 300.0,
+    val powerUps: List<MviPowerUp> = emptyList(),
+    val activePowerUps: List<MviActivePowerUp> = emptyList(),
+    val speedMultiplier: Double = 1.0,
+    val ghostMode: Boolean = false,
+    val paddleShield: Boolean = false,
 ) {
-    fun toDelta(): GameStateDelta =
-        GameStateDelta
+    fun toDelta(): GameStateDelta {
+        val nowNs = System.nanoTime()
+        return GameStateDelta
             .newBuilder()
             .setPuckX(puck.x)
             .setPuckY(puck.y)
@@ -54,7 +89,10 @@ data class MviGameState(
             .setPaused(paused)
             .setFullState(true)
             .addAllLines(lines.map { it.toProto() })
+            .addAllPowerUps(powerUps.filter { nowNs - it.createdNs <= it.lifetimeNs }.map { it.toProto() })
+            .addAllActivePowerUps(activePowerUps.map { it.toProto(nowNs) })
             .build()
+    }
 }
 
 fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
@@ -82,6 +120,31 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
                     width = protoLine.width,
                 )
             },
+        powerUps =
+            delta.powerUpsList.mapNotNull { pu ->
+                runCatching {
+                    MviPowerUp(
+                        id = pu.hashCode().toString(),
+                        x = pu.x,
+                        y = pu.y,
+                        type = PowerUpType.valueOf(pu.type),
+                        createdNs = System.nanoTime(),
+                    )
+                }.getOrNull()
+            },
+        activePowerUps =
+            delta.activePowerUpsList.mapNotNull { apu ->
+                runCatching {
+                    val type = PowerUpType.valueOf(apu.type)
+                    val durationNs = PowerUpType.getDuration(type)
+                    val remainingNs = apu.remainingSeconds * 1_000_000_000L
+                    MviActivePowerUp(
+                        type = type,
+                        activatedNs = System.nanoTime() - (durationNs - remainingNs).coerceAtLeast(0L),
+                        durationNs = durationNs,
+                    )
+                }.getOrNull()
+            },
     )
 
 fun reduce(
@@ -90,7 +153,7 @@ fun reduce(
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
-            reduceTick(state, action.deltaSeconds)
+            reduceTick(state, action.deltaSeconds, action.nowNs)
         }
 
         is GameAction.MovePaddle -> {
@@ -112,6 +175,12 @@ fun reduce(
                     ),
                 paused = false,
                 lines = emptyList(),
+                elapsedSeconds = 0.0,
+                powerUps = emptyList(),
+                activePowerUps = emptyList(),
+                speedMultiplier = 1.0,
+                ghostMode = false,
+                paddleShield = false,
             )
         }
 
@@ -138,24 +207,91 @@ fun reduce(
         is GameAction.ApplyTeleports -> {
             state.copy(teleports = action.portals)
         }
+
+        is GameAction.SpawnPowerUp -> {
+            state.copy(powerUps = state.powerUps + action.powerUp)
+        }
+
+        is GameAction.ApplySpeedConfig -> {
+            state.copy(speedConfig = action.config)
+        }
+
+        is GameAction.ApplyAiConfig -> {
+            state.copy(aiConfig = action.config)
+        }
     }
 
 private fun reduceTick(
     state: MviGameState,
     deltaSeconds: Double,
+    nowNs: Long,
 ): MviGameState {
+    check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
     if (state.paused || deltaSeconds <= 0.0) return state
+
+    val progressiveSpeed = computeProgressiveSpeed(state)
+    val effectiveSpeed = state.speedMultiplier * progressiveSpeed
 
     var puck =
         state.puck.copy(
-            x = state.puck.x + state.puck.vx * deltaSeconds,
-            y = state.puck.y + state.puck.vy * deltaSeconds,
+            x = state.puck.x + state.puck.vx * effectiveSpeed * deltaSeconds,
+            y = state.puck.y + state.puck.vy * effectiveSpeed * deltaSeconds,
         )
 
     if (puck.y - puck.radius <= 0.0) {
         puck = puck.copy(y = puck.radius, vy = abs(puck.vy))
     } else if (puck.y + puck.radius >= state.canvasHeight) {
         puck = puck.copy(y = state.canvasHeight - puck.radius, vy = -abs(puck.vy))
+    }
+
+    val lagSeconds = (state.aiConfig.reactionDelayMs / 1000.0).coerceAtLeast(0.01)
+    val alpha = (deltaSeconds / lagSeconds).coerceIn(0.0, 1.0)
+    val newAiSmoothedPuckY = state.aiSmoothedPuckY + alpha * (puck.y - state.aiSmoothedPuckY)
+    val newPaddle1Y =
+        if (state.aiConfig.enabled) {
+            val puckHeadingLeft = puck.vx < 0
+            val inReactZone = puck.x < state.canvasWidth * state.aiConfig.reactZoneRatio
+            val dynamicTrackingError = state.aiConfig.trackingError * sin(state.elapsedSeconds * 2.5)
+            val targetY =
+                if (puckHeadingLeft && inReactZone) {
+                    newAiSmoothedPuckY - state.paddleHeight / 2 + dynamicTrackingError
+                } else {
+                    (state.canvasHeight - state.paddleHeight) / 2
+                }
+            val diff = targetY - state.paddle1Y
+            if (abs(diff) > 4.0) {
+                (state.paddle1Y + sign(diff) * state.aiConfig.maxSpeed * deltaSeconds)
+                    .coerceIn(0.0, state.canvasHeight - state.paddleHeight)
+            } else {
+                state.paddle1Y
+            }
+        } else {
+            state.paddle1Y
+        }
+
+    if (!state.ghostMode) {
+        val leftPaddleRight = PADDLE_WIDTH
+        val rightPaddleLeft = state.canvasWidth - PADDLE_WIDTH
+
+        if (puck.vx < 0 &&
+            puck.x - puck.radius <= leftPaddleRight &&
+            puck.x + puck.radius >= 0.0 &&
+            overlapsPaddleY(puck, newPaddle1Y, state.paddleHeight)
+        ) {
+            puck = puck.copy(x = leftPaddleRight + puck.radius, vx = abs(puck.vx))
+        }
+        if (puck.vx > 0 &&
+            puck.x + puck.radius >= rightPaddleLeft &&
+            puck.x - puck.radius <= state.canvasWidth &&
+            overlapsPaddleY(puck, state.paddle2Y, state.paddleHeight)
+        ) {
+            puck = puck.copy(x = rightPaddleLeft - puck.radius, vx = -abs(puck.vx))
+        }
+        if (state.paddleShield) {
+            if (puck.vx < 0 && puck.x - puck.radius <= 0.0) {
+                puck = puck.copy(x = puck.radius, vx = abs(puck.vx))
+            }
+        }
     }
 
     puck = applyLineCollisions(puck, state.lines, state.teleports)
@@ -166,7 +302,6 @@ private fun reduceTick(
             puck.x + puck.radius >= state.canvasWidth -> state.score.copy(playerA = state.score.playerA + 1)
             else -> state.score
         }
-
     if (score != state.score) {
         puck =
             puck.copy(
@@ -177,7 +312,69 @@ private fun reduceTick(
             )
     }
 
-    return state.copy(puck = puck, score = score)
+    val activeAfterExpiry = state.activePowerUps.filter { !it.isExpired(nowNs) }
+    val validFieldPowerUps = state.powerUps.filter { nowNs - it.createdNs <= it.lifetimeNs }
+
+    val (remainingFieldPowerUps, justCollected) =
+        validFieldPowerUps.partition { pu ->
+            hypot(puck.x - pu.x, puck.y - pu.y) >= pu.radius + puck.radius
+        }
+    val newActivePowerUps =
+        activeAfterExpiry +
+            justCollected.map { pu ->
+                MviActivePowerUp(pu.type, nowNs, PowerUpType.getDuration(pu.type))
+            }
+
+    val hasMagnet = newActivePowerUps.any { it.type == PowerUpType.MAGNET_BALL }
+    if (hasMagnet) {
+        puck = applyMagnetEffect(puck, state, deltaSeconds)
+    }
+
+    val newSpeedMultiplier = if (newActivePowerUps.any { it.type == PowerUpType.SPEED_BOOST }) 1.5 else 1.0
+    val newGhostMode = newActivePowerUps.any { it.type == PowerUpType.GHOST_MODE }
+    val newPaddleShield = newActivePowerUps.any { it.type == PowerUpType.PADDLE_SHIELD }
+
+    return state.copy(
+        puck = puck,
+        score = score,
+        paddle1Y = newPaddle1Y,
+        aiSmoothedPuckY = newAiSmoothedPuckY,
+        elapsedSeconds = state.elapsedSeconds + deltaSeconds,
+        powerUps = remainingFieldPowerUps,
+        activePowerUps = newActivePowerUps,
+        speedMultiplier = newSpeedMultiplier,
+        ghostMode = newGhostMode,
+        paddleShield = newPaddleShield,
+    )
+}
+
+private fun overlapsPaddleY(
+    puck: MviPuck,
+    paddleY: Double,
+    paddleHeight: Double,
+): Boolean = puck.y + puck.radius >= paddleY && puck.y - puck.radius <= paddleY + paddleHeight
+
+private fun computeProgressiveSpeed(state: MviGameState): Double {
+    val timeFactor = (state.elapsedSeconds / 60.0) * state.speedConfig.timeAccelerationRate
+    val levelFactor = state.lines.size * state.speedConfig.levelAccelerationPerLine
+    return (state.speedConfig.baseMultiplier + timeFactor + levelFactor)
+        .coerceAtMost(state.speedConfig.maxMultiplier)
+}
+
+private fun applyMagnetEffect(
+    puck: MviPuck,
+    state: MviGameState,
+    deltaSeconds: Double,
+): MviPuck {
+    val cx = state.canvasWidth - puck.radius
+    val cy = state.paddle2Y + state.paddleHeight / 2
+    val d = hypot(puck.x - cx, puck.y - cy)
+    if (d !in 1e-9..MAGNET_RANGE) return puck
+    val acceleration = MAGNET_STRENGTH * deltaSeconds * 60.0
+    return puck.copy(
+        vx = puck.vx + (cx - puck.x) / d * acceleration,
+        vy = puck.vy + (cy - puck.y) / d * acceleration,
+    )
 }
 
 private fun applyLineCollisions(
@@ -249,11 +446,31 @@ private fun lineMidpoint(line: MviLine): MviPoint {
     return MviPoint(pts.sumOf { it.x } / pts.size, pts.sumOf { it.y } / pts.size)
 }
 
+private fun MviPowerUp.toProto(): ru.rkhamatyarov.proto.PowerUp =
+    ru.rkhamatyarov.proto.PowerUp
+        .newBuilder()
+        .setX(x)
+        .setY(y)
+        .setRadius(radius)
+        .setType(type.name)
+        .setEmoji(type.emoji)
+        .setColor(PowerUpType.getColorCode(type))
+        .build()
+
+private fun MviActivePowerUp.toProto(nowNs: Long): ru.rkhamatyarov.proto.ActivePowerUp =
+    ru.rkhamatyarov.proto.ActivePowerUp
+        .newBuilder()
+        .setType(type.name)
+        .setEmoji(type.emoji)
+        .setRemainingSeconds(remainingSeconds(nowNs))
+        .build()
+
 private fun MviLine.toProto(): ru.rkhamatyarov.proto.Line =
     ru.rkhamatyarov.proto.Line
         .newBuilder()
         .setId(id)
         .setWidth(width)
+        .setIsAnimating(false)
         .addAllPoints(points.map { it.toProto() })
         .build()
 
@@ -263,3 +480,7 @@ private fun MviPoint.toProto(): ru.rkhamatyarov.proto.Point =
         .setX(x)
         .setY(y)
         .build()
+
+private const val PADDLE_WIDTH = 20.0
+private const val MAGNET_RANGE = 150.0
+private const val MAGNET_STRENGTH = 0.3

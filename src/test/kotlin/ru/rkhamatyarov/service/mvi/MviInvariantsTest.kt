@@ -1,4 +1,3 @@
-// TEST: property-based physics invariants for the MVI reducer
 package ru.rkhamatyarov.service.mvi
 
 import io.kotest.property.Arb
@@ -12,7 +11,7 @@ import kotlin.test.assertTrue
 
 class MviInvariantsTest {
     @Test
-    fun test_puck_neverEscapesCanvasBoundsAfterManyTicks() {
+    fun `puck never escapes canvas bounds after many ticks`() {
         runBlocking {
             checkAll(
                 iterations = 500,
@@ -36,7 +35,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_reducer_isDeterministic_sameInputSameOutput() {
+    fun `reducer is deterministic same input same output`() {
         runBlocking {
             checkAll(
                 iterations = 300,
@@ -51,7 +50,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_teleport_translatesPuckToPartnerLineMidpoint() {
+    fun `teleport translates puck to partner line midpoint`() {
         val lineA = MviLine("portal-a", listOf(MviPoint(100.0, 290.0), MviPoint(100.0, 310.0)))
         val lineB = MviLine("portal-b", listOf(MviPoint(700.0, 290.0), MviPoint(700.0, 310.0)))
         val state =
@@ -68,7 +67,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_teleport_missingPartnerLine_fallsBackToReflection() {
+    fun `teleport missing partner line falls back to reflection`() {
         val orphan = MviLine("orphan", listOf(MviPoint(100.0, 290.0), MviPoint(100.0, 310.0)))
         val state =
             MviGameState(
@@ -79,12 +78,11 @@ class MviInvariantsTest {
 
         val next = reduce(state, GameAction.Tick(0.016))
 
-        // No teleport happened — puck should NOT be near x=700
         assertTrue(next.puck.x < 200.0, "puck should stay near left wall, got x=${next.puck.x}")
     }
 
     @Test
-    fun test_applyTeleports_storesPortalMap() {
+    fun `apply teleports stores portal map`() {
         val portals = mapOf("a" to "b", "b" to "a")
         val state = MviGameState()
 
@@ -94,7 +92,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_clearLines_removesAllLines() {
+    fun `clear lines removes all lines`() {
         val state =
             MviGameState(
                 lines =
@@ -110,7 +108,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_restoreSnapshot_replacesStateCompletely() {
+    fun `restore snapshot replaces state completely`() {
         val target =
             MviGameState(
                 puck = MviPuck(x = 111.0, y = 222.0, vx = 0.0, vy = 0.0),
@@ -124,7 +122,7 @@ class MviInvariantsTest {
     }
 
     @Test
-    fun test_lineCollision_deflectsVelocity() {
+    fun `line collision deflects velocity`() {
         val wall = MviLine("wall", listOf(MviPoint(200.0, 0.0), MviPoint(200.0, 600.0)))
         val state =
             MviGameState(

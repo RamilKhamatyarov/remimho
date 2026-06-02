@@ -3537,12 +3537,6 @@
       "type": "ru.rkhamatyarov.service.FormulaRegistry"
     },
     {
-      "type": "ru.rkhamatyarov.service.GameEngine"
-    },
-    {
-      "type": "ru.rkhamatyarov.service.PowerUpManager"
-    },
-    {
       "type": "ru.rkhamatyarov.service.obstacles.ParabolaFormula"
     },
     {

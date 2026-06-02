@@ -1,8 +1,12 @@
 package ru.rkhamatyarov.service.mvi
 
+import ru.rkhamatyarov.model.AiOpponentConfig
+import ru.rkhamatyarov.model.SpeedConfig
+
 sealed interface GameAction {
     data class Tick(
         val deltaSeconds: Double,
+        val nowNs: Long = System.nanoTime(),
     ) : GameAction
 
     data class MovePaddle(
@@ -29,5 +33,17 @@ sealed interface GameAction {
 
     data class ApplyTeleports(
         val portals: Map<String, String>,
+    ) : GameAction
+
+    data class SpawnPowerUp(
+        val powerUp: MviPowerUp,
+    ) : GameAction
+
+    data class ApplySpeedConfig(
+        val config: SpeedConfig,
+    ) : GameAction
+
+    data class ApplyAiConfig(
+        val config: AiOpponentConfig,
     ) : GameAction
 }

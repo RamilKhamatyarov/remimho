@@ -7,7 +7,7 @@ import kotlin.test.assertSame
 
 class RoomRegistryTest {
     @Test
-    fun test_get_returnsSameRoomForSameId() {
+    fun `get returns same room for same id`() {
         val registry = RoomRegistry()
 
         val first = registry.get("alpha")
@@ -19,13 +19,13 @@ class RoomRegistryTest {
     }
 
     @Test
-    fun test_get_isolatesDifferentRooms() {
+    fun `get isolates different rooms`() {
         val registry = RoomRegistry()
 
         val first = registry.get("alpha")
         val second = registry.get("beta")
 
-        assertNotSame(first.engine, second.engine)
+        assertNotSame(first.reliableState, second.reliableState)
         assertEquals(2, registry.roomCount())
         registry.shutdown()
     }

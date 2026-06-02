@@ -24,7 +24,7 @@ class GameWebSocketTest {
     private val mapper = jacksonObjectMapper()
 
     @Test
-    fun test_p2pTelemetryWithInvalidStatus_returnsError() {
+    fun `P2P telemetry with invalid status returns error`() {
         // g
         val client = GameTestClient(wsUri())
 
@@ -40,7 +40,7 @@ class GameWebSocketTest {
     }
 
     @Test
-    fun test_p2pTelemetryWithValidStatus_isNotRejected() {
+    fun `P2P telemetry with valid status is not rejected`() {
         // g
         val client = GameTestClient(wsUri())
 

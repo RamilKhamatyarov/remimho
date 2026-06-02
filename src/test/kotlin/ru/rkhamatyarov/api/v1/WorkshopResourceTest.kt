@@ -4,24 +4,20 @@ import io.quarkus.test.junit.QuarkusTest
 import io.restassured.RestAssured.given
 import io.restassured.http.ContentType
 import jakarta.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.hamcrest.Matchers.equalTo
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import ru.rkhamatyarov.model.AiOpponentConfig
-import ru.rkhamatyarov.model.SpeedConfig
-import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.RoomRegistry
+import ru.rkhamatyarov.service.mvi.MviGameState
 import kotlin.test.assertEquals
+import kotlin.time.Duration.Companion.seconds
 
 @QuarkusTest
 class WorkshopResourceTest {
     @Inject
-    lateinit var engine: GameEngine
-
-    @BeforeEach
-    fun resetEngine() {
-        engine.speedConfig = SpeedConfig()
-        engine.aiOpponentConfig = AiOpponentConfig()
-    }
+    lateinit var roomRegistry: RoomRegistry
 
     @Test
     fun `POST content with LEVEL type returns 201 and type echo`() {
@@ -136,10 +132,11 @@ class WorkshopResourceTest {
             .then()
             .statusCode(200)
 
-        assertEquals(2.0, engine.speedConfig.baseMultiplier, 0.001)
-        assertEquals(0.08, engine.speedConfig.timeAccelerationRate, 0.001)
-        assertEquals(0.01, engine.speedConfig.levelAccelerationPerLine, 0.001)
-        assertEquals(5.0, engine.speedConfig.maxMultiplier, 0.001)
+        val state = awaitDefaultState { it.speedConfig.baseMultiplier == 2.0 }
+        assertEquals(2.0, state.speedConfig.baseMultiplier, 0.001)
+        assertEquals(0.08, state.speedConfig.timeAccelerationRate, 0.001)
+        assertEquals(0.01, state.speedConfig.levelAccelerationPerLine, 0.001)
+        assertEquals(5.0, state.speedConfig.maxMultiplier, 0.001)
     }
 
     @Test
@@ -213,10 +210,11 @@ class WorkshopResourceTest {
             .body("trackingError", equalTo(8.0f))
             .body("reactZoneRatio", equalTo(0.75f))
 
-        assertEquals(240, engine.aiOpponentConfig.reactionDelayMs)
-        assertEquals(210.0, engine.aiOpponentConfig.maxSpeed, 0.001)
-        assertEquals(8.0, engine.aiOpponentConfig.trackingError, 0.001)
-        assertEquals(0.75, engine.aiOpponentConfig.reactZoneRatio, 0.001)
+        val state = awaitDefaultState { it.aiConfig.reactionDelayMs == 240L }
+        assertEquals(240L, state.aiConfig.reactionDelayMs)
+        assertEquals(210.0, state.aiConfig.maxSpeed, 0.001)
+        assertEquals(8.0, state.aiConfig.trackingError, 0.001)
+        assertEquals(0.75, state.aiConfig.reactZoneRatio, 0.001)
     }
 
     @Test
@@ -265,7 +263,9 @@ class WorkshopResourceTest {
 
     @Test
     fun `POST preview dry run does not mutate live engine`() {
-        val beforeX = engine.puck.x
+        val beforeX =
+            defaultRoom()
+                .reliableState.value.puck.x
 
         given()
             .contentType(ContentType.JSON)
@@ -276,6 +276,20 @@ class WorkshopResourceTest {
             .statusCode(200)
             .body("ok", equalTo(true))
 
-        assertEquals(beforeX, engine.puck.x, 0.001)
+        assertEquals(
+            beforeX,
+            defaultRoom()
+                .reliableState.value.puck.x,
+            0.001,
+        )
     }
+
+    private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
+
+    private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =
+        runBlocking {
+            withTimeout(1.seconds) {
+                defaultRoom().reliableState.first(predicate)
+            }
+        }
 }
