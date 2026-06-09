@@ -5,6 +5,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -16,11 +17,12 @@ import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GameRoomActorTest {
     @Test
-    fun test_reliableIntent_updatesStateFlow() =
+    fun `reliable intent updates state flow`() =
         runTest {
             val room = testRoom()
 
@@ -32,7 +34,7 @@ class GameRoomActorTest {
         }
 
     @Test
-    fun test_ephemeralIntent_bypassesReplayLogAndEmitsToSharedFlow() =
+    fun `ephemeral intent bypasses replay log and emits to shared flow`() =
         runTest {
             val room = testRoom()
             val draftEvent = EphemeralEvent.LineDraft("line-1", 10.0, 20.0)
@@ -48,7 +50,7 @@ class GameRoomActorTest {
         }
 
     @Test
-    fun test_commitLineIntent_updatesReliableState() =
+    fun `commit line intent updates reliable state`() =
         runTest {
             val room = testRoom()
             val line =
@@ -65,7 +67,7 @@ class GameRoomActorTest {
         }
 
     @Test
-    fun test_replayLogRingBuffer_evictsOldestReliableIntent() =
+    fun `replay log ring buffer evicts oldest reliable intent`() =
         runTest {
             val room = testRoom()
 
@@ -80,9 +82,29 @@ class GameRoomActorTest {
             room.shutdown()
         }
 
+    @Test
+    fun `automatic powerup spawner emits reliable state`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val room =
+                GameRoom(
+                    "test-room",
+                    scope = scope,
+                    autoPowerUpsEnabled = true,
+                    powerUpSpawnInterval = 1.seconds,
+                )
+
+            advanceTimeBy(1.seconds)
+            runCurrent()
+
+            assertEquals(1, room.reliableState.value.powerUps.size)
+            room.shutdown()
+        }
+
     private fun TestScope.testRoom(): GameRoom {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val scope = TestScope(dispatcher)
-        return GameRoom("test-room", scope = scope)
+        return GameRoom("test-room", scope = scope, autoPowerUpsEnabled = false)
     }
 }

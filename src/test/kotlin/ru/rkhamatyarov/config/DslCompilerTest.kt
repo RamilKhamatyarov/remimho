@@ -8,7 +8,7 @@ class DslCompilerTest {
     private val compiler = DslCompiler()
 
     @Test
-    fun test_compileYaml_returnsRuleConfig() {
+    fun `compile YAML returns rule config`() {
         val source =
             """
             name: Solo Rules
@@ -26,7 +26,7 @@ class DslCompilerTest {
     }
 
     @Test
-    fun test_compileToml_returnsRuleConfig() {
+    fun `compile TOML returns rule config`() {
         val source =
             """
             name = "Toml Rules"
@@ -41,7 +41,7 @@ class DslCompilerTest {
     }
 
     @Test
-    fun test_validateDependencies_rejectsMissingTeleportPair() {
+    fun `validate dependencies rejects missing teleport pair`() {
         val config = RuleConfig(teleports = listOf(RuleTeleportConfig(id = "a", pair = "b")))
 
         val errors = compiler.validateDependencies(config)

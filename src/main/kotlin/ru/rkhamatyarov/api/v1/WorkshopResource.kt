@@ -18,7 +18,13 @@ import ru.rkhamatyarov.config.PreviewResponse
 import ru.rkhamatyarov.config.RuleConfig
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.SpeedConfig
-import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.RoomRegistry
+import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.MviGameState
+import ru.rkhamatyarov.service.mvi.MviLine
+import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.reduce
 import ru.rkhamatyarov.workshop.CompiledConfigCache
 
 @Path("/api/v1/workshop")
@@ -26,7 +32,7 @@ import ru.rkhamatyarov.workshop.CompiledConfigCache
 @Consumes(MediaType.APPLICATION_JSON)
 class WorkshopResource {
     @Inject
-    lateinit var engine: GameEngine
+    lateinit var roomRegistry: RoomRegistry
 
     @Inject
     lateinit var dslCompiler: DslCompiler
@@ -107,39 +113,42 @@ class WorkshopResource {
                 .build()
         }
 
-        val previewEngine = GameEngine()
-        previewEngine.speedConfig =
-            SpeedConfig(
-                baseMultiplier = config.speed.baseMultiplier,
-                timeAccelerationRate = config.speed.timeAccelerationRate,
-                levelAccelerationPerLine = config.speed.levelAccelerationPerLine,
-                maxMultiplier = config.speed.maxMultiplier,
+        var previewState =
+            MviGameState(
+                speedConfig =
+                    SpeedConfig(
+                        baseMultiplier = config.speed.baseMultiplier,
+                        timeAccelerationRate = config.speed.timeAccelerationRate,
+                        levelAccelerationPerLine = config.speed.levelAccelerationPerLine,
+                        maxMultiplier = config.speed.maxMultiplier,
+                    ),
+                aiConfig =
+                    AiOpponentConfig(
+                        enabled = config.ai.enabled,
+                        reactionDelayMs = config.ai.reactionDelayMs,
+                        maxSpeed = config.ai.maxSpeed,
+                        trackingError = config.ai.trackingError,
+                        reactZoneRatio = config.ai.reactZoneRatio,
+                    ),
+                lines =
+                    config.lines.mapIndexed { index, line ->
+                        MviLine(
+                            id = "preview-$index",
+                            points = listOf(MviPoint(line.x1, line.y1), MviPoint(line.x2, line.y2)),
+                        )
+                    },
             )
-        previewEngine.aiOpponentConfig =
-            AiOpponentConfig(
-                enabled = config.ai.enabled,
-                reactionDelayMs = config.ai.reactionDelayMs,
-                maxSpeed = config.ai.maxSpeed,
-                trackingError = config.ai.trackingError,
-                reactZoneRatio = config.ai.reactZoneRatio,
-            )
-
-        config.lines.forEach { line ->
-            previewEngine.startNewLine(line.x1, line.y1)
-            previewEngine.updateCurrentLine(line.x2, line.y2)
-            previewEngine.finishCurrentLine()
-        }
 
         val beforeMemory = usedMemory()
         val startNs = System.nanoTime()
         var collisionCount = 0
-        var previousVx = previewEngine.puck.vx
-        var previousVy = previewEngine.puck.vy
-        repeat(PREVIEW_TICKS) {
-            previewEngine.tick(PREVIEW_DT)
-            if (previewEngine.puck.vx != previousVx || previewEngine.puck.vy != previousVy) collisionCount++
-            previousVx = previewEngine.puck.vx
-            previousVy = previewEngine.puck.vy
+        var previousVx = previewState.puck.vx
+        var previousVy = previewState.puck.vy
+        repeat(PREVIEW_TICKS) { tick ->
+            previewState = reduce(previewState, GameAction.Tick(PREVIEW_DT, startNs + tick))
+            if (previewState.puck.vx != previousVx || previewState.puck.vy != previousVy) collisionCount++
+            previousVx = previewState.puck.vx
+            previousVy = previewState.puck.vy
         }
         val frameTimeMs = (System.nanoTime() - startNs) / 1_000_000.0 / PREVIEW_TICKS
         val memoryBytes = (usedMemory() - beforeMemory).coerceAtLeast(0)
@@ -163,7 +172,7 @@ class WorkshopResource {
     @Path("/speed-config")
     fun applySpeedConfig(config: SpeedConfig): Response {
         validateSpeedConfig(config)?.let { return it }
-        engine.speedConfig = config
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplySpeedConfig(config)))
         return Response
             .ok(
                 mapOf(
@@ -180,7 +189,7 @@ class WorkshopResource {
     @Path("/ai-opponent-config")
     fun applyAiOpponentConfig(config: AiOpponentConfig): Response {
         validateAiOpponentConfig(config)?.let { return it }
-        engine.aiOpponentConfig = config
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
         return aiOpponentConfigResponse(config)
     }
 
@@ -244,4 +253,6 @@ class WorkshopResource {
                 .entity(mapOf("error" to message))
                 .build()
     }
+
+    private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 }

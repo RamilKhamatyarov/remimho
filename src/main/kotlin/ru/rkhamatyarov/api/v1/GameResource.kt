@@ -18,17 +18,19 @@ import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
-import ru.rkhamatyarov.service.GameEngine
+import ru.rkhamatyarov.service.GameRoom
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
+import ru.rkhamatyarov.service.createRandomPowerUp
+import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.mviStateFromDelta
 import java.util.Base64
 
 @Path("/api/v1/game")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 class GameResource {
-    @Inject lateinit var engine: GameEngine
-
     @Inject lateinit var history: StateHistory
 
     @Inject lateinit var roomRegistry: RoomRegistry
@@ -41,24 +43,26 @@ class GameResource {
 
     @GET
     @Path("/state")
-    fun getGameState() =
-        Response
+    fun getGameState(): Response {
+        val state = defaultRoom().reliableState.value
+        return Response
             .ok(
                 mapOf(
-                    "puckX" to engine.puck.x,
-                    "puckY" to engine.puck.y,
-                    "paddle1Y" to engine.paddle1Y,
-                    "paddle2Y" to engine.paddle2Y,
-                    "paddleHeight" to engine.paddleHeight,
-                    "canvasWidth" to engine.canvasWidth,
-                    "canvasHeight" to engine.canvasHeight,
-                    "paused" to engine.paused,
-                    "linesCount" to engine.lines.size,
-                    "scoreA" to engine.score.playerA,
-                    "scoreB" to engine.score.playerB,
-                    "aiOpponent" to engine.aiOpponentConfig,
+                    "puckX" to state.puck.x,
+                    "puckY" to state.puck.y,
+                    "paddle1Y" to state.paddle1Y,
+                    "paddle2Y" to state.paddle2Y,
+                    "paddleHeight" to state.paddleHeight,
+                    "canvasWidth" to state.canvasWidth,
+                    "canvasHeight" to state.canvasHeight,
+                    "paused" to state.paused,
+                    "linesCount" to state.lines.size,
+                    "scoreA" to state.score.playerA,
+                    "scoreB" to state.score.playerB,
+                    "aiOpponent" to state.aiConfig,
                 ),
             ).build()
+    }
 
     @GET
     @Path("/client-config")
@@ -74,18 +78,17 @@ class GameResource {
     @POST
     @Path("/reset")
     fun resetGame(): Response {
-        engine.resetPuck()
-        engine.clearLines()
-        engine.paused = false
-        engine.elapsedSeconds = 0.0
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.Reset))
         return Response.ok(mapOf("message" to "Game reset successfully")).build()
     }
 
     @POST
     @Path("/pause")
     fun togglePause(): Response {
-        engine.paused = !engine.paused
-        return Response.ok(mapOf("paused" to engine.paused)).build()
+        val room = defaultRoom()
+        val paused = !room.reliableState.value.paused
+        room.dispatch(GameIntent.Reliable(GameAction.TogglePause))
+        return Response.ok(mapOf("paused" to paused)).build()
     }
 
     @POST
@@ -103,33 +106,36 @@ class GameResource {
     @DELETE
     @Path("/lines")
     fun clearLines(): Response {
-        val count = engine.lines.size
-        engine.clearLines()
+        val room = defaultRoom()
+        val count = room.reliableState.value.lines.size
+        room.dispatch(GameIntent.Reliable(GameAction.ClearLines))
         return Response.ok(mapOf("cleared" to count)).build()
     }
 
     @GET
     @Path("/statistics")
-    fun getStatistics() =
-        Response
+    fun getStatistics(): Response {
+        val state = defaultRoom().reliableState.value
+        return Response
             .ok(
                 mapOf(
-                    "drawnLines" to engine.lines.size,
-                    "isPaused" to engine.paused,
-                    "scoreA" to engine.score.playerA,
-                    "scoreB" to engine.score.playerB,
+                    "drawnLines" to state.lines.size,
+                    "isPaused" to state.paused,
+                    "scoreA" to state.score.playerA,
+                    "scoreB" to state.score.playerB,
                 ),
             ).build()
+    }
 
     @GET
     @Path("/ai-opponent")
-    fun getAiOpponentConfig(): Response = Response.ok(engine.aiOpponentConfig).build()
+    fun getAiOpponentConfig(): Response = Response.ok(defaultRoom().reliableState.value.aiConfig).build()
 
     @POST
     @Path("/ai-opponent")
     fun setAiOpponentConfig(config: AiOpponentConfig): Response {
         WorkshopResource.validateAiOpponentConfig(config)?.let { return it }
-        engine.aiOpponentConfig = config
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
         return WorkshopResource.aiOpponentConfigResponse(config)
     }
 
@@ -150,25 +156,50 @@ class GameResource {
                     .entity(mapOf("error" to "No snapshot available for offset ${request.offset}s"))
                     .build()
 
-        engine.restoreFromDelta(GameStateDelta.parseFrom(snapshot))
+        val restoredState = mviStateFromDelta(GameStateDelta.parseFrom(snapshot))
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(restoredState)))
         history.clear()
         return Response
             .ok(
                 mapOf(
                     "message" to "Timeline restored",
                     "offset" to request.offset,
-                    "puckX" to engine.puck.x,
-                    "puckY" to engine.puck.y,
+                    "puckX" to restoredState.puck.x,
+                    "puckY" to restoredState.puck.y,
                 ),
             ).build()
     }
 
     @POST
     @Path("/powerup/spawn")
-    fun spawnPowerUp(request: PowerUpSpawnRequest): Response =
+    fun spawnPowerUp(
+        request: PowerUpSpawnRequest,
+        @QueryParam("roomId") roomId: String?,
+    ): Response =
         try {
             val type = PowerUpType.valueOf(request.type)
-            Response.ok(mapOf("type" to type.name, "message" to "Power-up spawned")).build()
+            val room = roomRegistry.get(roomId ?: RoomRegistry.DEFAULT_ROOM_ID)
+            val powerUp = createRandomPowerUp(type, room.reliableState.value)
+            val accepted = room.dispatch(GameIntent.Reliable(GameAction.SpawnPowerUp(powerUp)))
+
+            if (!accepted) {
+                Response
+                    .status(Response.Status.SERVICE_UNAVAILABLE)
+                    .entity(mapOf("error" to "Room is not accepting power-up spawns"))
+                    .build()
+            } else {
+                Response
+                    .ok(
+                        mapOf(
+                            "type" to type.name,
+                            "roomId" to room.id,
+                            "powerUpId" to powerUp.id,
+                            "x" to powerUp.x,
+                            "y" to powerUp.y,
+                            "message" to "Power-up spawned",
+                        ),
+                    ).build()
+            }
         } catch (_: IllegalArgumentException) {
             Response
                 .status(Response.Status.BAD_REQUEST)
@@ -221,4 +252,6 @@ class GameResource {
                 ),
             ).build()
     }
+
+    private fun defaultRoom(): GameRoom = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 }

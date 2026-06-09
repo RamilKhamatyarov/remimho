@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import ru.rkhamatyarov.proto.GameStateDelta
+import org.jboss.logging.Logger
 import kotlin.coroutines.CoroutineContext
 
 @ApplicationScoped
@@ -21,17 +21,23 @@ class MviGameEngine private constructor(
     private val scope = CoroutineScope(context + job)
     private val actions = Channel<GameAction>(Channel.UNLIMITED)
     private val mutableState = MutableStateFlow(MviGameState())
+    private val log = Logger.getLogger(MviGameEngine::class.java)
 
     val state: StateFlow<MviGameState> = mutableState.asStateFlow()
 
     init {
         scope.launch {
             for (action in actions) {
-                mutableState.value = reduce(mutableState.value, action)
+                try {
+                    mutableState.value = reduce(mutableState.value, action)
+                } catch (error: Exception) {
+                    log.error("MVI reducer error: ${error.message}")
+                }
             }
         }
     }
 
+    @Suppress("unused")
     constructor() : this(Dispatchers.Default)
 
     @Suppress("UNUSED_PARAMETER")
@@ -41,8 +47,6 @@ class MviGameEngine private constructor(
     ) : this(context)
 
     fun tryDispatch(action: GameAction): Boolean = actions.trySend(action).isSuccess
-
-    fun toGameStateDelta(): GameStateDelta = mutableState.value.toDelta()
 
     @PreDestroy
     override fun close() {
