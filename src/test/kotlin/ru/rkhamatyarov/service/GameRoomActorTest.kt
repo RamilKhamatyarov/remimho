@@ -73,12 +73,32 @@ class GameRoomActorTest {
 
             repeat(1030) { index ->
                 room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(index.toDouble())))
+                runCurrent()
             }
             advanceUntilIdle()
 
             val oldestLogged = room.getReplayLog().first() as GameIntent.Reliable
             assertEquals(1024, room.getReplayLog().size)
             assertEquals(6.0, (oldestLogged.action as GameAction.MovePaddle).y, 0.001)
+            room.shutdown()
+        }
+
+    @Test
+    fun `intent channel drops oldest actions under backpressure`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val room = GameRoom("test-room", scope = scope, autoPowerUpsEnabled = false)
+
+            repeat(70) { index ->
+                assertTrue(room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(index.toDouble()))))
+            }
+            advanceUntilIdle()
+
+            val oldestLogged = room.getReplayLog().first() as GameIntent.Reliable
+            assertEquals(64, room.getReplayLog().size)
+            assertEquals(6.0, (oldestLogged.action as GameAction.MovePaddle).y, 0.001)
+            assertEquals(69.0, room.reliableState.value.paddle2Y, 0.001)
             room.shutdown()
         }
 

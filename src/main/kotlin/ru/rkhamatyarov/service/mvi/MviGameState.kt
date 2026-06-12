@@ -4,7 +4,10 @@ import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.GameStateDelta
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.sign
 import kotlin.math.sin
@@ -15,6 +18,8 @@ data class MviPuck(
     val vx: Double = 300.0,
     val vy: Double = 200.0,
     val radius: Double = 10.0,
+    val teleportCooldownUntilNs: Long = 0L,
+    val lastTeleportPairId: String? = null,
 )
 
 data class MviScore(
@@ -172,6 +177,8 @@ fun reduce(
                         y = state.canvasHeight / 2,
                         vx = if (state.puck.vx > 0) 300.0 else -300.0,
                         vy = 200.0,
+                        teleportCooldownUntilNs = 0L,
+                        lastTeleportPairId = null,
                     ),
                 paused = false,
                 lines = emptyList(),
@@ -294,7 +301,7 @@ private fun reduceTick(
         }
     }
 
-    puck = applyLineCollisions(puck, state.lines, state.teleports)
+    puck = applyLineCollisions(puck, state.lines, state.teleports, nowNs)
 
     val score =
         when {
@@ -309,6 +316,8 @@ private fun reduceTick(
                 y = state.canvasHeight / 2,
                 vx = if (puck.vx > 0) 300.0 else -300.0,
                 vy = 200.0,
+                teleportCooldownUntilNs = 0L,
+                lastTeleportPairId = null,
             )
     }
 
@@ -381,6 +390,7 @@ private fun applyLineCollisions(
     puck: MviPuck,
     lines: List<MviLine>,
     teleports: Map<String, String>,
+    nowNs: Long,
 ): MviPuck {
     for (line in lines) {
         val pts = line.points
@@ -393,8 +403,18 @@ private fun applyLineCollisions(
             if (partnerLineId != null) {
                 val partner = lines.firstOrNull { it.id == partnerLineId }
                 if (partner != null) {
+                    val pairId = teleportPairId(line.id, partnerLineId)
+                    if (!canUseTeleport(puck, pairId, nowNs)) return puck
                     val mid = lineMidpoint(partner)
-                    return puck.copy(x = mid.x, y = mid.y)
+                    val (newVx, newVy) = rotateVelocityThroughPortal(puck.vx, puck.vy, a, b, partner)
+                    return puck.copy(
+                        x = mid.x,
+                        y = mid.y,
+                        vx = newVx,
+                        vy = newVy,
+                        teleportCooldownUntilNs = nowNs + TELEPORT_COOLDOWN_NS,
+                        lastTeleportPairId = pairId,
+                    )
                 }
             }
 
@@ -403,6 +423,60 @@ private fun applyLineCollisions(
         }
     }
     return puck
+}
+
+private fun canUseTeleport(
+    puck: MviPuck,
+    pairId: String,
+    nowNs: Long,
+): Boolean = puck.lastTeleportPairId != pairId || nowNs >= puck.teleportCooldownUntilNs
+
+private fun teleportPairId(
+    firstLineId: String,
+    secondLineId: String,
+): String =
+    if (firstLineId <= secondLineId) {
+        "$firstLineId:$secondLineId"
+    } else {
+        "$secondLineId:$firstLineId"
+    }
+
+private fun rotateVelocityThroughPortal(
+    vx: Double,
+    vy: Double,
+    entryA: MviPoint,
+    entryB: MviPoint,
+    exitLine: MviLine,
+): Pair<Double, Double> {
+    val exitSegment = exitLine.firstValidSegment() ?: return vx to vy
+    val entryAngle = segmentAngle(entryA, entryB) ?: return vx to vy
+    val exitAngle = segmentAngle(exitSegment.first, exitSegment.second) ?: return vx to vy
+    val rotation = exitAngle - entryAngle + PI
+    val rotatedVx = vx * cos(rotation) - vy * sin(rotation)
+    val rotatedVy = vx * sin(rotation) + vy * cos(rotation)
+    return rotatedVx to rotatedVy
+}
+
+private fun MviLine.firstValidSegment(): Pair<MviPoint, MviPoint>? =
+    points
+        .zipWithNext()
+        .firstOrNull { (a, b) -> segmentLengthSquared(a, b) >= MIN_SEGMENT_LENGTH_SQUARED }
+
+private fun segmentAngle(
+    a: MviPoint,
+    b: MviPoint,
+): Double? {
+    if (segmentLengthSquared(a, b) < MIN_SEGMENT_LENGTH_SQUARED) return null
+    return atan2(b.y - a.y, b.x - a.x)
+}
+
+private fun segmentLengthSquared(
+    a: MviPoint,
+    b: MviPoint,
+): Double {
+    val dx = b.x - a.x
+    val dy = b.y - a.y
+    return dx * dx + dy * dy
 }
 
 private fun segmentCircleIntersects(
@@ -417,7 +491,7 @@ private fun segmentCircleIntersects(
     val fx = a.x - px
     val fy = a.y - py
     val lenSq = dx * dx + dy * dy
-    if (lenSq < 1e-9) return false
+    if (lenSq < MIN_SEGMENT_LENGTH_SQUARED) return false
     val t = ((-fx * dx - fy * dy) / lenSq).coerceIn(0.0, 1.0)
     val closestX = a.x + t * dx - px
     val closestY = a.y + t * dy - py
@@ -433,7 +507,7 @@ private fun reflectVelocity(
     val nx = -(b.y - a.y)
     val ny = b.x - a.x
     val len = hypot(nx, ny)
-    if (len < 1e-9) return vx to vy
+    if (len * len < MIN_SEGMENT_LENGTH_SQUARED) return vx to vy
     val nnx = nx / len
     val nny = ny / len
     val dot = vx * nnx + vy * nny
@@ -484,3 +558,5 @@ private fun MviPoint.toProto(): ru.rkhamatyarov.proto.Point =
 private const val PADDLE_WIDTH = 20.0
 private const val MAGNET_RANGE = 150.0
 private const val MAGNET_STRENGTH = 0.3
+private const val TELEPORT_COOLDOWN_NS = 100_000_000L
+private const val MIN_SEGMENT_LENGTH_SQUARED = 1e-9

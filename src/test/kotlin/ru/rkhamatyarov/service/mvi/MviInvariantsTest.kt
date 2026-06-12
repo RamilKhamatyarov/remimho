@@ -6,6 +6,7 @@ import io.kotest.property.arbitrary.filter
 import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
+import kotlin.math.hypot
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -64,6 +65,42 @@ class MviInvariantsTest {
 
         assertEquals(700.0, next.puck.x, 2.0)
         assertEquals(300.0, next.puck.y, 2.0)
+    }
+
+    @Test
+    fun `teleport chain does not cause stack overflow or infinite loop`() {
+        val lineA = MviLine("portal-a", listOf(MviPoint(100.0, 290.0), MviPoint(100.0, 310.0)))
+        val lineB = MviLine("portal-b", listOf(MviPoint(100.0, 290.0), MviPoint(100.0, 310.0)))
+        var state =
+            MviGameState(
+                puck = MviPuck(x = 105.0, y = 300.0, vx = -200.0, vy = 0.0),
+                lines = listOf(lineA, lineB),
+                teleports = mapOf("portal-a" to "portal-b", "portal-b" to "portal-a"),
+            )
+
+        repeat(10) { index ->
+            state = reduce(state, GameAction.Tick(0.016, nowNs = 1_000_000L + index * 16_000_000L))
+        }
+
+        assertTrue(state.puck.x.isFinite())
+        assertTrue(state.puck.x > 110.0, "puck should move out of the adjacent portal zone")
+    }
+
+    @Test
+    fun `teleport preserves kinetic energy magnitude`() {
+        val lineA = MviLine("portal-a", listOf(MviPoint(100.0, 290.0), MviPoint(100.0, 310.0)))
+        val lineB = MviLine("portal-b", listOf(MviPoint(690.0, 300.0), MviPoint(710.0, 300.0)))
+        val puck = MviPuck(x = 105.0, y = 300.0, vx = -120.0, vy = 160.0)
+        val state =
+            MviGameState(
+                puck = puck,
+                lines = listOf(lineA, lineB),
+                teleports = mapOf("portal-a" to "portal-b", "portal-b" to "portal-a"),
+            )
+
+        val next = reduce(state, GameAction.Tick(0.016, nowNs = 1_000_000L))
+
+        assertEquals(hypot(puck.vx, puck.vy), hypot(next.puck.vx, next.puck.vy), 0.0001)
     }
 
     @Test
