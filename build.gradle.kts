@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     kotlin("jvm") version "2.4.0"
-    kotlin("plugin.allopen") version "2.3.21"
+    kotlin("plugin.allopen") version "2.4.0"
     kotlin("plugin.serialization") version "2.4.0"
     id("io.quarkus") version "3.36.0"
     id("com.google.protobuf") version "0.10.0"
