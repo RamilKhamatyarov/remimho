@@ -13,7 +13,7 @@ plugins {
 group = "ru.rkhamatyarov"
 version = "1.0.0"
 
-val protobufVersion = "4.35.0"
+val protobufVersion = "4.35.1"
 
 repositories {
     mavenCentral()
