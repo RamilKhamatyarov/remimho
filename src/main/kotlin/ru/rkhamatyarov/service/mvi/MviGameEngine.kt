@@ -31,7 +31,7 @@ class MviGameEngine private constructor(
                 try {
                     mutableState.value = reduce(mutableState.value, action)
                 } catch (error: Exception) {
-                    log.error("MVI reducer error: ${error.message}")
+                    log.error("MVI reducer failed for action=$action;", error)
                 }
             }
         }

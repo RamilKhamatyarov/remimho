@@ -35,7 +35,11 @@ class GameRoom(
     autoPowerUpsEnabled: Boolean = true,
     private val powerUpSpawnInterval: Duration = AUTO_POWER_UP_INTERVAL,
 ) {
-    private val intents = Channel<GameIntent>(Channel.UNLIMITED)
+    private val intents =
+        Channel<GameIntent>(
+            capacity = INTENT_BUFFER_CAPACITY,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
     private val mutableReliableState = MutableStateFlow(MviGameState())
     private val mutableEphemeralEvents =
         MutableSharedFlow<EphemeralEvent>(
@@ -114,6 +118,7 @@ class GameRoom(
 
     companion object {
         private val AUTO_POWER_UP_INTERVAL = 10.seconds
+        private const val INTENT_BUFFER_CAPACITY = 64
         private const val STATE_BUFFER_CAPACITY = 3
         private const val EPHEMERAL_BUFFER_CAPACITY = 64
         private const val REPLAY_LOG_CAPACITY = 1024
