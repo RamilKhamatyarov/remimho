@@ -2,12 +2,12 @@ package ru.rkhamatyarov.service
 
 import jakarta.annotation.PreDestroy
 import jakarta.enterprise.context.ApplicationScoped
+import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +23,8 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.reduce
+import ru.rkhamatyarov.telemetry.MonitoredMailbox
+import ru.rkhamatyarov.telemetry.MonitoredReducer
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 import kotlin.time.Duration
@@ -32,14 +34,11 @@ class GameRoom(
     val id: String,
     val history: StateHistory = StateHistory(),
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    val mailbox: ActorMailbox<GameIntent> = MonitoredMailbox(INTENT_BUFFER_CAPACITY),
+    private val reducer: (MviGameState, GameAction) -> MviGameState = ::reduce,
     autoPowerUpsEnabled: Boolean = true,
     private val powerUpSpawnInterval: Duration = AUTO_POWER_UP_INTERVAL,
 ) {
-    private val intents =
-        Channel<GameIntent>(
-            capacity = INTENT_BUFFER_CAPACITY,
-            onBufferOverflow = BufferOverflow.DROP_OLDEST,
-        )
     private val mutableReliableState = MutableStateFlow(MviGameState())
     private val mutableEphemeralEvents =
         MutableSharedFlow<EphemeralEvent>(
@@ -58,10 +57,13 @@ class GameRoom(
     val reliableState: StateFlow<MviGameState> = mutableReliableState.asStateFlow()
     val ephemeralEvents: SharedFlow<EphemeralEvent> = mutableEphemeralEvents.asSharedFlow()
     val stateFlow: SharedFlow<ByteArray> = mutableStateFlow.asSharedFlow()
+    val mailboxDepth: Int
+        get() = mailbox.depth
 
     init {
         scope.launch {
-            for (intent in intents) {
+            while (true) {
+                val intent = mailbox.receive() ?: break
                 apply(intent)
             }
         }
@@ -72,14 +74,14 @@ class GameRoom(
         }
     }
 
-    fun dispatch(intent: GameIntent): Boolean = intents.trySend(intent).isSuccess
+    fun dispatch(intent: GameIntent): Boolean = mailbox.trySend(intent)
 
     fun getReplayLog(): List<GameIntent> = replayLog.toList()
 
     fun tryEmit(bytes: ByteArray): Boolean = mutableStateFlow.tryEmit(bytes)
 
     fun shutdown() {
-        intents.close()
+        mailbox.close()
         scope.cancel()
     }
 
@@ -92,7 +94,7 @@ class GameRoom(
 
     private fun applyReliable(intent: GameIntent.Reliable) {
         appendReplayIntent(intent)
-        mutableReliableState.value = reduce(mutableReliableState.value, intent.action)
+        mutableReliableState.value = reducer(mutableReliableState.value, intent.action)
     }
 
     private fun appendReplayIntent(intent: GameIntent.Reliable) {
@@ -145,22 +147,35 @@ private fun randomCoordinate(maximum: Double): Double =
 private const val POWER_UP_RADIUS = 15.0
 
 @ApplicationScoped
-class RoomRegistry {
-    private val rooms = ConcurrentHashMap<String, GameRoom>()
+class RoomRegistry
+    @Inject
+    constructor(
+        private val monitoredReducer: MonitoredReducer,
+    ) {
+        constructor() : this(MonitoredReducer())
 
-    fun get(roomId: String): GameRoom = rooms.computeIfAbsent(roomId.ifBlank { DEFAULT_ROOM_ID }) { GameRoom(it) }
+        private val rooms = ConcurrentHashMap<String, GameRoom>()
 
-    fun activeRooms(): Collection<GameRoom> = rooms.values
+        fun get(roomId: String): GameRoom =
+            rooms.computeIfAbsent(roomId.ifBlank { DEFAULT_ROOM_ID }) { id ->
+                GameRoom(
+                    id = id,
+                    mailbox = MonitoredMailbox(),
+                    reducer = monitoredReducer.wrap(::reduce),
+                )
+            }
 
-    fun roomCount(): Int = rooms.size
+        fun activeRooms(): Collection<GameRoom> = rooms.values
 
-    @PreDestroy
-    fun shutdown() {
-        rooms.values.forEach { it.shutdown() }
-        rooms.clear()
+        fun roomCount(): Int = rooms.size
+
+        @PreDestroy
+        fun shutdown() {
+            rooms.values.forEach { it.shutdown() }
+            rooms.clear()
+        }
+
+        companion object {
+            const val DEFAULT_ROOM_ID = "default"
+        }
     }
-
-    companion object {
-        const val DEFAULT_ROOM_ID = "default"
-    }
-}
