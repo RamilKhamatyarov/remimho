@@ -47,7 +47,7 @@ dependencies {
     testImplementation("io.quarkus:quarkus-junit5-mockito")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.kotest:kotest-property-jvm:5.9.1")
+    testImplementation("io.kotest:kotest-property-jvm:6.2.1")
 }
 
 java {
