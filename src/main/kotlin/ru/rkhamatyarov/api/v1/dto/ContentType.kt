@@ -1,8 +1,5 @@
 package ru.rkhamatyarov.api.v1.dto
 
-import kotlinx.serialization.Serializable
-
-@Serializable
 enum class ContentType {
     LEVEL,
     SKIN,

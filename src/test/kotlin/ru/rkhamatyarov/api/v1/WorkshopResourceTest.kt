@@ -10,6 +10,8 @@ import kotlinx.coroutines.withTimeout
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.service.RoomRegistry
+import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
@@ -263,6 +265,10 @@ class WorkshopResourceTest {
 
     @Test
     fun `POST preview dry run does not mutate live engine`() {
+        val stableState = MviGameState(paused = true)
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(stableState)))
+        awaitDefaultState { it == stableState }
+
         val beforeX =
             defaultRoom()
                 .reliableState.value.puck.x

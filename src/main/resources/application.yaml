@@ -1,14 +1,7 @@
 quarkus:
   http:
-    limits:
-      max-form-size: 10M
     body:
       handle-file-uploads: false
-    netty:
-      receive-buffer-size: 65536
-      send-buffer-size: 65536
-      tcp-no-delay: true
-      tcp-keep-alive: true
 
   vertx:
     event-loops-pool-size: 4
@@ -48,11 +41,6 @@ quarkus:
         - ".*\\.js"
         - "assets/.*"
         - ".*\\.proto"
-    reflection:
-      include-patterns:
-        - ru.rkhamatyarov.proto.**
-        - com.google.protobuf.**
-        
   websockets-next:
     server:
       supported-subprotocols: binary

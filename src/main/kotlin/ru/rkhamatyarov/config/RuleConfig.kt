@@ -43,13 +43,11 @@ data class RuleTeleportConfig(
     val pair: String,
 )
 
-@Serializable
 data class CompileRequest(
     val source: String,
     val format: String = "yaml",
 )
 
-@Serializable
 data class CompileResponse(
     val ok: Boolean,
     val config: RuleConfig? = null,
@@ -58,7 +56,6 @@ data class CompileResponse(
     val errors: List<String> = emptyList(),
 )
 
-@Serializable
 data class PreviewResponse(
     val ok: Boolean,
     val checksum: String? = null,
