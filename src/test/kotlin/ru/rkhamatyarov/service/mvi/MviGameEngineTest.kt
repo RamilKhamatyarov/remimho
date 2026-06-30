@@ -48,7 +48,7 @@ class MviGameEngineTest {
                 paddle1Y = 250.0,
             )
 
-        val next = reduce(state, GameAction.Tick(0.016, nowNs = 1L))
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 1L))
 
         assertTrue(next.puck.vx > 0.0)
         assertNotEquals(30.0, next.puck.x)
@@ -62,7 +62,7 @@ class MviGameEngineTest {
                 paddle1Y = 250.0,
             )
 
-        val next = reduce(state, GameAction.Tick(0.016, nowNs = 1L))
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 1L))
 
         assertEquals(50.0, next.puck.vx, 0.0001)
         assertEquals(30.0, next.puck.x, 0.0001)
@@ -86,15 +86,15 @@ class MviGameEngineTest {
                 aiConfig = aiConfig,
             )
 
-        val withoutError = reduce(baseState.copy(elapsedSeconds = 0.0), GameAction.Tick(0.016, nowNs = 1L))
-        val withError = reduce(baseState.copy(elapsedSeconds = Math.PI / 5.0), GameAction.Tick(0.016, nowNs = 1L))
+        val withoutError = reduce(baseState.copy(elapsedSeconds = 0.0), GameAction.Tick(0.016, elapsedNs = 1L))
+        val withError = reduce(baseState.copy(elapsedSeconds = Math.PI / 5.0), GameAction.Tick(0.016, elapsedNs = 1L))
 
         assertNotEquals(withoutError.paddle1Y, withError.paddle1Y)
     }
 
     @Test
     fun `magnet effect scales with delta seconds`() {
-        val nowNs = 1_000_000_000L
+        val elapsedNs = 1_000_000_000L
         val state =
             MviGameState(
                 puck = MviPuck(x = 700.0, y = 300.0, vx = 0.0, vy = 0.0),
@@ -103,14 +103,14 @@ class MviGameEngineTest {
                     listOf(
                         MviActivePowerUp(
                             type = PowerUpType.MAGNET_BALL,
-                            activatedNs = nowNs,
+                            activatedNs = elapsedNs,
                             durationNs = 10_000_000_000L,
                         ),
                     ),
             )
 
-        val smallDelta = reduce(state, GameAction.Tick(0.016, nowNs = nowNs))
-        val largeDelta = reduce(state, GameAction.Tick(0.032, nowNs = nowNs))
+        val smallDelta = reduce(state, GameAction.Tick(0.016, elapsedNs = elapsedNs))
+        val largeDelta = reduce(state, GameAction.Tick(0.032, elapsedNs = elapsedNs))
 
         assertTrue(largeDelta.puck.vx > smallDelta.puck.vx * 1.5)
     }
@@ -137,7 +137,7 @@ class MviGameEngineTest {
             val dispatcher = StandardTestDispatcher(testScheduler)
             val engine = MviGameEngine(dispatcher, testOnly = true)
 
-            val badTickSent = engine.tryDispatch(GameAction.Tick(Double.NaN, nowNs = 1L))
+            val badTickSent = engine.tryDispatch(GameAction.Tick(Double.NaN, elapsedNs = 1L))
             val moveSent = engine.tryDispatch(GameAction.MovePaddle(123.0))
             advanceUntilIdle()
 

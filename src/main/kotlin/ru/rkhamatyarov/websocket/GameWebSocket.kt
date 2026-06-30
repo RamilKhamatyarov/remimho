@@ -462,7 +462,8 @@ class GameWebSocket {
         val rooms = roomRegistry.activeRooms()
         if (rooms.isEmpty()) return
         rooms.forEach { room ->
-            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016)))
+            val elapsedNs = (room.reliableState.value.elapsedSeconds * 1_000_000_000L).toLong()
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs)))
             tickRoom(room)
         }
     }

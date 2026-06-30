@@ -69,7 +69,9 @@ class GameRoomActorTest {
     @Test
     fun `replay log ring buffer evicts oldest reliable intent`() =
         runTest {
-            val room = testRoom()
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            val scope = TestScope(dispatcher)
+            val room = GameRoom("test-room", scope = scope, autoPowerUpsEnabled = false, replayLogCapacity = 1024)
 
             repeat(1030) { index ->
                 room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(index.toDouble())))
@@ -77,7 +79,7 @@ class GameRoomActorTest {
             }
             advanceUntilIdle()
 
-            val oldestLogged = room.getReplayLog().first() as GameIntent.Reliable
+            val oldestLogged = room.getReplayLog().first()
             assertEquals(1024, room.getReplayLog().size)
             assertEquals(6.0, (oldestLogged.action as GameAction.MovePaddle).y, 0.001)
             room.shutdown()
@@ -95,7 +97,7 @@ class GameRoomActorTest {
             }
             advanceUntilIdle()
 
-            val oldestLogged = room.getReplayLog().first() as GameIntent.Reliable
+            val oldestLogged = room.getReplayLog().first()
             assertEquals(64, room.getReplayLog().size)
             assertEquals(6.0, (oldestLogged.action as GameAction.MovePaddle).y, 0.001)
             assertEquals(69.0, room.reliableState.value.paddle2Y, 0.001)

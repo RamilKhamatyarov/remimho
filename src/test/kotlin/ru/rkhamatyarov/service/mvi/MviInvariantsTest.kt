@@ -79,7 +79,7 @@ class MviInvariantsTest {
             )
 
         repeat(10) { index ->
-            state = reduce(state, GameAction.Tick(0.016, nowNs = 1_000_000L + index * 16_000_000L))
+            state = reduce(state, GameAction.Tick(0.016, elapsedNs = 1_000_000L + index * 16_000_000L))
         }
 
         assertTrue(state.puck.x.isFinite())
@@ -98,7 +98,7 @@ class MviInvariantsTest {
                 teleports = mapOf("portal-a" to "portal-b", "portal-b" to "portal-a"),
             )
 
-        val next = reduce(state, GameAction.Tick(0.016, nowNs = 1_000_000L))
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 1_000_000L))
 
         assertEquals(hypot(puck.vx, puck.vy), hypot(next.puck.vx, next.puck.vy), 0.0001)
     }

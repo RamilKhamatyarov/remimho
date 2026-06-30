@@ -80,7 +80,7 @@ data class MviGameState(
     val paddleShield: Boolean = false,
 ) {
     fun toDelta(): GameStateDelta {
-        val nowNs = System.nanoTime()
+        val logicalNowNs = (elapsedSeconds * 1_000_000_000L).toLong()
         return GameStateDelta
             .newBuilder()
             .setPuckX(puck.x)
@@ -93,15 +93,17 @@ data class MviGameState(
             .setScoreB(score.playerB)
             .setPaused(paused)
             .setFullState(true)
+            .setElapsedSeconds(elapsedSeconds)
             .addAllLines(lines.map { it.toProto() })
-            .addAllPowerUps(powerUps.filter { nowNs - it.createdNs <= it.lifetimeNs }.map { it.toProto() })
-            .addAllActivePowerUps(activePowerUps.map { it.toProto(nowNs) })
+            .addAllPowerUps(powerUps.filter { logicalNowNs - it.createdNs <= it.lifetimeNs }.map { it.toProto() })
+            .addAllActivePowerUps(activePowerUps.map { it.toProto(logicalNowNs) })
             .build()
     }
 }
 
-fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
-    MviGameState(
+fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
+    val logicalNowNs = (if (delta.hasElapsedSeconds()) delta.elapsedSeconds else 0.0).let { (it * 1_000_000_000L).toLong() }
+    return MviGameState(
         puck =
             MviPuck(
                 x = if (delta.hasPuckX()) delta.puckX else 400.0,
@@ -117,6 +119,7 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
         paddle1Y = if (delta.hasPaddle1Y()) delta.paddle1Y else 250.0,
         paddle2Y = if (delta.hasPaddle2Y()) delta.paddle2Y else 250.0,
         paused = if (delta.hasPaused()) delta.paused else false,
+        elapsedSeconds = if (delta.hasElapsedSeconds()) delta.elapsedSeconds else 0.0,
         lines =
             delta.linesList.map { protoLine ->
                 MviLine(
@@ -133,7 +136,7 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
                         x = pu.x,
                         y = pu.y,
                         type = PowerUpType.valueOf(pu.type),
-                        createdNs = System.nanoTime(),
+                        createdNs = logicalNowNs,
                     )
                 }.getOrNull()
             },
@@ -145,12 +148,13 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState =
                     val remainingNs = apu.remainingSeconds * 1_000_000_000L
                     MviActivePowerUp(
                         type = type,
-                        activatedNs = System.nanoTime() - (durationNs - remainingNs).coerceAtLeast(0L),
+                        activatedNs = logicalNowNs - (durationNs - remainingNs).coerceAtLeast(0L),
                         durationNs = durationNs,
                     )
                 }.getOrNull()
             },
     )
+}
 
 fun reduce(
     state: MviGameState,
@@ -158,7 +162,7 @@ fun reduce(
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
-            reduceTick(state, action.deltaSeconds, action.nowNs)
+            reduceTick(state, action.deltaSeconds, action.elapsedNs)
         }
 
         is GameAction.MovePaddle -> {
@@ -231,7 +235,7 @@ fun reduce(
 private fun reduceTick(
     state: MviGameState,
     deltaSeconds: Double,
-    nowNs: Long,
+    elapsedNs: Long,
 ): MviGameState {
     check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
     if (state.paused || deltaSeconds <= 0.0) return state
@@ -301,7 +305,7 @@ private fun reduceTick(
         }
     }
 
-    puck = applyLineCollisions(puck, state.lines, state.teleports, nowNs)
+    puck = applyLineCollisions(puck, state.lines, state.teleports, elapsedNs)
 
     val score =
         when {
@@ -321,8 +325,8 @@ private fun reduceTick(
             )
     }
 
-    val activeAfterExpiry = state.activePowerUps.filter { !it.isExpired(nowNs) }
-    val validFieldPowerUps = state.powerUps.filter { nowNs - it.createdNs <= it.lifetimeNs }
+    val activeAfterExpiry = state.activePowerUps.filter { !it.isExpired(elapsedNs) }
+    val validFieldPowerUps = state.powerUps.filter { elapsedNs - it.createdNs <= it.lifetimeNs }
 
     val (remainingFieldPowerUps, justCollected) =
         validFieldPowerUps.partition { pu ->
@@ -331,7 +335,7 @@ private fun reduceTick(
     val newActivePowerUps =
         activeAfterExpiry +
             justCollected.map { pu ->
-                MviActivePowerUp(pu.type, nowNs, PowerUpType.getDuration(pu.type))
+                MviActivePowerUp(pu.type, elapsedNs, PowerUpType.getDuration(pu.type))
             }
 
     val hasMagnet = newActivePowerUps.any { it.type == PowerUpType.MAGNET_BALL }
@@ -390,7 +394,7 @@ private fun applyLineCollisions(
     puck: MviPuck,
     lines: List<MviLine>,
     teleports: Map<String, String>,
-    nowNs: Long,
+    elapsedNs: Long,
 ): MviPuck {
     for (line in lines) {
         val pts = line.points
@@ -404,7 +408,7 @@ private fun applyLineCollisions(
                 val partner = lines.firstOrNull { it.id == partnerLineId }
                 if (partner != null) {
                     val pairId = teleportPairId(line.id, partnerLineId)
-                    if (!canUseTeleport(puck, pairId, nowNs)) return puck
+                    if (!canUseTeleport(puck, pairId, elapsedNs)) return puck
                     val mid = lineMidpoint(partner)
                     val (newVx, newVy) = rotateVelocityThroughPortal(puck.vx, puck.vy, a, b, partner)
                     return puck.copy(
@@ -412,7 +416,7 @@ private fun applyLineCollisions(
                         y = mid.y,
                         vx = newVx,
                         vy = newVy,
-                        teleportCooldownUntilNs = nowNs + TELEPORT_COOLDOWN_NS,
+                        teleportCooldownUntilNs = elapsedNs + TELEPORT_COOLDOWN_NS,
                         lastTeleportPairId = pairId,
                     )
                 }
@@ -428,8 +432,8 @@ private fun applyLineCollisions(
 private fun canUseTeleport(
     puck: MviPuck,
     pairId: String,
-    nowNs: Long,
-): Boolean = puck.lastTeleportPairId != pairId || nowNs >= puck.teleportCooldownUntilNs
+    elapsedNs: Long,
+): Boolean = puck.lastTeleportPairId != pairId || elapsedNs >= puck.teleportCooldownUntilNs
 
 private fun teleportPairId(
     firstLineId: String,
