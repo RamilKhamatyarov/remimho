@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package ru.rkhamatyarov.proto;
+
+option java_multiple_files = true;
+
+message ReplayFile {
+    string version = 1;
+    string room_id = 2;
+    int64 start_wall_time_ms = 3;
+    double duration_seconds = 4;
+    int32 frame_count = 5;
+    string app_version = 6;
+    FullGameSnapshot starting_state = 7;
+    repeated ReplayIntent intents = 8;
+}
+
+message FullGameSnapshot {
+    double puck_x = 1;
+    double puck_y = 2;
+    double puck_vx = 3;
+    double puck_vy = 4;
+    double puck_radius = 5;
+    int64 puck_teleport_cooldown_elapsed_ns = 6;
+    string puck_last_teleport_pair_id = 7;
+    int32 score_a = 8;
+    int32 score_b = 9;
+    double paddle1_y = 10;
+    double paddle2_y = 11;
+    bool paused = 12;
+    double canvas_width = 13;
+    double canvas_height = 14;
+    double paddle_height = 15;
+    repeated SnapshotLine lines = 16;
+    repeated TeleportEntry teleports = 17;
+    double speed_base_multiplier = 18;
+    double speed_time_acceleration_rate = 19;
+    double speed_level_acceleration_per_line = 20;
+    double speed_max_multiplier = 21;
+    double elapsed_seconds = 22;
+    bool ai_enabled = 23;
+    int64 ai_reaction_delay_ms = 24;
+    double ai_max_speed = 25;
+    double ai_tracking_error = 26;
+    double ai_react_zone_ratio = 27;
+    double ai_smoothed_puck_y = 28;
+    repeated SnapshotPowerUp power_ups = 29;
+    repeated SnapshotActivePowerUp active_power_ups = 30;
+    double speed_multiplier = 31;
+    bool ghost_mode = 32;
+    bool paddle_shield = 33;
+}
+
+message SnapshotLine {
+    string id = 1;
+    repeated SnapshotPoint points = 2;
+    double width = 3;
+}
+
+message SnapshotPoint {
+    double x = 1;
+    double y = 2;
+}
+
+message TeleportEntry {
+    string line_id = 1;
+    string partner_line_id = 2;
+}
+
+message SnapshotPowerUp {
+    string id = 1;
+    double x = 2;
+    double y = 3;
+    string type = 4;
+    int64 created_elapsed_ns = 5;
+    int64 lifetime_ns = 6;
+    double radius = 7;
+}
+
+message SnapshotActivePowerUp {
+    string type = 1;
+    int64 activated_elapsed_ns = 2;
+    int64 duration_ns = 3;
+}
+
+message ReplayIntent {
+    int64 elapsed_ns = 1;
+    oneof payload {
+        ReplayTick tick = 2;
+        ReplayMovePaddle move_paddle = 3;
+        ReplayTogglePause toggle_pause = 4;
+        ReplayReset reset = 5;
+        ReplayCommitLine commit_line = 6;
+        ReplayEraseLine erase_line = 7;
+        ReplayClearLines clear_lines = 8;
+        ReplayApplyTeleports apply_teleports = 9;
+        ReplaySpawnPowerUp spawn_power_up = 10;
+        ReplayApplySpeedConfig apply_speed_config = 11;
+        ReplayApplyAiConfig apply_ai_config = 12;
+    }
+}
+
+message ReplayTick {
+    double delta_seconds = 1;
+}
+
+message ReplayMovePaddle {
+    double y = 1;
+}
+
+message ReplayTogglePause {}
+
+message ReplayReset {}
+
+message ReplayClearLines {}
+
+message ReplayCommitLine {
+    string id = 1;
+    repeated SnapshotPoint points = 2;
+    double width = 3;
+}
+
+message ReplayEraseLine {
+    string line_id = 1;
+}
+
+message ReplayApplyTeleports {
+    repeated TeleportEntry portals = 1;
+}
+
+message ReplaySpawnPowerUp {
+    string id = 1;
+    double x = 2;
+    double y = 3;
+    string type = 4;
+    int64 created_elapsed_ns = 5;
+    int64 lifetime_ns = 6;
+    double radius = 7;
+}
+
+message ReplayApplySpeedConfig {
+    double base_multiplier = 1;
+    double time_acceleration_rate = 2;
+    double level_acceleration_per_line = 3;
+    double max_multiplier = 4;
+}
+
+message ReplayApplyAiConfig {
+    bool enabled = 1;
+    int64 reaction_delay_ms = 2;
+    double max_speed = 3;
+    double tracking_error = 4;
+    double react_zone_ratio = 5;
+}

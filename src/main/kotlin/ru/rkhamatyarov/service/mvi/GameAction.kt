@@ -6,7 +6,7 @@ import ru.rkhamatyarov.model.SpeedConfig
 sealed interface GameAction {
     data class Tick(
         val deltaSeconds: Double,
-        val nowNs: Long = System.nanoTime(),
+        val elapsedNs: Long = 0L,
     ) : GameAction
 
     data class MovePaddle(

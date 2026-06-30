@@ -144,8 +144,9 @@ class WorkshopResource {
         var collisionCount = 0
         var previousVx = previewState.puck.vx
         var previousVy = previewState.puck.vy
-        repeat(PREVIEW_TICKS) { tick ->
-            previewState = reduce(previewState, GameAction.Tick(PREVIEW_DT, startNs + tick))
+        repeat(PREVIEW_TICKS) {
+            val elapsedNs = (previewState.elapsedSeconds * 1_000_000_000L).toLong()
+            previewState = reduce(previewState, GameAction.Tick(PREVIEW_DT, elapsedNs))
             if (previewState.puck.vx != previousVx || previewState.puck.vy != previousVy) collisionCount++
             previousVx = previewState.puck.vx
             previousVy = previewState.puck.vy

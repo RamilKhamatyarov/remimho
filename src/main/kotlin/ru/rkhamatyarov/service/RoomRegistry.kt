@@ -38,6 +38,7 @@ class GameRoom(
     private val reducer: (MviGameState, GameAction) -> MviGameState = ::reduce,
     autoPowerUpsEnabled: Boolean = true,
     private val powerUpSpawnInterval: Duration = AUTO_POWER_UP_INTERVAL,
+    private val replayLogCapacity: Int = DEFAULT_REPLAY_LOG_CAPACITY,
 ) {
     private val mutableReliableState = MutableStateFlow(MviGameState())
     private val mutableEphemeralEvents =
@@ -52,7 +53,7 @@ class GameRoom(
             extraBufferCapacity = STATE_BUFFER_CAPACITY,
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
-    private val replayLog = ArrayDeque<GameIntent.Reliable>(REPLAY_LOG_CAPACITY)
+    private val replayLog = ArrayDeque<GameIntent.Reliable>(replayLogCapacity)
 
     val reliableState: StateFlow<MviGameState> = mutableReliableState.asStateFlow()
     val ephemeralEvents: SharedFlow<EphemeralEvent> = mutableEphemeralEvents.asSharedFlow()
@@ -76,7 +77,7 @@ class GameRoom(
 
     fun dispatch(intent: GameIntent): Boolean = mailbox.trySend(intent)
 
-    fun getReplayLog(): List<GameIntent> = replayLog.toList()
+    fun getReplayLog(): List<GameIntent.Reliable> = synchronized(replayLog) { replayLog.toList() }
 
     fun tryEmit(bytes: ByteArray): Boolean = mutableStateFlow.tryEmit(bytes)
 
@@ -93,13 +94,12 @@ class GameRoom(
     }
 
     private fun applyReliable(intent: GameIntent.Reliable) {
-        appendReplayIntent(intent)
+        synchronized(replayLog) {
+            if (intent.action is GameAction.RestoreSnapshot) replayLog.clear()
+            if (replayLog.size >= replayLogCapacity) replayLog.removeFirst()
+            replayLog.addLast(intent)
+        }
         mutableReliableState.value = reducer(mutableReliableState.value, intent.action)
-    }
-
-    private fun appendReplayIntent(intent: GameIntent.Reliable) {
-        if (replayLog.size >= REPLAY_LOG_CAPACITY) replayLog.removeFirst()
-        replayLog.addLast(intent)
     }
 
     private suspend fun spawnPowerUpsPeriodically() {
@@ -109,13 +109,13 @@ class GameRoom(
         }
     }
 
-    internal fun spawnRandomPowerUp(nowNs: Long = System.nanoTime()): Boolean {
+    internal fun spawnRandomPowerUp(): Boolean {
         val state = reliableState.value
         if (state.paused) return false
-
+        val elapsedNs = (state.elapsedSeconds * 1_000_000_000L).toLong()
         val types = PowerUpType.entries
         val type = types[Random.nextInt(types.size)]
-        return dispatch(GameIntent.Reliable(GameAction.SpawnPowerUp(createRandomPowerUp(type, state, nowNs))))
+        return dispatch(GameIntent.Reliable(GameAction.SpawnPowerUp(createRandomPowerUp(type, state, elapsedNs))))
     }
 
     companion object {
@@ -123,21 +123,21 @@ class GameRoom(
         private const val INTENT_BUFFER_CAPACITY = 64
         private const val STATE_BUFFER_CAPACITY = 3
         private const val EPHEMERAL_BUFFER_CAPACITY = 64
-        private const val REPLAY_LOG_CAPACITY = 1024
+        const val DEFAULT_REPLAY_LOG_CAPACITY = 54_000
     }
 }
 
 fun createRandomPowerUp(
     type: PowerUpType,
     state: MviGameState,
-    nowNs: Long = System.nanoTime(),
+    elapsedNs: Long = (state.elapsedSeconds * 1_000_000_000L).toLong(),
 ): MviPowerUp =
     MviPowerUp(
-        id = "${type.name.lowercase()}-$nowNs-${Random.nextInt()}",
+        id = "${type.name.lowercase()}-$elapsedNs-${Random.nextInt()}",
         x = randomCoordinate(state.canvasWidth - POWER_UP_RADIUS),
         y = randomCoordinate(state.canvasHeight - POWER_UP_RADIUS),
         type = type,
-        createdNs = nowNs,
+        createdNs = elapsedNs,
         radius = POWER_UP_RADIUS,
     )
 
@@ -154,6 +154,12 @@ class RoomRegistry
     ) {
         constructor() : this(MonitoredReducer())
 
+        @org.eclipse.microprofile.config.inject.ConfigProperty(
+            name = "remimho.rooms.replay-log-capacity",
+            defaultValue = "54000",
+        )
+        var replayLogCapacity: Int = GameRoom.DEFAULT_REPLAY_LOG_CAPACITY
+
         private val rooms = ConcurrentHashMap<String, GameRoom>()
 
         fun get(roomId: String): GameRoom =
@@ -162,6 +168,7 @@ class RoomRegistry
                     id = id,
                     mailbox = MonitoredMailbox(),
                     reducer = monitoredReducer.wrap(::reduce),
+                    replayLogCapacity = replayLogCapacity,
                 )
             }
 
