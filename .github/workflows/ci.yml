@@ -119,9 +119,19 @@ jobs:
         continue-on-error: true
 
   native-build:
-    name: GraalVM Native Build
-    runs-on: ubuntu-latest
+    name: GraalVM Native Build (${{ matrix.artifact }})
+    runs-on: ${{ matrix.os }}
     needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: remimho-linux
+          - os: macos-latest
+            artifact: remimho-macos
+          - os: windows-latest
+            artifact: remimho-windows
 
     steps:
       - name: Checkout code
@@ -147,16 +157,18 @@ jobs:
           cache: 'gradle'
 
       - name: Make gradlew executable
+        shell: bash
         run: chmod +x ./gradlew
 
       - name: Build native executable
+        shell: bash
         run: ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -DskipTests
 
-      - name: Upload native build output
+      - name: Upload native binary (${{ matrix.artifact }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: native-build-output
+          name: ${{ matrix.artifact }}
           path: build/*-runner*
           if-no-files-found: ignore
           retention-days: 14
