@@ -77,7 +77,7 @@ class HeadlessReplayImportTest {
         // w
         val result = importer.import(replayFile)
 
-        // t — frames 10, 20, 30 produce snapshots
+        // t
         assertEquals(3, result.snapshots.size)
     }
 
@@ -112,7 +112,7 @@ class HeadlessReplayImportTest {
         // w
         val result = importer.import(replayFile)
 
-        // t — two snapshots at frame 5 and 10
+        // t
         assertEquals(2, result.snapshots.size)
         val (ts5, _) = result.snapshots[0]
         val (ts10, _) = result.snapshots[1]

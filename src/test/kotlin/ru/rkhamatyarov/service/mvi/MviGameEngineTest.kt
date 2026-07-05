@@ -41,6 +41,25 @@ class MviGameEngineTest {
     }
 
     @Test
+    fun `move paddle can target left paddle when side is A`() {
+        val state = MviGameState()
+
+        val next = reduce(state, GameAction.MovePaddle(123.0, PaddleSide.A))
+
+        assertEquals(123.0, next.paddle1Y, 0.0001)
+        assertEquals(state.paddle2Y, next.paddle2Y, 0.0001)
+    }
+
+    @Test
+    fun `tick applies turbo speed multiplier without storing turbo state`() {
+        val state = MviGameState(puck = MviPuck(x = 100.0, y = 100.0, vx = 50.0, vy = 0.0))
+
+        val next = reduce(state, GameAction.Tick(0.5, turboSpeedMultiplier = 2.5))
+
+        assertEquals(162.5, next.puck.x, 0.0001)
+    }
+
+    @Test
     fun `left paddle collision requires leftward puck velocity`() {
         val state =
             MviGameState(

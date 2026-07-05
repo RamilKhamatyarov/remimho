@@ -162,11 +162,19 @@ fun reduce(
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
-            reduceTick(state, action.deltaSeconds, action.elapsedNs)
+            reduceTick(state, action.deltaSeconds, action.elapsedNs, action.playerAControlledByHuman, action.turboSpeedMultiplier)
         }
 
         is GameAction.MovePaddle -> {
-            state.copy(paddle2Y = action.y.coerceIn(0.0, state.canvasHeight - state.paddleHeight))
+            val y = action.y.coerceIn(0.0, state.canvasHeight - state.paddleHeight)
+            when (action.side) {
+                PaddleSide.A -> state.copy(paddle1Y = y)
+                PaddleSide.B -> state.copy(paddle2Y = y)
+            }
+        }
+
+        is GameAction.ActivateTurbo -> {
+            state
         }
 
         GameAction.TogglePause -> {
@@ -236,12 +244,15 @@ private fun reduceTick(
     state: MviGameState,
     deltaSeconds: Double,
     elapsedNs: Long,
+    playerAControlledByHuman: Boolean,
+    turboSpeedMultiplier: Double,
 ): MviGameState {
     check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
     if (state.paused || deltaSeconds <= 0.0) return state
 
     val progressiveSpeed = computeProgressiveSpeed(state)
-    val effectiveSpeed = state.speedMultiplier * progressiveSpeed
+    val effectiveTurboSpeed = if (turboSpeedMultiplier.isFinite() && turboSpeedMultiplier > 0.0) turboSpeedMultiplier else 1.0
+    val effectiveSpeed = state.speedMultiplier * progressiveSpeed * effectiveTurboSpeed
 
     var puck =
         state.puck.copy(
@@ -259,7 +270,7 @@ private fun reduceTick(
     val alpha = (deltaSeconds / lagSeconds).coerceIn(0.0, 1.0)
     val newAiSmoothedPuckY = state.aiSmoothedPuckY + alpha * (puck.y - state.aiSmoothedPuckY)
     val newPaddle1Y =
-        if (state.aiConfig.enabled) {
+        if (state.aiConfig.enabled && !playerAControlledByHuman) {
             val puckHeadingLeft = puck.vx < 0
             val inReactZone = puck.x < state.canvasWidth * state.aiConfig.reactZoneRatio
             val dynamicTrackingError = state.aiConfig.trackingError * sin(state.elapsedSeconds * 2.5)
@@ -289,6 +300,7 @@ private fun reduceTick(
             puck.x + puck.radius >= 0.0 &&
             overlapsPaddleY(puck, newPaddle1Y, state.paddleHeight)
         ) {
+            MviDomainEvents.record(MviDomainEvent.PaddleHit(PaddleSide.A))
             puck = puck.copy(x = leftPaddleRight + puck.radius, vx = abs(puck.vx))
         }
         if (puck.vx > 0 &&
@@ -296,6 +308,7 @@ private fun reduceTick(
             puck.x - puck.radius <= state.canvasWidth &&
             overlapsPaddleY(puck, state.paddle2Y, state.paddleHeight)
         ) {
+            MviDomainEvents.record(MviDomainEvent.PaddleHit(PaddleSide.B))
             puck = puck.copy(x = rightPaddleLeft - puck.radius, vx = -abs(puck.vx))
         }
         if (state.paddleShield) {
@@ -422,6 +435,7 @@ private fun applyLineCollisions(
                 }
             }
 
+            MviDomainEvents.record(MviDomainEvent.LineDeflect)
             val (newVx, newVy) = reflectVelocity(puck.vx, puck.vy, a, b)
             return puck.copy(vx = newVx, vy = newVy)
         }

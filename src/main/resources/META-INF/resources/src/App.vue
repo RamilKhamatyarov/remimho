@@ -56,6 +56,12 @@
         {{ eraserMode ? '✏️ Eraser ON' : '✏️ Eraser' }}
       </button>
       <button class="btn-workshop" @click="workshopOpen = true">🔧 Workshop</button>
+      <button class="btn-turbo" :disabled="!turboReady || isRewinding" @click="activateTurbo">
+        Turbo {{ turboLabel }}
+      </button>
+      <div class="turbo-meter" :class="ownTurbo?.status ?? 'charging'">
+        <span :style="turboFillStyle"></span>
+      </div>
       <span v-if="gameState">{{ gameState.score.playerA }} – {{ gameState.score.playerB }}</span>
       <span class="hotkeys">Space pause · R reset · E eraser · right-click erase · Esc live</span>
     </footer>
@@ -81,8 +87,8 @@ const MAX_HISTORY_S = 15;
 
 const {
   gameState, connected,
-  movePaddle, togglePause, reset, clearLines,
-  timeshift, resume, commitTimeshift,
+  movePaddle, activateTurbo, togglePause, reset, clearLines,
+  timeshift, resume, commitTimeshift, turboState, currentSide,
 } = useGameSocket();
 const { roomId, joinRoom: setRoom } = useRoomStore();
 
@@ -112,6 +118,22 @@ const sliderStatusLabel = computed(() => {
 
 const sliderStyle = computed(() => ({
   '--pct': `${(sliderOffset.value / MAX_HISTORY_S) * 100}%`,
+}));
+
+const ownTurbo = computed(() => turboState.value.states.find((state) => state.side === currentSide) ?? null);
+
+const turboReady = computed(() => ownTurbo.value?.status === 'ready');
+
+const turboLabel = computed(() => {
+  const state = ownTurbo.value;
+  if (!state) return '0%';
+  if (state.status === 'active') return `${Math.ceil(state.activeMs / 1000)}s`;
+  if (state.status === 'cooldown') return `${Math.ceil(state.cooldownMs / 1000)}s`;
+  return `${Math.round(state.charge)}%`;
+});
+
+const turboFillStyle = computed(() => ({
+  width: `${Math.max(0, Math.min(100, ownTurbo.value?.charge ?? 0))}%`,
 }));
 
 function setSliderOffset(offset: number) {
@@ -170,6 +192,13 @@ function handleHotkey(e: KeyboardEvent) {
     case 'P':
       e.preventDefault();
       togglePause();
+      break;
+    case 'b':
+    case 'B':
+      if (turboReady.value && !isRewinding.value) {
+        e.preventDefault();
+        activateTurbo();
+      }
       break;
     case 'r':
     case 'R':
@@ -281,6 +310,30 @@ button:hover { background: #e94560; }
 .btn-eraser         { border-color: #b388ff; }
 .btn-eraser:hover   { background: #b388ff; color: #000; }
 .btn-eraser.active  { background: #b388ff; color: #000; }
+
+.btn-turbo { border-color: #30d5ff; }
+.btn-turbo:hover:not(:disabled) { background: #30d5ff; color: #000; }
+.btn-turbo:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.turbo-meter {
+  width: 92px;
+  height: 10px;
+  border: 1px solid rgba(48, 213, 255, 0.7);
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.08);
+}
+
+.turbo-meter span {
+  display: block;
+  height: 100%;
+  background: #30d5ff;
+  transition: width 0.16s linear, background 0.16s linear;
+}
+
+.turbo-meter.ready span { background: #4ecca3; }
+.turbo-meter.active span { background: #ffffff; }
+.turbo-meter.cooldown span { background: #e94560; }
 
 footer {
   display: flex;

@@ -1,11 +1,12 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import type { GameState } from '../types/game'
+import type { GameState, PaddleSide, TurboHudState, TurboSideState } from '../types/game'
 import { GameStateDelta as protoGameStateDelta } from '../proto/game_state'
 import { configureGameLoop, enqueueDelta } from './useGameLoop'
 
 export const gameStateRef: Ref<GameState | null> = ref<GameState | null>(null)
 export const connectedRef: Ref<boolean> = ref(false)
+export const turboStateRef: Ref<TurboHudState> = ref<TurboHudState>({ states: [] })
 
 const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
@@ -16,10 +17,16 @@ let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 let initialized = false
 let currentRoomId = roomIdFromLocation()
+let currentSide = sideFromLocation()
 
 function roomIdFromLocation(): string {
   const url = new URL(window.location.href)
   return url.searchParams.get('roomId') ?? window.location.pathname.split('/').filter(Boolean)[0] ?? DEFAULT_ROOM_ID
+}
+
+function sideFromLocation(): PaddleSide {
+  const side = new URL(window.location.href).searchParams.get('side')?.toUpperCase()
+  return side === 'A' ? 'A' : 'B'
 }
 
 function mergeDelta(delta: Record<string, unknown>, base?: GameState | null): GameState {
@@ -110,7 +117,8 @@ function connect() {
 
 function socketUrl(): string {
   const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${protocol}://${window.location.host}/game?roomId=${encodeURIComponent(currentRoomId)}`
+  const params = new URLSearchParams({ roomId: currentRoomId, side: currentSide })
+  return `${protocol}://${window.location.host}/game?${params.toString()}`
 }
 
 function onSocketOpen(url: string) {
@@ -143,6 +151,10 @@ function applyJsonMessage(message: string) {
       console.warn('[WS] Server error:', data['message'])
       return
     }
+    if (isTurboState(data)) {
+      turboStateRef.value = toTurboHudState(data)
+      return
+    }
     applyJsonStateMessage(data)
   } catch (error) {
     console.error('[WS] JSON parse error', error)
@@ -151,6 +163,26 @@ function applyJsonMessage(message: string) {
 
 function isServerError(data: Record<string, unknown>): boolean {
   return data['type'] === 'ERROR'
+}
+
+function isTurboState(data: Record<string, unknown>): boolean {
+  return data['type'] === 'TURBO_STATE' && Array.isArray(data['states'])
+}
+
+function toTurboHudState(data: Record<string, unknown>): TurboHudState {
+  return {
+    states: (data['states'] as Record<string, unknown>[]).map(toTurboSideState),
+  }
+}
+
+function toTurboSideState(data: Record<string, unknown>): TurboSideState {
+  return {
+    side: data['side'] === 'A' ? 'A' : 'B',
+    charge: Number(data['charge'] ?? 0),
+    status: String(data['status'] ?? 'charging') as TurboSideState['status'],
+    activeMs: Number(data['activeMs'] ?? 0),
+    cooldownMs: Number(data['cooldownMs'] ?? 0),
+  }
 }
 
 function applyJsonStateMessage(data: Record<string, unknown>) {
@@ -261,6 +293,7 @@ export function useGameSocket() {
   }
 
   const movePaddle = (y: number) => send('MOVE_PADDLE', { y })
+  const activateTurbo = () => send('ACTIVATE_TURBO')
   const togglePause = () => send('TOGGLE_PAUSE')
   const reset = () => send('RESET')
   const clearLines = () => {
@@ -288,7 +321,10 @@ export function useGameSocket() {
   return {
     gameState: gameStateRef,
     connected: connectedRef,
+    turboState: turboStateRef,
+    currentSide,
     movePaddle,
+    activateTurbo,
     togglePause,
     reset,
     clearLines,
