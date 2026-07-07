@@ -20,7 +20,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.37.0"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.37.1"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
