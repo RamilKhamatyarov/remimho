@@ -34,8 +34,8 @@ class StateHistory {
     ): ByteArray? {
         val effectiveOffset = offset.coerceAtLeast(0.0)
         if (effectiveOffset > MAX_RETENTION_SECONDS) {
-            log.warnf(
-                "[StateHistory] Requested offset %.2f s exceeds max retention of %d s",
+            log.debugf(
+                "Requested offset %.2f s exceeds max retention of %d s",
                 effectiveOffset,
                 MAX_RETENTION_SECONDS,
             )

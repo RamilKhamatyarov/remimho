@@ -7,10 +7,18 @@ sealed interface GameAction {
     data class Tick(
         val deltaSeconds: Double,
         val elapsedNs: Long = 0L,
+        val playerAControlledByHuman: Boolean = false,
+        val turboSpeedMultiplier: Double = 1.0,
     ) : GameAction
 
     data class MovePaddle(
         val y: Double,
+        val side: PaddleSide = PaddleSide.B,
+    ) : GameAction
+
+    data class ActivateTurbo(
+        val side: PaddleSide,
+        val elapsedNs: Long = 0L,
     ) : GameAction
 
     data object TogglePause : GameAction

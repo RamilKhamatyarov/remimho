@@ -2,6 +2,7 @@ package ru.rkhamatyarov.websocket
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import io.quarkus.runtime.ShutdownEvent
 import io.quarkus.runtime.StartupEvent
 import io.quarkus.websockets.next.OnClose
 import io.quarkus.websockets.next.OnOpen
@@ -18,7 +19,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
@@ -29,11 +29,15 @@ import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.mvi.mviStateFromDelta
+import ru.rkhamatyarov.service.turbo.TurboHudState
+import ru.rkhamatyarov.service.turbo.TurboSnapshot
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.nanoseconds
 
 @WebSocket(path = "/game")
 @ApplicationScoped
@@ -49,47 +53,76 @@ class GameWebSocket {
     @Inject
     lateinit var roomRegistry: RoomRegistry
 
-    @ConfigProperty(name = "remimho.coroutines.state-flow-enabled", defaultValue = "false")
-    var stateFlowEnabled: Boolean = false
-
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
     private val connectionRooms = ConcurrentHashMap<String, String>()
+    private val connectionSides = ConcurrentHashMap<String, PaddleSide>()
     private val collectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val turboCollectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val lastFullStateByRoom = ConcurrentHashMap<String, GameStateDelta>()
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val timeshiftSessions = ConcurrentHashMap.newKeySet<String>()
     private val timeshiftDrafts = ConcurrentHashMap<String, GameStateDelta>()
+    private val timeshiftTurboDrafts = ConcurrentHashMap<String, TurboSnapshot>()
     private val pauseAnchorNsByRoom = ConcurrentHashMap<String, Long>()
     private val connectionDrawingLines = ConcurrentHashMap<String, MviLine>()
+    private var tickTimerId: Long? = null
 
     fun onStart(
         @Observes event: StartupEvent,
     ) {
-        vertx.setPeriodic(16L) { tick() }
+        tickTimerId = vertx.setPeriodic(16L) { tick() }
+    }
+
+    fun onStop(
+        @Observes event: ShutdownEvent,
+    ) {
+        tickTimerId?.let { vertx.cancelTimer(it) }
+        tickTimerId = null
     }
 
     @OnOpen
     fun onOpen(connection: WebSocketConnection) {
         val roomId = roomId(connection)
-        roomRegistry.get(roomId)
+        val side = side(connection)
+        val room = roomRegistry.get(roomId)
+        room.registerHumanSide(side)
         connectionRooms[connection.id()] = roomId
+        connectionSides[connection.id()] = side
         sessions[connection.id()] = connection
-        log.info("Client connected: ${connection.id()} room=$roomId (total: ${sessions.size})")
+        log.info("Client connected: ${connection.id()} room=$roomId side=$side (total: ${sessions.size})")
         lastFullStateByRoom.remove(roomId)
-        if (stateFlowEnabled) launchStateCollector(connection, roomId)
+        launchStateCollector(connection, roomId)
+        launchTurboCollector(connection, roomId)
         connection.sendBinary(currentStateBinary(roomId))
     }
 
     @OnClose
     fun onClose(connection: WebSocketConnection) {
         sessions.remove(connection.id())
-        connectionRooms.remove(connection.id())
+        connectionRooms.remove(connection.id())?.let { roomId ->
+            connectionSides.remove(connection.id())?.let { roomRegistry.get(roomId).unregisterHumanSide(it) }
+        }
         collectorJobs.remove(connection.id())?.cancel()
+        turboCollectorJobs.remove(connection.id())?.cancel()
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
+        timeshiftTurboDrafts.remove(connection.id())
         connectionDrawingLines.remove(connection.id())
         log.info("Client disconnected: ${connection.id()} (remaining: ${sessions.size})")
+    }
+
+    private fun launchTurboCollector(
+        connection: WebSocketConnection,
+        roomId: String,
+    ) {
+        turboCollectorJobs[connection.id()] =
+            applicationScope.launch {
+                roomRegistry.get(roomId).turboState.collectLatest { state ->
+                    if (connection.id() in timeshiftSessions || connection.isClosed) return@collectLatest
+                    sendTurboState(connection, state)
+                }
+            }
     }
 
     private fun launchStateCollector(
@@ -108,15 +141,28 @@ class GameWebSocket {
             }
     }
 
-    private fun roomId(connection: WebSocketConnection): String {
-        val query = connection.handshakeRequest().query() ?: return RoomRegistry.DEFAULT_ROOM_ID
-        return query
-            .split("&")
-            .firstOrNull { it.substringBefore("=") == "roomId" }
-            ?.substringAfter("=", "")
-            ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8) }
+    private fun roomId(connection: WebSocketConnection): String =
+        queryParam(connection, "roomId")
             ?.takeIf { it.isNotBlank() }
             ?: RoomRegistry.DEFAULT_ROOM_ID
+
+    private fun side(connection: WebSocketConnection): PaddleSide =
+        when (queryParam(connection, "side")?.uppercase()) {
+            "A" -> PaddleSide.A
+            "B", null, "" -> PaddleSide.B
+            else -> PaddleSide.B
+        }
+
+    private fun queryParam(
+        connection: WebSocketConnection,
+        name: String,
+    ): String? {
+        val query = connection.handshakeRequest().query() ?: return null
+        return query
+            .split("&")
+            .firstOrNull { it.substringBefore("=") == name }
+            ?.substringAfter("=", "")
+            ?.let { URLDecoder.decode(it, StandardCharsets.UTF_8) }
     }
 
     private fun historyFor(roomId: String): StateHistory = roomRegistry.get(roomId).history
@@ -154,6 +200,10 @@ class GameWebSocket {
 
             "TOGGLE_PAUSE" -> {
                 handleTogglePause(connection)
+            }
+
+            "ACTIVATE_TURBO" -> {
+                handleActivateTurbo(connection)
             }
 
             "RESET" -> {
@@ -216,7 +266,11 @@ class GameWebSocket {
             sendError(connection, "Invalid MOVE_PADDLE: y required")
             return
         }
-        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y)))
+        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y, connectionSide(connection))))
+    }
+
+    private fun handleActivateTurbo(connection: WebSocketConnection) {
+        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.ActivateTurbo(connectionSide(connection))))
     }
 
     private fun handleTogglePause(connection: WebSocketConnection) {
@@ -339,6 +393,11 @@ class GameWebSocket {
         val pausedAwareSnapshot = snapshot.withCurrentPauseState(paused)
         timeshiftSessions.add(connection.id())
         timeshiftDrafts[connection.id()] = GameStateDelta.parseFrom(pausedAwareSnapshot)
+        val turboSnapshot =
+            roomRegistry.get(roomId).turboHistory.getByOffsetSeconds(offset, rewindReferenceNs(roomId))
+                ?: roomRegistry.get(roomId).turboSnapshot()
+        timeshiftTurboDrafts[connection.id()] = turboSnapshot
+        sendTurboState(connection, turboSnapshot.toHudState(turboSnapshot.elapsedNs))
         connection.sendBinary(pausedAwareSnapshot).subscribe().with(
             {},
             { t -> log.warnf(t, "Failed to send timeshift snapshot to %s", connection.id()) },
@@ -366,11 +425,17 @@ class GameWebSocket {
 
         try {
             val mviState = mviStateFromDelta(GameStateDelta.parseFrom(snapshot))
-            roomRegistry.get(roomId).dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(mviState)))
+            val room = roomRegistry.get(roomId)
+            val turboSnapshot =
+                timeshiftTurboDrafts[connection.id()] ?: room.turboHistory.getByOffsetSeconds(offset, rewindReferenceNs(roomId))
+            room.dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(mviState)))
+            turboSnapshot?.let { room.restoreTurbo(it) }
             roomHistory.clear()
+            room.turboHistory.clear()
             lastFullStateByRoom.remove(roomId)
             timeshiftSessions.clear()
             timeshiftDrafts.clear()
+            timeshiftTurboDrafts.clear()
             broadcastFullState(roomId)
             log.infof("Timeline branched from %.2f seconds ago by %s", offset, connection.id())
         } catch (e: Exception) {
@@ -382,7 +447,9 @@ class GameWebSocket {
     private fun handleResume(connection: WebSocketConnection) {
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
+        timeshiftTurboDrafts.remove(connection.id())
         log.debugf("Connection %s resumed live stream", connection.id())
+        sendTurboState(connection, roomRegistry.get(roomId(connection)).turboState.value)
         connection.sendBinary(currentStateBinary(roomId(connection))).subscribe().with(
             {},
             { t -> log.warnf(t, "Failed to send resume snapshot to %s", connection.id()) },
@@ -418,23 +485,40 @@ class GameWebSocket {
         timeshiftSessions.add(connection.id())
         timeshiftDrafts.remove(connection.id())
         applicationScope.launch {
-            try {
-                var previousTimestampNs: Long? = null
-                for ((timestampNs, bytes) in ghostFrames.asReversed()) {
-                    if (connection.isClosed) break
-                    previousTimestampNs?.let {
-                        delay(((timestampNs - it) / 1_000_000L).coerceAtLeast(0L))
-                    }
-                    connection.sendBinary(bytes).subscribe().with(
-                        {},
-                        { t -> log.warn("Failed to send ghost frame to ${connection.id()}: ${t.message}") },
-                    )
-                    previousTimestampNs = timestampNs
-                }
-            } finally {
-                timeshiftSessions.remove(connection.id())
-            }
+            streamGhostFrames(connection, ghostFrames)
         }
+    }
+
+    private suspend fun streamGhostFrames(
+        connection: WebSocketConnection,
+        ghostFrames: List<Pair<Long, ByteArray>>,
+    ) {
+        try {
+            var previousTimestampNs: Long? = null
+            for ((timestampNs, bytes) in ghostFrames.asReversed()) {
+                if (connection.isClosed) return
+                previousTimestampNs?.let { delay(frameDelay(timestampNs, it)) }
+                sendGhostFrame(connection, bytes)
+                previousTimestampNs = timestampNs
+            }
+        } finally {
+            timeshiftSessions.remove(connection.id())
+        }
+    }
+
+    private fun frameDelay(
+        timestampNs: Long,
+        previousTimestampNs: Long,
+    ) = (timestampNs - previousTimestampNs).coerceAtLeast(0L).nanoseconds
+
+    private fun sendGhostFrame(
+        connection: WebSocketConnection,
+        bytes: ByteArray,
+    ) {
+        connection.sendBinary(bytes).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send ghost frame to ${connection.id()}: ${t.message}") },
+        )
     }
 
     private fun handleP2pTelemetry(
@@ -488,18 +572,14 @@ class GameWebSocket {
 
         if (!room.reliableState.value.paused) {
             roomHistory.add(fullBytes, now)
+            room.turboHistory.add(room.turboSnapshot(), now)
         }
 
         if (sessions.isEmpty()) return
 
-        if (stateFlowEnabled) {
-            if (!room.tryEmit(liveBytes)) {
-                log.warnf("State flow buffer full for room %s; oldest frame dropped", roomId)
-            }
-            return
+        if (!room.tryEmit(liveBytes)) {
+            log.warnf("State flow buffer full for room %s; oldest frame dropped", roomId)
         }
-
-        broadcastBytes(roomId, liveBytes)
     }
 
     private fun broadcastBytes(
@@ -520,7 +600,9 @@ class GameWebSocket {
             sessions.remove(it)
             connectionRooms.remove(it)
             collectorJobs.remove(it)?.cancel()
+            turboCollectorJobs.remove(it)?.cancel()
             timeshiftSessions.remove(it)
+            timeshiftTurboDrafts.remove(it)
         }
     }
 
@@ -666,6 +748,29 @@ class GameWebSocket {
             .toByteArray()
     }
 
+    private fun connectionSide(connection: WebSocketConnection): PaddleSide = connectionSides[connection.id()] ?: PaddleSide.B
+
+    private fun sendTurboState(
+        connection: WebSocketConnection,
+        state: TurboHudState,
+    ) {
+        connection.sendText(mapper.writeValueAsString(state.toClientMessage())).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send turbo state to ${connection.id()}: ${t.message}") },
+        )
+    }
+
+    private fun TurboHudState.toClientMessage(): TurboStateMessage = TurboStateMessage(states = states.map { it.toClientMessage() })
+
+    private fun ru.rkhamatyarov.service.turbo.TurboSideHudState.toClientMessage(): TurboSideStateMessage =
+        TurboSideStateMessage(
+            side = side.name,
+            charge = charge,
+            status = status.name.lowercase(),
+            activeMs = activeMs,
+            cooldownMs = cooldownMs,
+        )
+
     private fun sendError(
         connection: WebSocketConnection,
         message: String,
@@ -679,3 +784,16 @@ class GameWebSocket {
         }
     }
 }
+
+private data class TurboStateMessage(
+    val type: String = "TURBO_STATE",
+    val states: List<TurboSideStateMessage>,
+)
+
+private data class TurboSideStateMessage(
+    val side: String,
+    val charge: Double,
+    val status: String,
+    val activeMs: Long,
+    val cooldownMs: Long,
+)

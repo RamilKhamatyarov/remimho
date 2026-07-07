@@ -49,6 +49,7 @@ message FullGameSnapshot {
     double speed_multiplier = 31;
     bool ghost_mode = 32;
     bool paddle_shield = 33;
+    repeated SnapshotTurboState turbo_states = 34;
 }
 
 message SnapshotLine {
@@ -83,6 +84,13 @@ message SnapshotActivePowerUp {
     int64 duration_ns = 3;
 }
 
+message SnapshotTurboState {
+    string side = 1;
+    double charge = 2;
+    int64 active_until_elapsed_ns = 3;
+    int64 cooldown_until_elapsed_ns = 4;
+}
+
 message ReplayIntent {
     int64 elapsed_ns = 1;
     oneof payload {
@@ -97,15 +105,23 @@ message ReplayIntent {
         ReplaySpawnPowerUp spawn_power_up = 10;
         ReplayApplySpeedConfig apply_speed_config = 11;
         ReplayApplyAiConfig apply_ai_config = 12;
+        ReplayActivateTurbo activate_turbo = 13;
     }
 }
 
 message ReplayTick {
     double delta_seconds = 1;
+    bool player_a_controlled_by_human = 2;
+    double turbo_speed_multiplier = 3;
 }
 
 message ReplayMovePaddle {
     double y = 1;
+    string side = 2;
+}
+
+message ReplayActivateTurbo {
+    string side = 1;
 }
 
 message ReplayTogglePause {}

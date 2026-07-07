@@ -85,6 +85,7 @@ class ReplayResource {
             val room = roomRegistry.get(newRoomId)
 
             room.dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(result.finalState)))
+            room.restoreTurbo(result.turboSnapshot)
             room.history.importRange(result.snapshots)
 
             log.infof(

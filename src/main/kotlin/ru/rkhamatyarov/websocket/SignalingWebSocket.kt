@@ -91,8 +91,7 @@ class SignalingWebSocket {
                 return
             }
             handleSignal(mapper.readValue<Map<String, Any>>(message), connection)
-        } catch (e: Exception) {
-            log.error("Failed to handle signaling message: $message", e)
+        } catch (_: Exception) {
             sendError(connection, "Invalid signaling message format")
         }
     }
@@ -110,7 +109,6 @@ class SignalingWebSocket {
             }
 
             else -> {
-                log.warn("Unknown signaling type: $type")
                 sendError(connection, "Unknown signaling type: $type")
             }
         }

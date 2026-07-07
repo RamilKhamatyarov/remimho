@@ -13,6 +13,7 @@ import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.PaddleSide
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -21,7 +22,10 @@ class ReplayConverterTest {
     @Test
     fun `Tick intent round-trips through proto with elapsedNs preserved`() {
         // g
-        val intent = GameIntent.Reliable(GameAction.Tick(0.016, 1_234_567_890L))
+        val intent =
+            GameIntent.Reliable(
+                GameAction.Tick(0.016, 1_234_567_890L, playerAControlledByHuman = true, turboSpeedMultiplier = 2.5),
+            )
 
         // w
         val proto = ReplayConverter.toProto(intent)!!
@@ -31,13 +35,15 @@ class ReplayConverterTest {
         val action = restored.action as GameAction.Tick
         assertEquals(0.016, action.deltaSeconds, 1e-9)
         assertEquals(1_234_567_890L, action.elapsedNs)
+        assertTrue(action.playerAControlledByHuman)
+        assertEquals(2.5, action.turboSpeedMultiplier, 1e-9)
         assertEquals(1_234_567_890L, elapsedNs)
     }
 
     @Test
     fun `MovePaddle intent round-trips through proto`() {
         // g
-        val intent = GameIntent.Reliable(GameAction.MovePaddle(275.5))
+        val intent = GameIntent.Reliable(GameAction.MovePaddle(275.5, PaddleSide.A))
 
         // w
         val proto = ReplayConverter.toProto(intent)!!
@@ -46,6 +52,18 @@ class ReplayConverterTest {
         // t
         val action = restored.action as GameAction.MovePaddle
         assertEquals(275.5, action.y, 1e-9)
+        assertEquals(PaddleSide.A, action.side)
+    }
+
+    @Test
+    fun `ActivateTurbo intent round-trips through proto`() {
+        val intent = GameIntent.Reliable(GameAction.ActivateTurbo(PaddleSide.A))
+
+        val proto = ReplayConverter.toProto(intent)!!
+        val (restored, _) = ReplayConverter.fromProto(proto)
+
+        val action = restored.action as GameAction.ActivateTurbo
+        assertEquals(PaddleSide.A, action.side)
     }
 
     @Test

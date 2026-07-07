@@ -12,7 +12,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { gameStateRef, useGameSocket } from '../composables/useGameSocket'
+import { gameStateRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
@@ -179,6 +179,12 @@ function drawPaddles(ctx: CanvasRenderingContext2D, state: GameState, canvas: HT
 }
 
 function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {
+  const turboActive = turboStateRef.value.states.some((turbo) => turbo.status === 'active')
+  ctx.save()
+  if (turboActive) {
+    ctx.shadowBlur = 18 * Math.min(scale.x, scale.y)
+    ctx.shadowColor = '#30d5ff'
+  }
   ctx.beginPath()
   ctx.arc(
     smoothPuckX * scale.x,
@@ -187,8 +193,9 @@ function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point)
     0,
     Math.PI * 2,
   )
-  ctx.fillStyle = '#ffffff'
+  ctx.fillStyle = turboActive ? '#30d5ff' : '#ffffff'
   ctx.fill()
+  ctx.restore()
 }
 
 function drawScore(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {

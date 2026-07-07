@@ -44,6 +44,12 @@ A unique twist on classic ping-pong with drawing capabilities
 7. npm install
 8. npm run frontend
 
+Run the packaged JVM app without native compilation:
+
+```powershell
+java -jar .uild\quarkus-app\quarkus-run.jar
+```
+
 ### Native Build Configuration
 #### 1. Required Software
 

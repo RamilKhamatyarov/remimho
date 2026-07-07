@@ -4,6 +4,7 @@ import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.FullGameSnapshot
+import ru.rkhamatyarov.proto.ReplayActivateTurbo
 import ru.rkhamatyarov.proto.ReplayApplyAiConfig
 import ru.rkhamatyarov.proto.ReplayApplySpeedConfig
 import ru.rkhamatyarov.proto.ReplayApplyTeleports
@@ -30,22 +31,35 @@ import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.PaddleSide
 
 object ReplayConverter {
     fun toProto(intent: GameIntent.Reliable): ReplayIntent? {
         val elapsedNs =
             when (val a = intent.action) {
                 is GameAction.Tick -> a.elapsedNs
+                is GameAction.ActivateTurbo -> a.elapsedNs
                 else -> 0L
             }
         val builder = ReplayIntent.newBuilder().setElapsedNs(elapsedNs)
         when (val action = intent.action) {
             is GameAction.Tick -> {
-                builder.tick = ReplayTick.newBuilder().setDeltaSeconds(action.deltaSeconds).build()
+                builder.tick =
+                    ReplayTick
+                        .newBuilder()
+                        .setDeltaSeconds(action.deltaSeconds)
+                        .setPlayerAControlledByHuman(action.playerAControlledByHuman)
+                        .setTurboSpeedMultiplier(action.turboSpeedMultiplier)
+                        .build()
             }
 
             is GameAction.MovePaddle -> {
-                builder.movePaddle = ReplayMovePaddle.newBuilder().setY(action.y).build()
+                builder.movePaddle =
+                    ReplayMovePaddle
+                        .newBuilder()
+                        .setY(action.y)
+                        .setSide(action.side.name)
+                        .build()
             }
 
             GameAction.TogglePause -> {
@@ -70,6 +84,14 @@ object ReplayConverter {
 
             is GameAction.RestoreSnapshot -> {
                 return null
+            }
+
+            is GameAction.ActivateTurbo -> {
+                builder.activateTurbo =
+                    ReplayActivateTurbo
+                        .newBuilder()
+                        .setSide(action.side.name)
+                        .build()
             }
 
             is GameAction.ApplyTeleports -> {
@@ -114,11 +136,16 @@ object ReplayConverter {
         val action =
             when (proto.payloadCase) {
                 ReplayIntent.PayloadCase.TICK -> {
-                    GameAction.Tick(proto.tick.deltaSeconds, proto.elapsedNs)
+                    GameAction.Tick(
+                        deltaSeconds = proto.tick.deltaSeconds,
+                        elapsedNs = proto.elapsedNs,
+                        playerAControlledByHuman = proto.tick.playerAControlledByHuman,
+                        turboSpeedMultiplier = if (proto.tick.turboSpeedMultiplier > 0.0) proto.tick.turboSpeedMultiplier else 1.0,
+                    )
                 }
 
                 ReplayIntent.PayloadCase.MOVE_PADDLE -> {
-                    GameAction.MovePaddle(proto.movePaddle.y)
+                    GameAction.MovePaddle(proto.movePaddle.y, proto.movePaddle.side.toPaddleSide())
                 }
 
                 ReplayIntent.PayloadCase.TOGGLE_PAUSE -> {
@@ -139,6 +166,10 @@ object ReplayConverter {
 
                 ReplayIntent.PayloadCase.CLEAR_LINES -> {
                     GameAction.ClearLines
+                }
+
+                ReplayIntent.PayloadCase.ACTIVATE_TURBO -> {
+                    GameAction.ActivateTurbo(proto.activateTurbo.side.toPaddleSide(), proto.elapsedNs)
                 }
 
                 ReplayIntent.PayloadCase.APPLY_TELEPORTS -> {
@@ -263,6 +294,12 @@ object ReplayConverter {
             ghostMode = proto.ghostMode,
             paddleShield = proto.paddleShield,
         )
+
+    private fun String.toPaddleSide(): PaddleSide =
+        when (uppercase()) {
+            "A" -> PaddleSide.A
+            else -> PaddleSide.B
+        }
 
     private fun teleportEntry(
         lineId: String,

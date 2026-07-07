@@ -25,3 +25,18 @@ export interface GameState {
   powerUps: PowerUpDTO[]
   activePowerUpEffects: ActivePowerUpEffectDTO[]
 }
+
+export type TurboStatus = 'charging' | 'ready' | 'active' | 'cooldown'
+export type PaddleSide = 'A' | 'B'
+
+export interface TurboSideState {
+  side: PaddleSide
+  charge: number
+  status: TurboStatus
+  activeMs: number
+  cooldownMs: number
+}
+
+export interface TurboHudState {
+  states: TurboSideState[]
+}
