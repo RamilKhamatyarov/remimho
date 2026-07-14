@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import io.quarkus.runtime.ShutdownEvent
 import io.quarkus.runtime.StartupEvent
+import io.quarkus.runtime.annotations.RegisterForReflection
 import io.quarkus.websockets.next.OnClose
 import io.quarkus.websockets.next.OnOpen
 import io.quarkus.websockets.next.OnTextMessage
@@ -754,7 +755,14 @@ class GameWebSocket {
         connection: WebSocketConnection,
         state: TurboHudState,
     ) {
-        connection.sendText(mapper.writeValueAsString(state.toClientMessage())).subscribe().with(
+        val payload =
+            try {
+                mapper.writeValueAsString(state.toClientMessage())
+            } catch (t: Throwable) {
+                log.warn("Failed to serialize turbo state for ${connection.id()}: ${t.message}")
+                return
+            }
+        connection.sendText(payload).subscribe().with(
             {},
             { t -> log.warn("Failed to send turbo state to ${connection.id()}: ${t.message}") },
         )
@@ -785,11 +793,13 @@ class GameWebSocket {
     }
 }
 
+@RegisterForReflection
 private data class TurboStateMessage(
     val type: String = "TURBO_STATE",
     val states: List<TurboSideStateMessage>,
 )
 
+@RegisterForReflection
 private data class TurboSideStateMessage(
     val side: String,
     val charge: Double,
