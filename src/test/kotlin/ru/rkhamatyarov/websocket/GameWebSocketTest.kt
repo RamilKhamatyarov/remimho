@@ -9,6 +9,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket
 import java.nio.ByteBuffer
+import java.util.UUID
 import java.util.concurrent.BlockingQueue
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.LinkedBlockingQueue
@@ -32,8 +33,7 @@ class GameWebSocketTest {
         client.send("""{"type":"P2P_TELEMETRY","data":{"status":"bogus","peerId":"peer-1"}}""")
 
         // t
-        val error = awaitErrorText(client)
-        assertEquals("ERROR", error["type"])
+        val error = awaitMessageType(client, "ERROR")
         assertEquals(true, (error["message"] as String).contains("status"))
 
         client.close()
@@ -57,18 +57,67 @@ class GameWebSocketTest {
         client.close()
     }
 
-    private fun wsUri(): URI = URI("ws", null, gameUri.host, gameUri.port, gameUri.path, null, null)
+    @Test
+    fun `cursor move is broadcast to other room clients without local echo`() {
+        // g
+        val roomId = "cursor-${UUID.randomUUID()}"
+        val sender = GameTestClient(wsUri(roomId))
+        val receiver = GameTestClient(wsUri(roomId))
+
+        // w
+        repeat(5) {
+            sender.send("""{"type":"CURSOR_MOVE","data":{"x":123.0,"y":234.0}}""")
+            val cursor = receiver.pollTyped("CURSOR_MOVE", 1L)
+            if (cursor != null) {
+                assertEquals(123.0, cursor["x"] as Double, 0.001)
+                assertEquals(234.0, cursor["y"] as Double, 0.001)
+                assertEquals(true, (cursor["playerId"] as String).isNotBlank())
+                assertNoMessageType(sender, "CURSOR_MOVE")
+                sender.close()
+                receiver.close()
+                return
+            }
+        }
+
+        sender.close()
+        receiver.close()
+        fail("Expected receiver to get a CURSOR_MOVE frame")
+    }
+
+    private fun wsUri(roomId: String = "test-${UUID.randomUUID()}"): URI =
+        URI("ws", null, gameUri.host, gameUri.port, gameUri.path, "roomId=$roomId", null)
 
     private fun parse(json: String): Map<String, Any?> = mapper.readValue(json)
 
-    private fun awaitErrorText(client: GameTestClient): Map<String, Any?> {
-        val deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(5L)
+    private fun awaitMessageType(
+        client: GameTestClient,
+        type: String,
+    ): Map<String, Any?> =
+        client.pollTyped(type, 5L)
+            ?: fail("Expected a $type frame from the game socket")
+
+    private fun assertNoMessageType(
+        client: GameTestClient,
+        type: String,
+    ) {
+        val deadlineNs = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(350L)
         while (System.nanoTime() < deadlineNs) {
-            val message = client.poll(5L) ?: break
-            val parsed = parse(message)
-            if (parsed["type"] == "ERROR") return parsed
+            val message = client.poll(1L) ?: return
+            if (parse(message)["type"] == type) fail("Unexpected $type frame: $message")
         }
-        fail("Expected an ERROR frame from the game socket")
+    }
+
+    private fun GameTestClient.pollTyped(
+        type: String,
+        timeoutSeconds: Long,
+    ): Map<String, Any?>? {
+        val deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds)
+        while (System.nanoTime() < deadlineNs) {
+            val message = poll(1L) ?: continue
+            val parsed = parse(message)
+            if (parsed["type"] == type) return parsed
+        }
+        return null
     }
 }
 

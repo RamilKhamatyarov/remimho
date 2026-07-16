@@ -59,6 +59,7 @@ class GameWebSocket {
     private val connectionSides = ConcurrentHashMap<String, PaddleSide>()
     private val collectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val turboCollectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val ephemeralCollectorJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
     private val lastFullStateByRoom = ConcurrentHashMap<String, GameStateDelta>()
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -95,6 +96,7 @@ class GameWebSocket {
         lastFullStateByRoom.remove(roomId)
         launchStateCollector(connection, roomId)
         launchTurboCollector(connection, roomId)
+        launchEphemeralCollector(connection, roomId)
         connection.sendBinary(currentStateBinary(roomId))
     }
 
@@ -106,11 +108,27 @@ class GameWebSocket {
         }
         collectorJobs.remove(connection.id())?.cancel()
         turboCollectorJobs.remove(connection.id())?.cancel()
+        ephemeralCollectorJobs.remove(connection.id())?.cancel()
         timeshiftSessions.remove(connection.id())
         timeshiftDrafts.remove(connection.id())
         timeshiftTurboDrafts.remove(connection.id())
         connectionDrawingLines.remove(connection.id())
         log.info("Client disconnected: ${connection.id()} (remaining: ${sessions.size})")
+    }
+
+    private fun launchEphemeralCollector(
+        connection: WebSocketConnection,
+        roomId: String,
+    ) {
+        ephemeralCollectorJobs[connection.id()] =
+            applicationScope.launch {
+                roomRegistry.get(roomId).ephemeralEvents.collectLatest { event ->
+                    if (connection.id() in timeshiftSessions || connection.isClosed) return@collectLatest
+                    if (event is EphemeralEvent.CursorMove && event.playerId != connection.id()) {
+                        sendCursorMove(connection, event)
+                    }
+                }
+            }
     }
 
     private fun launchTurboCollector(
@@ -207,6 +225,10 @@ class GameWebSocket {
                 handleActivateTurbo(connection)
             }
 
+            "CURSOR_MOVE" -> {
+                handleCursorMove(data, connection)
+            }
+
             "RESET" -> {
                 handleReset(connection)
             }
@@ -268,6 +290,22 @@ class GameWebSocket {
             return
         }
         roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y, connectionSide(connection))))
+    }
+
+    private fun handleCursorMove(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        val x = data["x"]?.toString()?.toDoubleOrNull()
+        val y = data["y"]?.toString()?.toDoubleOrNull()
+        if (x == null || y == null || !x.isFinite() || !y.isFinite()) {
+            sendError(connection, "Invalid CURSOR_MOVE: finite x and y required")
+            return
+        }
+        val room = roomRegistry.get(roomId(connection))
+        if (!room.emitEphemeral(EphemeralEvent.CursorMove(connection.id(), x, y))) {
+            log.debugf("Cursor flow buffer full for room %s; oldest cursor frame dropped", room.id)
+        }
     }
 
     private fun handleActivateTurbo(connection: WebSocketConnection) {
@@ -512,6 +550,23 @@ class GameWebSocket {
         previousTimestampNs: Long,
     ) = (timestampNs - previousTimestampNs).coerceAtLeast(0L).nanoseconds
 
+    private fun sendCursorMove(
+        connection: WebSocketConnection,
+        event: EphemeralEvent.CursorMove,
+    ) {
+        val payload =
+            mapOf(
+                "type" to "CURSOR_MOVE",
+                "playerId" to event.playerId,
+                "x" to event.x,
+                "y" to event.y,
+            )
+        connection.sendText(mapper.writeValueAsString(payload)).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send cursor move to ${connection.id()}: ${t.message}") },
+        )
+    }
+
     private fun sendGhostFrame(
         connection: WebSocketConnection,
         bytes: ByteArray,
@@ -602,6 +657,7 @@ class GameWebSocket {
             connectionRooms.remove(it)
             collectorJobs.remove(it)?.cancel()
             turboCollectorJobs.remove(it)?.cancel()
+            ephemeralCollectorJobs.remove(it)?.cancel()
             timeshiftSessions.remove(it)
             timeshiftTurboDrafts.remove(it)
         }

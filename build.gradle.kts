@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.JavaExec
+import org.gradle.api.tasks.SourceSetContainer
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -14,6 +16,8 @@ group = "ru.rkhamatyarov"
 version = "1.0.0"
 
 val protobufVersion = "4.35.1"
+
+abstract class GenerateDemoGifTask : JavaExec()
 
 repositories {
     mavenCentral()
@@ -116,6 +120,17 @@ spotless {
 }
 
 tasks.test {
+    systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+}
+val mainSourceSet = the<SourceSetContainer>().named("main")
+
+tasks.register<GenerateDemoGifTask>("generateDemoGif") {
+    group = "documentation"
+    description = "Generates docs/demo.gif from src/test/resources/demo.replay"
+    dependsOn("compileKotlin", "compileJava")
+    mainClass.set("ru.rkhamatyarov.rendering.DemoGifGenerator")
+    classpath = mainSourceSet.get().runtimeClasspath
+    args(layout.projectDirectory.asFile.absolutePath)
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
 }
 

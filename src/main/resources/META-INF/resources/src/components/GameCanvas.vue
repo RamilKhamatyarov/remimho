@@ -12,12 +12,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { gameStateRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
+import { gameStateRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
 const props = defineProps<{ timeshiftActive?: boolean; eraserMode?: boolean }>()
-const { eraseLine, send } = useGameSocket()
+const { eraseLine, send, sendCursorMove } = useGameSocket()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const isDrawing = ref(false)
@@ -83,6 +83,7 @@ function draw(state: GameState) {
   drawPaddles(ctx, state, canvas, scale)
   drawPuck(ctx, state, scale)
   drawScore(ctx, state, canvas, scale)
+  drawRemoteCursors(ctx, scale)
   drawActivePowerUpEffects(ctx, state, canvas, scale)
   drawHint(ctx, state, canvas, scale)
   drawPauseOverlay(ctx, state, canvas, scale)
@@ -206,6 +207,29 @@ function drawScore(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTML
   ctx.fillText(String(state.score.playerB), canvas.width * 0.75, 50 * scale.y)
 }
 
+function drawRemoteCursors(ctx: CanvasRenderingContext2D, scale: Point) {
+  const visibleCursors = remoteCursorsRef.value.filter((cursor) => Date.now() - cursor.lastSeenMs < 2000)
+  if (!visibleCursors.length) return
+
+  ctx.save()
+  ctx.lineWidth = 2 * Math.min(scale.x, scale.y)
+  ctx.strokeStyle = '#30d5ff'
+  ctx.fillStyle = '#30d5ff'
+  ctx.font = `${Math.round(11 * Math.min(scale.x, scale.y))}px monospace`
+  for (const cursor of visibleCursors) {
+    const x = cursor.x * scale.x
+    const y = cursor.y * scale.y
+    ctx.beginPath()
+    ctx.moveTo(x - 7 * scale.x, y)
+    ctx.lineTo(x + 7 * scale.x, y)
+    ctx.moveTo(x, y - 7 * scale.y)
+    ctx.lineTo(x, y + 7 * scale.y)
+    ctx.stroke()
+    ctx.fillText(cursor.playerId.slice(0, 6), x + 9 * scale.x, y - 9 * scale.y)
+  }
+  ctx.restore()
+}
+
 function drawActivePowerUpEffects(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
   if (!state.activePowerUpEffects.length) return
 
@@ -279,7 +303,10 @@ function onMouseMove(event: MouseEvent) {
   const point = eventToGamePoint(event)
   if (!point) return
 
-  if (!props.timeshiftActive) emit('paddleMove', point.y)
+  if (!props.timeshiftActive) {
+    emit('paddleMove', point.y)
+    sendCursorMove(point.x, point.y)
+  }
   if (isDrawing.value) sendLinePoint('UPDATE_LINE', point)
 }
 
@@ -367,3 +394,5 @@ function pointToSegmentDistance(point: Point, start: Point, end: Point): number 
   return Math.hypot(point.x - closestX, point.y - closestY)
 }
 </script>
+
+

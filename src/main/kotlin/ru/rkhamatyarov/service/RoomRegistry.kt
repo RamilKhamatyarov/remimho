@@ -86,7 +86,13 @@ class GameRoom(
         }
     }
 
-    fun dispatch(intent: GameIntent): Boolean = mailbox.trySend(intent)
+    fun dispatch(intent: GameIntent): Boolean =
+        when (intent) {
+            is GameIntent.Reliable -> mailbox.trySend(intent)
+            is GameIntent.Ephemeral -> emitEphemeral(intent.event)
+        }
+
+    fun emitEphemeral(event: EphemeralEvent): Boolean = mutableEphemeralEvents.tryEmit(event)
 
     fun registerHumanSide(side: PaddleSide) =
         synchronized(humanSideLock) {

@@ -1,17 +1,19 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import type { GameState, PaddleSide, TurboHudState, TurboSideState } from '../types/game'
+import type { GameState, PaddleSide, RemoteCursor, TurboHudState, TurboSideState } from '../types/game'
 import { GameStateDelta as protoGameStateDelta } from '../proto/game_state'
 import { configureGameLoop, enqueueDelta } from './useGameLoop'
 
 export const gameStateRef: Ref<GameState | null> = ref<GameState | null>(null)
 export const connectedRef: Ref<boolean> = ref(false)
 export const turboStateRef: Ref<TurboHudState> = ref<TurboHudState>({ states: [] })
+export const remoteCursorsRef: Ref<RemoteCursor[]> = ref<RemoteCursor[]>([])
 
 const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
 const RECONNECT_DELAY_MS = 1000
 const TIMESHIFT_THROTTLE_MS = 40
+const CURSOR_THROTTLE_MS = 50
 
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -155,6 +157,10 @@ function applyJsonMessage(message: string) {
       turboStateRef.value = toTurboHudState(data)
       return
     }
+    if (isCursorMove(data)) {
+      applyCursorMove(data)
+      return
+    }
     applyJsonStateMessage(data)
   } catch (error) {
     console.error('[WS] JSON parse error', error)
@@ -163,6 +169,22 @@ function applyJsonMessage(message: string) {
 
 function isServerError(data: Record<string, unknown>): boolean {
   return data['type'] === 'ERROR'
+}
+
+function isCursorMove(data: Record<string, unknown>): boolean {
+  return data['type'] === 'CURSOR_MOVE'
+}
+
+function applyCursorMove(data: Record<string, unknown>) {
+  const playerId = String(data['playerId'] ?? '')
+  const x = Number(data['x'])
+  const y = Number(data['y'])
+  if (!playerId || !Number.isFinite(x) || !Number.isFinite(y)) return
+
+  remoteCursorsRef.value = [
+    ...remoteCursorsRef.value.filter((cursor) => cursor.playerId !== playerId),
+    { playerId, x, y, lastSeenMs: Date.now() },
+  ]
 }
 
 function isTurboState(data: Record<string, unknown>): boolean {
@@ -225,6 +247,7 @@ function mergeLegacyJsonDelta(data: Record<string, unknown>): GameState {
 
 function onSocketClose() {
   connectedRef.value = false
+  remoteCursorsRef.value = []
   reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS)
 }
 
@@ -317,11 +340,15 @@ export function useGameSocket() {
   }, TIMESHIFT_THROTTLE_MS)
   const resume = () => send('RESUME')
   const commitTimeshift = (offsetSeconds: number) => send('COMMIT_TIMESHIFT', { offset: offsetSeconds })
+  const sendCursorMove = throttle((x: number, y: number) => {
+    send('CURSOR_MOVE', { x, y })
+  }, CURSOR_THROTTLE_MS)
 
   return {
     gameState: gameStateRef,
     connected: connectedRef,
     turboState: turboStateRef,
+    remoteCursors: remoteCursorsRef,
     currentSide,
     movePaddle,
     activateTurbo,
@@ -332,6 +359,9 @@ export function useGameSocket() {
     timeshift,
     resume,
     commitTimeshift,
+    sendCursorMove,
     send,
   }
 }
+
+
