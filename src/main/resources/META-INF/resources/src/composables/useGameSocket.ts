@@ -13,7 +13,7 @@ const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
 const RECONNECT_DELAY_MS = 1000
 const TIMESHIFT_THROTTLE_MS = 40
-const CURSOR_THROTTLE_MS = 50
+const CURSOR_THROTTLE_MS = 33
 
 let socket: WebSocket | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null

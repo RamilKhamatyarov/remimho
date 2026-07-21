@@ -5,7 +5,7 @@
     @mousemove="onMouseMove"
     @mousedown="onMouseDown"
     @mouseup="finishDrawing"
-    @mouseleave="finishDrawing"
+    @mouseleave="onMouseLeave"
     @contextmenu.prevent="onContextMenu"
   />
 </template>
@@ -21,6 +21,7 @@ const { eraseLine, send, sendCursorMove } = useGameSocket()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 const isDrawing = ref(false)
+const localCursor = ref<Point | null>(null)
 
 const PADDLE_WIDTH = 20
 const ERASE_HIT_RADIUS = 12
@@ -87,6 +88,7 @@ function draw(state: GameState) {
   drawActivePowerUpEffects(ctx, state, canvas, scale)
   drawHint(ctx, state, canvas, scale)
   drawPauseOverlay(ctx, state, canvas, scale)
+  drawLocalCursor(ctx, scale)
 }
 
 function resizeCanvasToGameState(canvas: HTMLCanvasElement, state: GameState) {
@@ -230,6 +232,27 @@ function drawRemoteCursors(ctx: CanvasRenderingContext2D, scale: Point) {
   ctx.restore()
 }
 
+function drawLocalCursor(ctx: CanvasRenderingContext2D, scale: Point) {
+  const cursor = localCursor.value
+  if (!cursor || props.eraserMode || isDrawing.value) return
+
+  const x = cursor.x * scale.x
+  const y = cursor.y * scale.y
+  const unit = Math.min(scale.x, scale.y)
+
+  ctx.save()
+  ctx.strokeStyle = '#f0a500'
+  ctx.fillStyle = '#f0a500'
+  ctx.lineWidth = 2 * unit
+  ctx.beginPath()
+  ctx.arc(x, y, 8 * unit, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.arc(x, y, 2 * unit, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
 function drawActivePowerUpEffects(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
   if (!state.activePowerUpEffects.length) return
 
@@ -303,11 +326,18 @@ function onMouseMove(event: MouseEvent) {
   const point = eventToGamePoint(event)
   if (!point) return
 
+  localCursor.value = point
+
   if (!props.timeshiftActive) {
     emit('paddleMove', point.y)
     sendCursorMove(point.x, point.y)
   }
   if (isDrawing.value) sendLinePoint('UPDATE_LINE', point)
+}
+
+function onMouseLeave() {
+  localCursor.value = null
+  finishDrawing()
 }
 
 function onMouseDown(event: MouseEvent) {
