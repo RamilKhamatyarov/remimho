@@ -120,6 +120,24 @@ class HeadlessReplayImportTest {
         assertTrue(ts10 > ts5, "second snapshot must be later than first")
     }
 
+    @Test
+    fun `sampled states include starting state and every nth frame`() {
+        // g
+        val intents =
+            (0 until 12).map { i ->
+                GameIntent.Reliable(GameAction.Tick(0.016, i * 16_000_000L))
+            }
+        val replayFile = buildReplayFile(MviGameState(), intents)
+
+        // w
+        val states = importer.importSampledStates(replayFile, sampleEveryFrames = 5)
+
+        // t
+        assertEquals(3, states.size)
+        assertEquals(0.0, states.first().elapsedSeconds, 1e-9)
+        assertEquals(10 * 0.016, states.last().elapsedSeconds, 1e-6)
+    }
+
     private fun buildReplayFile(
         startingState: MviGameState,
         intents: List<GameIntent.Reliable>,

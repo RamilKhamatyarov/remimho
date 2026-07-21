@@ -14,7 +14,20 @@ class HeadlessReplayImporter {
     @ConfigProperty(name = "remimho.replay.snapshot-interval-frames", defaultValue = "60")
     var snapshotIntervalFrames: Int = 60
 
-    fun import(replayFile: ReplayFile): HeadlessImportResult {
+    fun import(replayFile: ReplayFile): HeadlessImportResult = importInternal(replayFile).result
+
+    fun importSampledStates(
+        replayFile: ReplayFile,
+        sampleEveryFrames: Int,
+    ): List<MviGameState> {
+        require(sampleEveryFrames > 0) { "sampleEveryFrames must be positive" }
+        return importInternal(replayFile, sampleEveryFrames).sampledStates
+    }
+
+    private fun importInternal(
+        replayFile: ReplayFile,
+        sampleEveryFrames: Int? = null,
+    ): HeadlessImportRun {
         val startingState =
             if (replayFile.hasStartingState()) {
                 ReplayConverter.snapshotToState(replayFile.startingState)
@@ -25,7 +38,9 @@ class HeadlessReplayImporter {
         var state = startingState
         val turboBoostStrategy = TurboBoostStrategy()
         val snapshots = mutableListOf<Pair<Long, ByteArray>>()
+        val sampledStates = mutableListOf<MviGameState>()
         var frameIndex = 0
+        if (sampleEveryFrames != null) sampledStates.add(state)
 
         for (replayIntent in replayFile.intentsList) {
             val (intent, intentElapsedNs) = ReplayConverter.fromProto(replayIntent)
@@ -39,16 +54,28 @@ class HeadlessReplayImporter {
                 val logicalNs = (state.elapsedSeconds * 1_000_000_000L).toLong()
                 snapshots.add(logicalNs to state.toDelta().toByteArray())
             }
+            if (sampleEveryFrames != null && frameIndex % sampleEveryFrames == 0) {
+                sampledStates.add(state)
+            }
         }
 
-        return HeadlessImportResult(
-            finalState = state,
-            snapshots = snapshots,
-            frameCount = frameIndex,
-            turboSnapshot = turboBoostStrategy.snapshot((state.elapsedSeconds * 1_000_000_000L).toLong()),
+        return HeadlessImportRun(
+            result =
+                HeadlessImportResult(
+                    finalState = state,
+                    snapshots = snapshots,
+                    frameCount = frameIndex,
+                    turboSnapshot = turboBoostStrategy.snapshot((state.elapsedSeconds * 1_000_000_000L).toLong()),
+                ),
+            sampledStates = sampledStates,
         )
     }
 }
+
+private data class HeadlessImportRun(
+    val result: HeadlessImportResult,
+    val sampledStates: List<MviGameState>,
+)
 
 data class HeadlessImportResult(
     val finalState: MviGameState,

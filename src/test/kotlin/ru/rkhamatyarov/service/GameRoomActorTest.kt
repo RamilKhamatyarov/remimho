@@ -50,6 +50,22 @@ class GameRoomActorTest {
         }
 
     @Test
+    fun `cursor move bypasses replay log and emits to shared flow`() =
+        runTest {
+            val room = testRoom()
+            val cursorEvent = EphemeralEvent.CursorMove("player-1", 42.0, 84.0)
+            val received = async { room.ephemeralEvents.first() }
+
+            runCurrent()
+            room.dispatch(GameIntent.Ephemeral(cursorEvent))
+            advanceUntilIdle()
+
+            assertEquals(cursorEvent, received.await())
+            assertTrue(room.getReplayLog().isEmpty())
+            room.shutdown()
+        }
+
+    @Test
     fun `commit line intent updates reliable state`() =
         runTest {
             val room = testRoom()

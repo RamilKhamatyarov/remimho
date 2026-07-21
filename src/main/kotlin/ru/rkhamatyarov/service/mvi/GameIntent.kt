@@ -24,4 +24,10 @@ sealed interface EphemeralEvent {
     data class EraseLineDraft(
         val lineId: String,
     ) : EphemeralEvent
+
+    data class CursorMove(
+        val playerId: String,
+        val x: Double,
+        val y: Double,
+    ) : EphemeralEvent
 }

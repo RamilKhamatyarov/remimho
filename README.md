@@ -47,7 +47,7 @@ A unique twist on classic ping-pong with drawing capabilities
 Run the packaged JVM app without native compilation:
 
 ```powershell
-java -jar .uild\quarkus-app\quarkus-run.jar
+java -jar .\build\quarkus-app\quarkus-run.jar
 ```
 
 ### Native Build Configuration
@@ -95,4 +95,5 @@ cd D:\path\to\your\project\remimho
 ### Screenshot
 
 ![img.png](img.png)
+
 
