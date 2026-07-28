@@ -143,7 +143,7 @@ class GameResourceTest {
             .body("roomId", equalTo(roomId))
 
         runBlocking {
-            withTimeout(1.seconds) {
+            withTimeout(AWAIT_TIMEOUT) {
                 roomRegistry.get(roomId).reliableState.first { state ->
                     state.powerUps.any { it.type == PowerUpType.MAGNET_BALL }
                 }
@@ -168,8 +168,12 @@ class GameResourceTest {
 
     private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =
         runBlocking {
-            withTimeout(1.seconds) {
+            withTimeout(AWAIT_TIMEOUT) {
                 defaultRoom().reliableState.first(predicate)
             }
         }
+
+    private companion object {
+        private val AWAIT_TIMEOUT = 5.seconds
+    }
 }

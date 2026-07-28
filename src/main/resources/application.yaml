@@ -32,6 +32,9 @@ quarkus:
       -H:IncludeResources=.*\\.proto,
       --initialize-at-run-time=com.google.protobuf,
       --initialize-at-run-time=ru.rkhamatyarov.proto,
+      --initialize-at-run-time=io.netty.internal.tcnative,
+      --initialize-at-run-time=io.netty.handler.ssl.OpenSslAsyncPrivateKeyMethod,
+      --initialize-at-run-time=io.netty.handler.ssl.OpenSslPrivateKeyMethod,
       -H:+ReportExceptionStackTraces
     resources:
       includes:
