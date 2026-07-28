@@ -1,5 +1,7 @@
 # remimho
 
+![Whiteboard Pong gameplay demo](docs/demo.gif)
+
 ## Whiteboard Pong Game
 
 A unique twist on classic ping-pong with drawing capabilities
