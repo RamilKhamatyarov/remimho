@@ -110,6 +110,9 @@ function decode(buf: Uint8Array): Record<string, unknown> {
       case 11: ((d['powerUps'] as unknown[]) ??= []).push(readPowerUp(r.bytes_field()));     break;
       case 12: ((d['activePowerUps'] as unknown[]) ??= []).push(readActivePowerUp(r.bytes_field())); break;
       case 13: d['fullState'] = r.varint() !== 0; break;
+      case 14: d['elapsedSeconds'] = r.f64(); break;
+      case 15: d['puckSpin'] = r.f64(); break;
+      case 16: d['puckSpinRemainingMs'] = r.varint(); break;
       default: r.skip(w);
     }
   }

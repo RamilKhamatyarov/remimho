@@ -135,6 +135,80 @@ class MviGameEngineTest {
     }
 
     @Test
+    fun `paddle contact point redirects puck vertically`() {
+        val state =
+            MviGameState(
+                puck = MviPuck(x = 25.0, y = 255.0, vx = -50.0, vy = 0.0),
+                paddle1Y = 250.0,
+            )
+
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 1L))
+
+        assertTrue(next.puck.vx > 0.0)
+        assertTrue(next.puck.vy < 0.0)
+        assertEquals(30.0, next.puck.x, 0.0001)
+    }
+
+    @Test
+    fun `moving paddle hit applies deterministic spin and consumes paddle velocity`() {
+        val moved = reduce(MviGameState(paddle2Y = 250.0), GameAction.MovePaddle(200.0, PaddleSide.B))
+        val colliding =
+            moved.copy(
+                puck = MviPuck(x = 775.0, y = 250.0, vx = 100.0, vy = 0.0),
+            )
+
+        val next = reduce(colliding, GameAction.Tick(0.016, elapsedNs = 1L))
+
+        assertTrue(next.puck.vx < 0.0)
+        assertTrue(next.puck.spin < 0.0)
+        assertTrue(next.puck.spinRemainingNs > 0L)
+        assertEquals(0.0, next.paddle2Velocity, 0.0001)
+    }
+
+    @Test
+    fun `active spin curves puck and decays on tick`() {
+        val state =
+            MviGameState(
+                puck = MviPuck(x = 400.0, y = 300.0, vx = 100.0, vy = 0.0, spin = 0.5, spinRemainingNs = 750_000_000L),
+            )
+
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 16_000_000L))
+
+        assertTrue(next.puck.vy > 0.0)
+        assertTrue(next.puck.spin in 0.0..0.5)
+        assertTrue(next.puck.spinRemainingNs < 750_000_000L)
+    }
+
+    @Test
+    fun `spin expires deterministically`() {
+        val state =
+            MviGameState(
+                puck = MviPuck(x = 400.0, y = 300.0, vx = 100.0, vy = 0.0, spin = 0.5, spinRemainingNs = 1_000_000L),
+            )
+
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 16_000_000L))
+
+        assertEquals(0.0, next.puck.spin, 0.0001)
+        assertEquals(0L, next.puck.spinRemainingNs)
+    }
+
+    @Test
+    fun `line reflection dampens spin without removing replayable state`() {
+        val state =
+            MviGameState(
+                puck = MviPuck(x = 100.0, y = 300.0, vx = 50.0, vy = 0.0, spin = 0.5, spinRemainingNs = 750_000_000L),
+                lines = listOf(MviLine("wall", listOf(MviPoint(100.0, 0.0), MviPoint(100.0, 600.0)))),
+            )
+
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 16_000_000L))
+
+        assertTrue(next.puck.vx < 0.0)
+        assertTrue(next.puck.spin > 0.0)
+        assertTrue(next.puck.spin < state.puck.spin)
+        assertTrue(next.puck.spinRemainingNs > 0L)
+    }
+
+    @Test
     @OptIn(ExperimentalCoroutinesApi::class)
     fun `actor dispatch updates state flow`() =
         runTest {

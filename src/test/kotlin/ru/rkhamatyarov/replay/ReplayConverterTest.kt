@@ -14,6 +14,7 @@ import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.mviStateFromDelta
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -150,10 +151,21 @@ class ReplayConverterTest {
         // g
         val state =
             MviGameState(
-                puck = MviPuck(x = 123.0, y = 456.0, vx = -300.0, vy = 150.0, teleportCooldownUntilNs = 5_000_000L),
+                puck =
+                    MviPuck(
+                        x = 123.0,
+                        y = 456.0,
+                        vx = -300.0,
+                        vy = 150.0,
+                        spin = -0.4,
+                        spinRemainingNs = 500_000_000L,
+                        teleportCooldownUntilNs = 5_000_000L,
+                    ),
                 score = MviScore(playerA = 3, playerB = 2),
                 paddle1Y = 100.0,
                 paddle2Y = 200.0,
+                paddle1Velocity = -12.0,
+                paddle2Velocity = 18.0,
                 paused = true,
                 elapsedSeconds = 42.5,
                 speedConfig = SpeedConfig(baseMultiplier = 1.5, maxMultiplier = 4.0),
@@ -174,6 +186,10 @@ class ReplayConverterTest {
         // t
         assertEquals(state.puck.x, restored.puck.x, 1e-9)
         assertEquals(state.puck.teleportCooldownUntilNs, restored.puck.teleportCooldownUntilNs)
+        assertEquals(state.puck.spin, restored.puck.spin, 1e-9)
+        assertEquals(state.puck.spinRemainingNs, restored.puck.spinRemainingNs)
+        assertEquals(state.paddle1Velocity, restored.paddle1Velocity, 1e-9)
+        assertEquals(state.paddle2Velocity, restored.paddle2Velocity, 1e-9)
         assertEquals(state.score.playerA, restored.score.playerA)
         assertEquals(42.5, restored.elapsedSeconds, 1e-9)
         assertEquals(state.aiConfig.reactionDelayMs, restored.aiConfig.reactionDelayMs)
@@ -187,5 +203,18 @@ class ReplayConverterTest {
         assertEquals(1_000_000L, restored.activePowerUps[0].activatedNs)
         assertTrue(restored.ghostMode)
         assertEquals(1.5, restored.speedMultiplier, 1e-9)
+    }
+
+    @Test
+    fun `GameStateDelta round-trips puck spin`() {
+        val state =
+            MviGameState(
+                puck = MviPuck(x = 321.0, y = 222.0, vx = 120.0, vy = -30.0, spin = 0.75, spinRemainingNs = 420_000_000L),
+            )
+
+        val restored = mviStateFromDelta(state.toDelta())
+
+        assertEquals(0.75, restored.puck.spin, 1e-9)
+        assertEquals(420_000_000L, restored.puck.spinRemainingNs)
     }
 }
