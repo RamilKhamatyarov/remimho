@@ -48,6 +48,8 @@ function applyPuckDelta(state: GameState, delta: Record<string, unknown>) {
   if (delta['puckY'] !== undefined) state.puck = { ...state.puck, y: delta['puckY'] as number }
   if (delta['puckVx'] !== undefined) state.puck = { ...state.puck, vx: delta['puckVx'] as number }
   if (delta['puckVy'] !== undefined) state.puck = { ...state.puck, vy: delta['puckVy'] as number }
+  if (delta['puckSpin'] !== undefined) state.puck = { ...state.puck, spin: delta['puckSpin'] as number }
+  if (delta['puckSpinRemainingMs'] !== undefined) state.puck = { ...state.puck, spinRemainingMs: delta['puckSpinRemainingMs'] as number }
 }
 
 function applyScoreDelta(state: GameState, delta: Record<string, unknown>) {
@@ -83,7 +85,7 @@ function applyDelta(delta: Record<string, unknown>) {
 
 function makeInitialState(): GameState {
   return {
-    puck: { x: 400, y: 300, vx: 0, vy: 0, radius: 10 },
+    puck: { x: 400, y: 300, vx: 0, vy: 0, radius: 10, spin: 0, spinRemainingMs: 0 },
     score: { playerA: 0, playerB: 0 },
     canvasWidth: 800,
     canvasHeight: 600,
@@ -228,6 +230,8 @@ function mergeLegacyJsonDelta(data: Record<string, unknown>): GameState {
       vx: (data['puckVX'] as number) ?? previous.puck.vx,
       vy: (data['puckVY'] as number) ?? previous.puck.vy,
       radius: previous.puck.radius,
+      spin: (data['puckSpin'] as number) ?? previous.puck.spin,
+      spinRemainingMs: (data['puckSpinRemainingMs'] as number) ?? previous.puck.spinRemainingMs,
     },
     score: {
       playerA: (data['scoreA'] as number) ?? previous.score.playerA,

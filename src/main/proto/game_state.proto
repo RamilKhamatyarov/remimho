@@ -19,6 +19,8 @@ message GameStateDelta {
   repeated ActivePowerUp active_power_ups = 12;
   optional bool full_state = 13;
   optional double elapsed_seconds = 14;
+  optional double puck_spin = 15;
+  optional int64 puck_spin_remaining_ms = 16;
 }
 
 message Line {
@@ -48,3 +50,4 @@ message ActivePowerUp {
   string emoji = 2;
   int64 remaining_seconds = 3;
 }
+

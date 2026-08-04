@@ -6,10 +6,10 @@ plugins {
     kotlin("jvm") version "2.4.10"
     kotlin("plugin.allopen") version "2.4.10"
     kotlin("plugin.serialization") version "2.4.10"
-    id("io.quarkus") version "3.38.0"
+    id("io.quarkus") version "3.38.1"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
-    id("com.diffplug.spotless") version "8.8.0"
+    id("com.diffplug.spotless") version "8.9.0"
 }
 
 group = "ru.rkhamatyarov"
@@ -24,7 +24,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.38.0"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.38.1"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -39,7 +39,7 @@ dependencies {
     implementation("io.quarkus:quarkus-config-yaml")
     implementation("io.quarkus:quarkus-logging-json")
 
-    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.3")
+    implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.8.4")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
