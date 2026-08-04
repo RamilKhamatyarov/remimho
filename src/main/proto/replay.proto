@@ -50,6 +50,10 @@ message FullGameSnapshot {
     bool ghost_mode = 32;
     bool paddle_shield = 33;
     repeated SnapshotTurboState turbo_states = 34;
+    double puck_spin = 35;
+    int64 puck_spin_remaining_ns = 36;
+    double paddle1_velocity = 37;
+    double paddle2_velocity = 38;
 }
 
 message SnapshotLine {
@@ -168,3 +172,4 @@ message ReplayApplyAiConfig {
     double tracking_error = 4;
     double react_zone_ratio = 5;
 }
+

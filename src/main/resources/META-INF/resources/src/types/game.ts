@@ -1,5 +1,5 @@
 export interface Puck {
-  x: number; y: number; vx: number; vy: number; radius: number
+  x: number; y: number; vx: number; vy: number; radius: number; spin: number; spinRemainingMs: number
 }
 export interface Score { playerA: number; playerB: number }
 export interface Point { x: number; y: number }
