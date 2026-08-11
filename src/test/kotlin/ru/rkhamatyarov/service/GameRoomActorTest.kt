@@ -5,7 +5,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -17,7 +16,6 @@ import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class GameRoomActorTest {
@@ -121,7 +119,7 @@ class GameRoomActorTest {
         }
 
     @Test
-    fun `automatic powerup spawner emits reliable state`() =
+    fun `automatic powerup spawner follows reliable logical ticks`() =
         runTest {
             val dispatcher = StandardTestDispatcher(testScheduler)
             val scope = TestScope(dispatcher)
@@ -130,13 +128,17 @@ class GameRoomActorTest {
                     "test-room",
                     scope = scope,
                     autoPowerUpsEnabled = true,
-                    powerUpSpawnInterval = 1.seconds,
                 )
 
-            advanceTimeBy(1.seconds)
-            runCurrent()
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(9.0, elapsedNs = 9_000_000_000L)))
+            advanceUntilIdle()
+            assertEquals(0, room.reliableState.value.powerUps.size)
+
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(1.0, elapsedNs = 10_000_000_000L)))
+            advanceUntilIdle()
 
             assertEquals(1, room.reliableState.value.powerUps.size)
+            assertTrue(room.getReplayLog().last().action is GameAction.SpawnPowerUp)
             room.shutdown()
         }
 

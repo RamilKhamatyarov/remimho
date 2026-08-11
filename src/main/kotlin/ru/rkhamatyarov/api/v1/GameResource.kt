@@ -21,7 +21,7 @@ import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
-import ru.rkhamatyarov.service.createRandomPowerUp
+import ru.rkhamatyarov.service.createDeterministicPowerUp
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.mviStateFromDelta
@@ -179,7 +179,12 @@ class GameResource {
         try {
             val type = PowerUpType.valueOf(request.type)
             val room = roomRegistry.get(roomId ?: RoomRegistry.DEFAULT_ROOM_ID)
-            val powerUp = createRandomPowerUp(type, room.reliableState.value)
+            val powerUp =
+                createDeterministicPowerUp(type, room.reliableState.value)
+                    ?: return Response
+                        .status(Response.Status.CONFLICT)
+                        .entity(mapOf("error" to "No safe power-up spawn position is available"))
+                        .build()
             val accepted = room.dispatch(GameIntent.Reliable(GameAction.SpawnPowerUp(powerUp)))
 
             if (!accepted) {
