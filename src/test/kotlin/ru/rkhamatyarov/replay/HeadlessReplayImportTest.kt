@@ -5,6 +5,8 @@ import ru.rkhamatyarov.proto.ReplayFile
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
+import ru.rkhamatyarov.service.mvi.MviPuck
+import ru.rkhamatyarov.service.mvi.PaddleSide
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -136,6 +138,30 @@ class HeadlessReplayImportTest {
         assertEquals(3, states.size)
         assertEquals(0.0, states.first().elapsedSeconds, 1e-9)
         assertEquals(10 * 0.016, states.last().elapsedSeconds, 1e-6)
+    }
+
+    @Test
+    fun `headless replay preserves paddle movement spin`() {
+        // g
+        val startingState =
+            MviGameState(
+                puck = MviPuck(x = 775.0, y = 250.0, vx = 100.0, vy = 0.0),
+                paddle2Y = 250.0,
+            )
+        val intents =
+            listOf(
+                GameIntent.Reliable(GameAction.MovePaddle(200.0, PaddleSide.B)),
+                GameIntent.Reliable(GameAction.Tick(0.016, 16_000_000L)),
+            )
+        val replayFile = buildReplayFile(startingState, intents)
+
+        // w
+        val result = importer.import(replayFile)
+
+        // t
+        assertTrue(result.finalState.puck.vx < 0.0)
+        assertTrue(result.finalState.puck.spin < 0.0)
+        assertTrue(result.finalState.puck.spinRemainingNs > 0L)
     }
 
     private fun buildReplayFile(

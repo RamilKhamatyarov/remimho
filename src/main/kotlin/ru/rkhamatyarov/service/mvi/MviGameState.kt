@@ -18,6 +18,8 @@ data class MviPuck(
     val vx: Double = 300.0,
     val vy: Double = 200.0,
     val radius: Double = 10.0,
+    val spin: Double = 0.0,
+    val spinRemainingNs: Long = 0L,
     val teleportCooldownUntilNs: Long = 0L,
     val lastTeleportPairId: String? = null,
 )
@@ -63,6 +65,8 @@ data class MviGameState(
     val score: MviScore = MviScore(),
     val paddle1Y: Double = 250.0,
     val paddle2Y: Double = 250.0,
+    val paddle1Velocity: Double = 0.0,
+    val paddle2Velocity: Double = 0.0,
     val paused: Boolean = false,
     val canvasWidth: Double = 800.0,
     val canvasHeight: Double = 600.0,
@@ -87,6 +91,8 @@ data class MviGameState(
             .setPuckY(puck.y)
             .setPuckVx(puck.vx)
             .setPuckVy(puck.vy)
+            .setPuckSpin(puck.spin)
+            .setPuckSpinRemainingMs(puck.spinRemainingNs / 1_000_000L)
             .setPaddle1Y(paddle1Y)
             .setPaddle2Y(paddle2Y)
             .setScoreA(score.playerA)
@@ -110,6 +116,8 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
                 y = if (delta.hasPuckY()) delta.puckY else 300.0,
                 vx = if (delta.hasPuckVx()) delta.puckVx else 300.0,
                 vy = if (delta.hasPuckVy()) delta.puckVy else 200.0,
+                spin = if (delta.hasPuckSpin()) delta.puckSpin else 0.0,
+                spinRemainingNs = if (delta.hasPuckSpinRemainingMs()) delta.puckSpinRemainingMs * 1_000_000L else 0L,
             ),
         score =
             MviScore(
@@ -168,8 +176,8 @@ fun reduce(
         is GameAction.MovePaddle -> {
             val y = action.y.coerceIn(0.0, state.canvasHeight - state.paddleHeight)
             when (action.side) {
-                PaddleSide.A -> state.copy(paddle1Y = y)
-                PaddleSide.B -> state.copy(paddle2Y = y)
+                PaddleSide.A -> state.copy(paddle1Y = y, paddle1Velocity = y - state.paddle1Y)
+                PaddleSide.B -> state.copy(paddle2Y = y, paddle2Velocity = y - state.paddle2Y)
             }
         }
 
@@ -189,6 +197,8 @@ fun reduce(
                         y = state.canvasHeight / 2,
                         vx = if (state.puck.vx > 0) 300.0 else -300.0,
                         vy = 200.0,
+                        spin = 0.0,
+                        spinRemainingNs = 0L,
                         teleportCooldownUntilNs = 0L,
                         lastTeleportPairId = null,
                     ),
@@ -254,16 +264,17 @@ private fun reduceTick(
     val effectiveTurboSpeed = if (turboSpeedMultiplier.isFinite() && turboSpeedMultiplier > 0.0) turboSpeedMultiplier else 1.0
     val effectiveSpeed = state.speedMultiplier * progressiveSpeed * effectiveTurboSpeed
 
-    var puck =
-        state.puck.copy(
-            x = state.puck.x + state.puck.vx * effectiveSpeed * deltaSeconds,
-            y = state.puck.y + state.puck.vy * effectiveSpeed * deltaSeconds,
+    var puck = applySpinCurve(state.puck, deltaSeconds)
+    puck =
+        puck.copy(
+            x = puck.x + puck.vx * effectiveSpeed * deltaSeconds,
+            y = puck.y + puck.vy * effectiveSpeed * deltaSeconds,
         )
 
     if (puck.y - puck.radius <= 0.0) {
-        puck = puck.copy(y = puck.radius, vy = abs(puck.vy))
+        puck = puck.copy(y = puck.radius, vy = abs(puck.vy), spin = puck.spin * WALL_SPIN_RETENTION)
     } else if (puck.y + puck.radius >= state.canvasHeight) {
-        puck = puck.copy(y = state.canvasHeight - puck.radius, vy = -abs(puck.vy))
+        puck = puck.copy(y = state.canvasHeight - puck.radius, vy = -abs(puck.vy), spin = puck.spin * WALL_SPIN_RETENTION)
     }
 
     val lagSeconds = (state.aiConfig.reactionDelayMs / 1000.0).coerceAtLeast(0.01)
@@ -301,7 +312,15 @@ private fun reduceTick(
             overlapsPaddleY(puck, newPaddle1Y, state.paddleHeight)
         ) {
             MviDomainEvents.record(MviDomainEvent.PaddleHit(PaddleSide.A))
-            puck = puck.copy(x = leftPaddleRight + puck.radius, vx = abs(puck.vx))
+            puck =
+                redirectFromPaddle(
+                    puck = puck,
+                    paddleY = newPaddle1Y,
+                    paddleHeight = state.paddleHeight,
+                    paddleVelocity = if (playerAControlledByHuman) state.paddle1Velocity else 0.0,
+                    horizontalDirection = 1.0,
+                    x = leftPaddleRight + puck.radius,
+                )
         }
         if (puck.vx > 0 &&
             puck.x + puck.radius >= rightPaddleLeft &&
@@ -309,11 +328,19 @@ private fun reduceTick(
             overlapsPaddleY(puck, state.paddle2Y, state.paddleHeight)
         ) {
             MviDomainEvents.record(MviDomainEvent.PaddleHit(PaddleSide.B))
-            puck = puck.copy(x = rightPaddleLeft - puck.radius, vx = -abs(puck.vx))
+            puck =
+                redirectFromPaddle(
+                    puck = puck,
+                    paddleY = state.paddle2Y,
+                    paddleHeight = state.paddleHeight,
+                    paddleVelocity = state.paddle2Velocity,
+                    horizontalDirection = -1.0,
+                    x = rightPaddleLeft - puck.radius,
+                )
         }
         if (state.paddleShield) {
             if (puck.vx < 0 && puck.x - puck.radius <= 0.0) {
-                puck = puck.copy(x = puck.radius, vx = abs(puck.vx))
+                puck = puck.copy(x = puck.radius, vx = abs(puck.vx), spin = puck.spin * WALL_SPIN_RETENTION)
             }
         }
     }
@@ -333,6 +360,8 @@ private fun reduceTick(
                 y = state.canvasHeight / 2,
                 vx = if (puck.vx > 0) 300.0 else -300.0,
                 vy = 200.0,
+                spin = 0.0,
+                spinRemainingNs = 0L,
                 teleportCooldownUntilNs = 0L,
                 lastTeleportPairId = null,
             )
@@ -364,6 +393,8 @@ private fun reduceTick(
         puck = puck,
         score = score,
         paddle1Y = newPaddle1Y,
+        paddle1Velocity = 0.0,
+        paddle2Velocity = 0.0,
         aiSmoothedPuckY = newAiSmoothedPuckY,
         elapsedSeconds = state.elapsedSeconds + deltaSeconds,
         powerUps = remainingFieldPowerUps,
@@ -371,6 +402,53 @@ private fun reduceTick(
         speedMultiplier = newSpeedMultiplier,
         ghostMode = newGhostMode,
         paddleShield = newPaddleShield,
+    )
+}
+
+private fun applySpinCurve(
+    puck: MviPuck,
+    deltaSeconds: Double,
+): MviPuck {
+    if (puck.spinRemainingNs <= 0L || !puck.spin.isFinite() || abs(puck.spin) < MIN_SPIN) {
+        return puck.copy(spin = 0.0, spinRemainingNs = 0L)
+    }
+
+    val elapsedNs = (deltaSeconds * 1_000_000_000.0).toLong().coerceAtLeast(0L)
+    val remainingNs = (puck.spinRemainingNs - elapsedNs).coerceAtLeast(0L)
+    if (remainingNs == 0L) return puck.copy(spin = 0.0, spinRemainingNs = 0L)
+
+    val nextSpin = puck.spin * SPIN_DECAY_PER_TICK
+    return puck.copy(
+        vy = puck.vy + nextSpin * SPIN_CURVE_ACCELERATION * deltaSeconds,
+        spin = nextSpin,
+        spinRemainingNs = remainingNs,
+    )
+}
+
+private fun redirectFromPaddle(
+    puck: MviPuck,
+    paddleY: Double,
+    paddleHeight: Double,
+    paddleVelocity: Double,
+    horizontalDirection: Double,
+    x: Double,
+): MviPuck {
+    val speed = hypot(puck.vx, puck.vy).coerceAtLeast(MIN_PUCK_SPEED)
+    val paddleCenter = paddleY + paddleHeight / 2.0
+    val contactOffset = ((puck.y - paddleCenter) / (paddleHeight / 2.0)).coerceIn(-1.0, 1.0)
+    val movementInfluence = (paddleVelocity / PADDLE_MOVEMENT_NORMALIZER).coerceIn(-1.0, 1.0)
+    val angle =
+        (contactOffset * MAX_PADDLE_BOUNCE_ANGLE + movementInfluence * PADDLE_MOVEMENT_ANGLE_INFLUENCE)
+            .coerceIn(-MAX_PADDLE_BOUNCE_ANGLE, MAX_PADDLE_BOUNCE_ANGLE)
+    val spin = (paddleVelocity / PADDLE_SPIN_NORMALIZER).coerceIn(-MAX_SPIN, MAX_SPIN)
+    val hasSpin = abs(spin) >= MIN_SPIN
+
+    return puck.copy(
+        x = x,
+        vx = horizontalDirection * cos(angle) * speed,
+        vy = sin(angle) * speed,
+        spin = if (hasSpin) spin else 0.0,
+        spinRemainingNs = if (hasSpin) SPIN_DURATION_NS else 0L,
     )
 }
 
@@ -437,7 +515,7 @@ private fun applyLineCollisions(
 
             MviDomainEvents.record(MviDomainEvent.LineDeflect)
             val (newVx, newVy) = reflectVelocity(puck.vx, puck.vy, a, b)
-            return puck.copy(vx = newVx, vy = newVy)
+            return puck.copy(vx = newVx, vy = newVy, spin = puck.spin * LINE_SPIN_RETENTION)
         }
     }
     return puck
@@ -578,3 +656,15 @@ private const val MAGNET_RANGE = 150.0
 private const val MAGNET_STRENGTH = 0.3
 private const val TELEPORT_COOLDOWN_NS = 100_000_000L
 private const val MIN_SEGMENT_LENGTH_SQUARED = 1e-9
+private const val MAX_PADDLE_BOUNCE_ANGLE = PI * 0.36
+private const val PADDLE_MOVEMENT_ANGLE_INFLUENCE = PI * 0.08
+private const val PADDLE_MOVEMENT_NORMALIZER = 80.0
+private const val PADDLE_SPIN_NORMALIZER = 90.0
+private const val SPIN_DURATION_NS = 750_000_000L
+private const val SPIN_CURVE_ACCELERATION = 260.0
+private const val SPIN_DECAY_PER_TICK = 0.96
+private const val WALL_SPIN_RETENTION = 0.75
+private const val LINE_SPIN_RETENTION = 0.70
+private const val MIN_PUCK_SPEED = 1.0
+private const val MAX_SPIN = 1.0
+private const val MIN_SPIN = 0.05

@@ -183,6 +183,7 @@ function drawPaddles(ctx: CanvasRenderingContext2D, state: GameState, canvas: HT
 
 function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {
   const turboActive = turboStateRef.value.states.some((turbo) => turbo.status === 'active')
+  const spinActive = Math.abs(state.puck.spin) > 0.05 && state.puck.spinRemainingMs > 0
   ctx.save()
   if (turboActive) {
     ctx.shadowBlur = 18 * Math.min(scale.x, scale.y)
@@ -198,6 +199,14 @@ function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point)
   )
   ctx.fillStyle = turboActive ? '#30d5ff' : '#ffffff'
   ctx.fill()
+  if (spinActive) {
+    const radius = state.puck.radius * Math.min(scale.x, scale.y) * 1.7
+    ctx.strokeStyle = state.puck.spin > 0 ? '#f0a500' : '#4ecca3'
+    ctx.lineWidth = 2 * Math.min(scale.x, scale.y)
+    ctx.beginPath()
+    ctx.arc(smoothPuckX * scale.x, smoothPuckY * scale.y, radius, state.puck.spin > 0 ? 0.2 : Math.PI + 0.2, state.puck.spin > 0 ? Math.PI * 1.45 : Math.PI * 2.45)
+    ctx.stroke()
+  }
   ctx.restore()
 }
 

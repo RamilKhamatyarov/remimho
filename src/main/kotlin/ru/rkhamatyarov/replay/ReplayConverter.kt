@@ -220,12 +220,16 @@ object ReplayConverter {
             .setPuckVx(state.puck.vx)
             .setPuckVy(state.puck.vy)
             .setPuckRadius(state.puck.radius)
+            .setPuckSpin(state.puck.spin)
+            .setPuckSpinRemainingNs(state.puck.spinRemainingNs)
             .setPuckTeleportCooldownElapsedNs(state.puck.teleportCooldownUntilNs)
             .setPuckLastTeleportPairId(state.puck.lastTeleportPairId ?: "")
             .setScoreA(state.score.playerA)
             .setScoreB(state.score.playerB)
             .setPaddle1Y(state.paddle1Y)
             .setPaddle2Y(state.paddle2Y)
+            .setPaddle1Velocity(state.paddle1Velocity)
+            .setPaddle2Velocity(state.paddle2Velocity)
             .setPaused(state.paused)
             .setCanvasWidth(state.canvasWidth)
             .setCanvasHeight(state.canvasHeight)
@@ -259,12 +263,16 @@ object ReplayConverter {
                     vx = proto.puckVx,
                     vy = proto.puckVy,
                     radius = if (proto.puckRadius > 0.0) proto.puckRadius else 10.0,
+                    spin = proto.puckSpin,
+                    spinRemainingNs = proto.puckSpinRemainingNs,
                     teleportCooldownUntilNs = proto.puckTeleportCooldownElapsedNs,
                     lastTeleportPairId = proto.puckLastTeleportPairId.takeIf { it.isNotEmpty() },
                 ),
             score = MviScore(proto.scoreA, proto.scoreB),
             paddle1Y = proto.paddle1Y,
             paddle2Y = proto.paddle2Y,
+            paddle1Velocity = proto.paddle1Velocity,
+            paddle2Velocity = proto.paddle2Velocity,
             paused = proto.paused,
             canvasWidth = if (proto.canvasWidth > 0.0) proto.canvasWidth else 800.0,
             canvasHeight = if (proto.canvasHeight > 0.0) proto.canvasHeight else 600.0,
