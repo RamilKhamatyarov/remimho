@@ -38,6 +38,7 @@ class GameRoom(
     private val reducer: (MviGameState, GameAction) -> MviGameState = ::reduce,
     private val turboBoostStrategy: TurboBoostStrategy = TurboBoostStrategy(),
     private val powerUpEscalationStrategy: PowerUpEscalationStrategy = PowerUpEscalationStrategy(roomId = id),
+    private val botController: BotController = BotController(roomId = id),
     private val autoPowerUpsEnabled: Boolean = true,
     private val replayLogCapacity: Int = DEFAULT_REPLAY_LOG_CAPACITY,
 ) {
@@ -130,7 +131,9 @@ class GameRoom(
         val captured = MviDomainEvents.capture { reducer(mutableReliableState.value, action) }
         mutableReliableState.value = captured.value
         turboBoostStrategy.onEvents(captured.events, elapsedNs)
+        resetBotControllerAfter(action)
         spawnPowerUpAfterTick(action)
+        moveBotAfterTick(action)
     }
 
     private fun enrichAction(action: GameAction): GameAction =
@@ -173,6 +176,23 @@ class GameRoom(
         val elapsedNs = action.elapsedNs.takeIf { it > 0L } ?: currentElapsedNs()
         val powerUp = powerUpEscalationStrategy.nextSpawn(reliableState.value, elapsedNs) ?: return
         applyReliable(GameIntent.Reliable(GameAction.SpawnPowerUp(powerUp)))
+    }
+
+    private fun moveBotAfterTick(action: GameAction) {
+        if (action !is GameAction.Tick) return
+        if (isHumanControlled(PaddleSide.A)) {
+            botController.reset()
+            return
+        }
+        val elapsedNs = action.elapsedNs.takeIf { it > 0L } ?: currentElapsedNs()
+        val move = botController.nextMove(reliableState.value, elapsedNs) ?: return
+        applyReliable(GameIntent.Reliable(move))
+    }
+
+    private fun resetBotControllerAfter(action: GameAction) {
+        if (action is GameAction.ApplyAiConfig || action is GameAction.RestoreSnapshot || action == GameAction.Reset) {
+            botController.reset()
+        }
     }
 
     companion object {

@@ -68,6 +68,7 @@
 
     <WorkshopModal
       v-if="workshopOpen"
+      :room-id="roomId"
       :line-count="gameState?.lines?.length ?? 0"
       :game-lines="gameState?.lines ?? []"
       @close="workshopOpen = false"

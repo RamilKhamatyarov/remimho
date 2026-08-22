@@ -40,10 +40,10 @@ message FullGameSnapshot {
     double elapsed_seconds = 22;
     bool ai_enabled = 23;
     int64 ai_reaction_delay_ms = 24;
-    double ai_max_speed = 25;
-    double ai_tracking_error = 26;
-    double ai_react_zone_ratio = 27;
-    double ai_smoothed_puck_y = 28;
+    double ai_max_speed = 25 [deprecated = true];
+    double ai_tracking_error = 26 [deprecated = true];
+    double ai_react_zone_ratio = 27 [deprecated = true];
+    double ai_smoothed_puck_y = 28 [deprecated = true];
     repeated SnapshotPowerUp power_ups = 29;
     repeated SnapshotActivePowerUp active_power_ups = 30;
     double speed_multiplier = 31;
@@ -54,6 +54,9 @@ message FullGameSnapshot {
     int64 puck_spin_remaining_ns = 36;
     double paddle1_velocity = 37;
     double paddle2_velocity = 38;
+    optional double ai_aim_error = 39;
+    optional int32 ai_prediction_depth = 40;
+    optional double ai_aggression = 41;
 }
 
 message SnapshotLine {
@@ -168,8 +171,10 @@ message ReplayApplySpeedConfig {
 message ReplayApplyAiConfig {
     bool enabled = 1;
     int64 reaction_delay_ms = 2;
-    double max_speed = 3;
-    double tracking_error = 4;
-    double react_zone_ratio = 5;
+    double max_speed = 3 [deprecated = true];
+    double tracking_error = 4 [deprecated = true];
+    double react_zone_ratio = 5 [deprecated = true];
+    optional double aim_error = 6;
+    optional int32 prediction_depth = 7;
+    optional double aggression = 8;
 }
-

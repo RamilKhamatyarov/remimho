@@ -3485,12 +3485,12 @@
       ]
     },
     {
-      "type": "ru.rkhamatyarov.api.v1.WorkshopContentDTO",
+      "type": "ru.rkhamatyarov.api.v1.request.WorkshopContentRequest",
       "methods": [
         {
           "name": "<init>",
           "parameterTypes": [
-            "ru.rkhamatyarov.api.v1.ContentType",
+            "ru.rkhamatyarov.api.v1.request.ContentType",
             "com.fasterxml.jackson.databind.JsonNode",
             "java.util.Map"
           ]
