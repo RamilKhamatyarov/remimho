@@ -9,12 +9,15 @@ import jakarta.ws.rs.PathParam
 import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
-import ru.rkhamatyarov.api.v1.dto.WorkshopContentDTO
-import ru.rkhamatyarov.config.CompileRequest
-import ru.rkhamatyarov.config.CompileResponse
+import ru.rkhamatyarov.api.v1.request.AiOpponentConfigRequest
+import ru.rkhamatyarov.api.v1.request.CompileRequest
+import ru.rkhamatyarov.api.v1.request.WorkshopContentRequest
+import ru.rkhamatyarov.api.v1.response.AiOpponentConfigResponse
+import ru.rkhamatyarov.api.v1.response.CompileResponse
+import ru.rkhamatyarov.api.v1.response.PreviewResponse
+import ru.rkhamatyarov.api.v1.response.WorkshopContentResponse
 import ru.rkhamatyarov.config.DslCompiler
 import ru.rkhamatyarov.config.DslResult
-import ru.rkhamatyarov.config.PreviewResponse
 import ru.rkhamatyarov.config.RuleConfig
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.SpeedConfig
@@ -42,8 +45,8 @@ class WorkshopResource {
 
     @POST
     @Path("/content")
-    fun submitContent(dto: WorkshopContentDTO): Response {
-        if (dto.metadata["name"].isNullOrBlank()) {
+    fun submitContent(request: WorkshopContentRequest): Response {
+        if (request.metadata["name"].isNullOrBlank()) {
             return Response
                 .status(Response.Status.BAD_REQUEST)
                 .entity(mapOf("error" to "metadata.name is required"))
@@ -53,10 +56,7 @@ class WorkshopResource {
         return Response
             .status(Response.Status.CREATED)
             .entity(
-                mapOf(
-                    "type" to dto.type.name,
-                    "accepted" to true,
-                ),
+                WorkshopContentResponse(type = request.type.name, accepted = true),
             ).build()
     }
 
@@ -126,9 +126,9 @@ class WorkshopResource {
                     AiOpponentConfig(
                         enabled = config.ai.enabled,
                         reactionDelayMs = config.ai.reactionDelayMs,
-                        maxSpeed = config.ai.maxSpeed,
-                        trackingError = config.ai.trackingError,
-                        reactZoneRatio = config.ai.reactZoneRatio,
+                        aimError = config.ai.aimError,
+                        predictionDepth = config.ai.predictionDepth,
+                        aggression = config.ai.aggression,
                     ),
                 lines =
                     config.lines.mapIndexed { index, line ->
@@ -188,10 +188,12 @@ class WorkshopResource {
 
     @POST
     @Path("/ai-opponent-config")
-    fun applyAiOpponentConfig(config: AiOpponentConfig): Response {
+    fun applyAiOpponentConfig(request: AiOpponentConfigRequest): Response {
+        val config = request.toDomain()
         validateAiOpponentConfig(config)?.let { return it }
-        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
-        return aiOpponentConfigResponse(config)
+        val roomId = request.roomId.trim().ifBlank { RoomRegistry.DEFAULT_ROOM_ID }
+        roomRegistry.get(roomId).dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
+        return Response.ok(AiOpponentConfigResponse.applied(roomId, config)).build()
     }
 
     companion object {
@@ -207,14 +209,14 @@ class WorkshopResource {
             if (config.reactionDelayMs !in 0..1500) {
                 return badRequest("reactionDelayMs must be between 0 and 1500")
             }
-            if (config.maxSpeed !in 40.0..600.0) {
-                return badRequest("maxSpeed must be between 40.0 and 600.0")
+            if (config.aimError !in 0.0..80.0) {
+                return badRequest("aimError must be between 0.0 and 80.0")
             }
-            if (config.trackingError !in -80.0..80.0) {
-                return badRequest("trackingError must be between -80.0 and 80.0")
+            if (config.predictionDepth !in 0..4) {
+                return badRequest("predictionDepth must be between 0 and 4")
             }
-            if (config.reactZoneRatio !in 0.25..1.0) {
-                return badRequest("reactZoneRatio must be between 0.25 and 1.0")
+            if (config.aggression !in 0.0..1.0) {
+                return badRequest("aggression must be between 0.0 and 1.0")
             }
             return null
         }
@@ -234,19 +236,6 @@ class WorkshopResource {
             }
             return null
         }
-
-        fun aiOpponentConfigResponse(config: AiOpponentConfig): Response =
-            Response
-                .ok(
-                    mapOf(
-                        "applied" to true,
-                        "enabled" to config.enabled,
-                        "reactionDelayMs" to config.reactionDelayMs,
-                        "maxSpeed" to config.maxSpeed,
-                        "trackingError" to config.trackingError,
-                        "reactZoneRatio" to config.reactZoneRatio,
-                    ),
-                ).build()
 
         private fun badRequest(message: String): Response =
             Response

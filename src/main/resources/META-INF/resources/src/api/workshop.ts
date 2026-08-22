@@ -19,17 +19,22 @@ export interface SpeedConfig {
 export interface AiOpponentConfig {
   enabled: boolean;
   reactionDelayMs: number;
-  maxSpeed: number;
-  trackingError: number;
-  reactZoneRatio: number;
+  aimError: number;
+  predictionDepth: number;
+  aggression: number;
 }
 
-export interface WorkshopContentDTO {
+export interface WorkshopContentRequest {
   type: ContentType;
   data: unknown;
   metadata: Record<string, string>;
   version?: number;
   checksum?: string;
+}
+
+export interface WorkshopContentResponse {
+  type: string;
+  accepted: boolean;
 }
 
 export interface CompileResponse {
@@ -99,18 +104,18 @@ export async function publishContent(
   type: ContentType,
   data: unknown,
   metadata: Record<string, string>,
-): Promise<Result<WorkshopContentDTO>> {
-  const dto: WorkshopContentDTO = { type, data, metadata };
-  return post<WorkshopContentDTO>('/content', dto);
+): Promise<Result<WorkshopContentResponse>> {
+  const request: WorkshopContentRequest = { type, data, metadata };
+  return post<WorkshopContentResponse>('/content', request);
 }
 
 export async function searchContent(
   type: ContentType,
   query?: string,
-): Promise<Result<WorkshopContentDTO[]>> {
+): Promise<Result<WorkshopContentResponse[]>> {
   const params: Record<string, string> = { type };
   if (query) params['query'] = query;
-  return get<WorkshopContentDTO[]>('/content', params);
+  return get<WorkshopContentResponse[]>('/content', params);
 }
 
 export async function setSpeedConfig(
@@ -120,9 +125,10 @@ export async function setSpeedConfig(
 }
 
 export async function setAiOpponentConfig(
+  roomId: string,
   config: AiOpponentConfig,
 ): Promise<Result<AiOpponentConfig & { applied: boolean }>> {
-  return post('/ai-opponent-config', config);
+  return post('/ai-opponent-config', { roomId, ...config });
 }
 
 export async function compileConfig(

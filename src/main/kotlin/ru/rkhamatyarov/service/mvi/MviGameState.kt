@@ -9,7 +9,6 @@ import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
-import kotlin.math.sign
 import kotlin.math.sin
 
 data class MviPuck(
@@ -76,7 +75,6 @@ data class MviGameState(
     val speedConfig: SpeedConfig = SpeedConfig(),
     val elapsedSeconds: Double = 0.0,
     val aiConfig: AiOpponentConfig = AiOpponentConfig(),
-    val aiSmoothedPuckY: Double = 300.0,
     val powerUps: List<MviPowerUp> = emptyList(),
     val activePowerUps: List<MviActivePowerUp> = emptyList(),
     val speedMultiplier: Double = 1.0,
@@ -170,7 +168,7 @@ fun reduce(
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
-            reduceTick(state, action.deltaSeconds, action.elapsedNs, action.playerAControlledByHuman, action.turboSpeedMultiplier)
+            reduceTick(state, action.deltaSeconds, action.elapsedNs, action.turboSpeedMultiplier)
         }
 
         is GameAction.MovePaddle -> {
@@ -254,7 +252,6 @@ private fun reduceTick(
     state: MviGameState,
     deltaSeconds: Double,
     elapsedNs: Long,
-    playerAControlledByHuman: Boolean,
     turboSpeedMultiplier: Double,
 ): MviGameState {
     check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
@@ -277,31 +274,6 @@ private fun reduceTick(
         puck = puck.copy(y = state.canvasHeight - puck.radius, vy = -abs(puck.vy), spin = puck.spin * WALL_SPIN_RETENTION)
     }
 
-    val lagSeconds = (state.aiConfig.reactionDelayMs / 1000.0).coerceAtLeast(0.01)
-    val alpha = (deltaSeconds / lagSeconds).coerceIn(0.0, 1.0)
-    val newAiSmoothedPuckY = state.aiSmoothedPuckY + alpha * (puck.y - state.aiSmoothedPuckY)
-    val newPaddle1Y =
-        if (state.aiConfig.enabled && !playerAControlledByHuman) {
-            val puckHeadingLeft = puck.vx < 0
-            val inReactZone = puck.x < state.canvasWidth * state.aiConfig.reactZoneRatio
-            val dynamicTrackingError = state.aiConfig.trackingError * sin(state.elapsedSeconds * 2.5)
-            val targetY =
-                if (puckHeadingLeft && inReactZone) {
-                    newAiSmoothedPuckY - state.paddleHeight / 2 + dynamicTrackingError
-                } else {
-                    (state.canvasHeight - state.paddleHeight) / 2
-                }
-            val diff = targetY - state.paddle1Y
-            if (abs(diff) > 4.0) {
-                (state.paddle1Y + sign(diff) * state.aiConfig.maxSpeed * deltaSeconds)
-                    .coerceIn(0.0, state.canvasHeight - state.paddleHeight)
-            } else {
-                state.paddle1Y
-            }
-        } else {
-            state.paddle1Y
-        }
-
     if (!state.ghostMode) {
         val leftPaddleRight = PADDLE_WIDTH
         val rightPaddleLeft = state.canvasWidth - PADDLE_WIDTH
@@ -309,15 +281,15 @@ private fun reduceTick(
         if (puck.vx < 0 &&
             puck.x - puck.radius <= leftPaddleRight &&
             puck.x + puck.radius >= 0.0 &&
-            overlapsPaddleY(puck, newPaddle1Y, state.paddleHeight)
+            overlapsPaddleY(puck, state.paddle1Y, state.paddleHeight)
         ) {
             MviDomainEvents.record(MviDomainEvent.PaddleHit(PaddleSide.A))
             puck =
                 redirectFromPaddle(
                     puck = puck,
-                    paddleY = newPaddle1Y,
+                    paddleY = state.paddle1Y,
                     paddleHeight = state.paddleHeight,
-                    paddleVelocity = if (playerAControlledByHuman) state.paddle1Velocity else 0.0,
+                    paddleVelocity = state.paddle1Velocity,
                     horizontalDirection = 1.0,
                     x = leftPaddleRight + puck.radius,
                 )
@@ -392,10 +364,8 @@ private fun reduceTick(
     return state.copy(
         puck = puck,
         score = score,
-        paddle1Y = newPaddle1Y,
         paddle1Velocity = 0.0,
         paddle2Velocity = 0.0,
-        aiSmoothedPuckY = newAiSmoothedPuckY,
         elapsedSeconds = state.elapsedSeconds + deltaSeconds,
         powerUps = remainingFieldPowerUps,
         activePowerUps = newActivePowerUps,

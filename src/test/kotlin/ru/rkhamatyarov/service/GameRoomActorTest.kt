@@ -9,11 +9,13 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.service.mvi.EphemeralEvent
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.PaddleSide
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -129,6 +131,7 @@ class GameRoomActorTest {
                     scope = scope,
                     autoPowerUpsEnabled = true,
                 )
+            room.registerHumanSide(PaddleSide.A)
 
             room.dispatch(GameIntent.Reliable(GameAction.Tick(9.0, elapsedNs = 9_000_000_000L)))
             advanceUntilIdle()
@@ -139,6 +142,53 @@ class GameRoomActorTest {
 
             assertEquals(1, room.reliableState.value.powerUps.size)
             assertTrue(room.getReplayLog().last().action is GameAction.SpawnPowerUp)
+            room.shutdown()
+        }
+
+    @Test
+    fun `bot emits reliable paddle intents recorded in replay log`() =
+        runTest {
+            val room = testRoom()
+            room.dispatch(
+                GameIntent.Reliable(
+                    GameAction.RestoreSnapshot(
+                        room.reliableState.value.copy(
+                            aiConfig = AiOpponentConfig(reactionDelayMs = 0, aimError = 0.0, predictionDepth = 1),
+                        ),
+                    ),
+                ),
+            )
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs = 16_000_000L)))
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs = 32_000_000L)))
+            advanceUntilIdle()
+
+            val botMoves =
+                room
+                    .getReplayLog()
+                    .map { it.action }
+                    .filterIsInstance<GameAction.MovePaddle>()
+                    .filter { it.side == PaddleSide.A }
+            assertTrue(botMoves.isNotEmpty())
+            assertTrue(room.reliableState.value.paddle1Y != 250.0)
+            room.shutdown()
+        }
+
+    @Test
+    fun `human ownership suppresses bot intents`() =
+        runTest {
+            val room = testRoom()
+            room.registerHumanSide(PaddleSide.A)
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs = 16_000_000L)))
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs = 32_000_000L)))
+            advanceUntilIdle()
+
+            assertTrue(
+                room
+                    .getReplayLog()
+                    .map { it.action }
+                    .filterIsInstance<GameAction.MovePaddle>()
+                    .isEmpty(),
+            )
             room.shutdown()
         }
 

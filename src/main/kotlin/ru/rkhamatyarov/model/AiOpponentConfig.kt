@@ -6,7 +6,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection
 data class AiOpponentConfig(
     val enabled: Boolean = true,
     val reactionDelayMs: Long = 180,
-    val maxSpeed: Double = 180.0,
-    val trackingError: Double = 10.0,
-    val reactZoneRatio: Double = 0.7,
+    val aimError: Double = 10.0,
+    val predictionDepth: Int = 1,
+    val aggression: Double = 0.35,
 )

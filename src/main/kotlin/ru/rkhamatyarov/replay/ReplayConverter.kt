@@ -32,6 +32,7 @@ import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import kotlin.math.abs
 
 object ReplayConverter {
     fun toProto(intent: GameIntent.Reliable): ReplayIntent? {
@@ -123,9 +124,9 @@ object ReplayConverter {
                         .newBuilder()
                         .setEnabled(action.config.enabled)
                         .setReactionDelayMs(action.config.reactionDelayMs)
-                        .setMaxSpeed(action.config.maxSpeed)
-                        .setTrackingError(action.config.trackingError)
-                        .setReactZoneRatio(action.config.reactZoneRatio)
+                        .setAimError(action.config.aimError)
+                        .setPredictionDepth(action.config.predictionDepth)
+                        .setAggression(action.config.aggression)
                         .build()
             }
         }
@@ -194,15 +195,7 @@ object ReplayConverter {
                 }
 
                 ReplayIntent.PayloadCase.APPLY_AI_CONFIG -> {
-                    GameAction.ApplyAiConfig(
-                        AiOpponentConfig(
-                            enabled = proto.applyAiConfig.enabled,
-                            reactionDelayMs = proto.applyAiConfig.reactionDelayMs,
-                            maxSpeed = proto.applyAiConfig.maxSpeed,
-                            trackingError = proto.applyAiConfig.trackingError,
-                            reactZoneRatio = proto.applyAiConfig.reactZoneRatio,
-                        ),
-                    )
+                    GameAction.ApplyAiConfig(proto.applyAiConfig.toAiOpponentConfig())
                 }
 
                 else -> {
@@ -243,10 +236,9 @@ object ReplayConverter {
             .setElapsedSeconds(state.elapsedSeconds)
             .setAiEnabled(state.aiConfig.enabled)
             .setAiReactionDelayMs(state.aiConfig.reactionDelayMs)
-            .setAiMaxSpeed(state.aiConfig.maxSpeed)
-            .setAiTrackingError(state.aiConfig.trackingError)
-            .setAiReactZoneRatio(state.aiConfig.reactZoneRatio)
-            .setAiSmoothedPuckY(state.aiSmoothedPuckY)
+            .setAiAimError(state.aiConfig.aimError)
+            .setAiPredictionDepth(state.aiConfig.predictionDepth)
+            .setAiAggression(state.aiConfig.aggression)
             .addAllPowerUps(state.powerUps.map { it.toSnapshotProto() })
             .addAllActivePowerUps(state.activePowerUps.map { it.toSnapshotProto() })
             .setSpeedMultiplier(state.speedMultiplier)
@@ -287,21 +279,66 @@ object ReplayConverter {
                     maxMultiplier = if (proto.speedMaxMultiplier > 0.0) proto.speedMaxMultiplier else 3.0,
                 ),
             elapsedSeconds = proto.elapsedSeconds,
-            aiConfig =
-                AiOpponentConfig(
-                    enabled = proto.aiEnabled,
-                    reactionDelayMs = if (proto.aiReactionDelayMs > 0L) proto.aiReactionDelayMs else 180L,
-                    maxSpeed = if (proto.aiMaxSpeed > 0.0) proto.aiMaxSpeed else 180.0,
-                    trackingError = proto.aiTrackingError,
-                    reactZoneRatio = if (proto.aiReactZoneRatio > 0.0) proto.aiReactZoneRatio else 0.7,
-                ),
-            aiSmoothedPuckY = if (proto.aiSmoothedPuckY > 0.0) proto.aiSmoothedPuckY else 300.0,
+            aiConfig = proto.toAiOpponentConfig(),
             powerUps = proto.powerUpsList.mapNotNull { it.toMviPowerUp() },
             activePowerUps = proto.activePowerUpsList.mapNotNull { it.toMviActivePowerUp() },
             speedMultiplier = if (proto.speedMultiplier > 0.0) proto.speedMultiplier else 1.0,
             ghostMode = proto.ghostMode,
             paddleShield = proto.paddleShield,
         )
+
+    @Suppress("DEPRECATION")
+    private fun ReplayApplyAiConfig.toAiOpponentConfig(): AiOpponentConfig {
+        val usesCurrentModel = hasAimError() || hasPredictionDepth() || hasAggression()
+        return if (usesCurrentModel) {
+            AiOpponentConfig(
+                enabled = enabled,
+                reactionDelayMs = reactionDelayMs,
+                aimError = aimError,
+                predictionDepth = predictionDepth,
+                aggression = aggression,
+            )
+        } else {
+            legacyAiConfig(enabled, reactionDelayMs, trackingError, reactZoneRatio)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun FullGameSnapshot.toAiOpponentConfig(): AiOpponentConfig {
+        val usesCurrentModel = hasAiAimError() || hasAiPredictionDepth() || hasAiAggression()
+        return if (usesCurrentModel) {
+            AiOpponentConfig(
+                enabled = aiEnabled,
+                reactionDelayMs = aiReactionDelayMs,
+                aimError = aiAimError,
+                predictionDepth = aiPredictionDepth,
+                aggression = aiAggression,
+            )
+        } else {
+            legacyAiConfig(aiEnabled, aiReactionDelayMs, aiTrackingError, aiReactZoneRatio)
+        }
+    }
+
+    private fun legacyAiConfig(
+        enabled: Boolean,
+        reactionDelayMs: Long,
+        trackingError: Double,
+        reactZoneRatio: Double,
+    ): AiOpponentConfig {
+        val legacyReactZone = reactZoneRatio.takeIf { it > 0.0 } ?: 0.7
+        return AiOpponentConfig(
+            enabled = enabled,
+            reactionDelayMs = reactionDelayMs.takeIf { it > 0L } ?: 180L,
+            aimError = abs(trackingError),
+            predictionDepth =
+                when {
+                    legacyReactZone >= 0.85 -> 2
+                    legacyReactZone >= 0.65 -> 1
+                    else -> 0
+                },
+            aggression = ((legacyReactZone - 0.25) / 0.75).coerceIn(0.0, 1.0),
+        )
+    }
 
     private fun String.toPaddleSide(): PaddleSide =
         when (uppercase()) {

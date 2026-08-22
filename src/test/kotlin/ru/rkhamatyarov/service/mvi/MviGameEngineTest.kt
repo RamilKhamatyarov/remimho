@@ -5,7 +5,6 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
-import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
@@ -88,27 +87,16 @@ class MviGameEngineTest {
     }
 
     @Test
-    fun `ai tracking error changes deterministically with elapsed time`() {
-        val aiConfig =
-            AiOpponentConfig(
-                enabled = true,
-                reactionDelayMs = 1,
-                maxSpeed = 1000.0,
-                trackingError = 50.0,
-                reactZoneRatio = 1.0,
-            )
-        val baseState =
+    fun `tick does not move bot paddle inside pure reducer`() {
+        val state =
             MviGameState(
                 puck = MviPuck(x = 100.0, y = 300.0, vx = -50.0, vy = 0.0),
                 paddle1Y = 300.0,
-                aiSmoothedPuckY = 300.0,
-                aiConfig = aiConfig,
             )
 
-        val withoutError = reduce(baseState.copy(elapsedSeconds = 0.0), GameAction.Tick(0.016, elapsedNs = 1L))
-        val withError = reduce(baseState.copy(elapsedSeconds = Math.PI / 5.0), GameAction.Tick(0.016, elapsedNs = 1L))
+        val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 16_000_000L))
 
-        assertNotEquals(withoutError.paddle1Y, withError.paddle1Y)
+        assertEquals(state.paddle1Y, next.paddle1Y, 0.0001)
     }
 
     @Test

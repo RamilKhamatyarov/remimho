@@ -1,7 +1,6 @@
 package ru.rkhamatyarov.config
 
 import jakarta.enterprise.context.ApplicationScoped
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 
@@ -110,9 +109,15 @@ class DslCompiler {
                 RuleAiConfig(
                     enabled = values["ai.enabled"]?.toBooleanStrictOrNull() ?: true,
                     reactionDelayMs = values["ai.reactionDelayMs"]?.toLongOrNull() ?: 180,
-                    maxSpeed = values["ai.maxSpeed"]?.toDoubleOrNull() ?: 180.0,
-                    trackingError = values["ai.trackingError"]?.toDoubleOrNull() ?: 10.0,
-                    reactZoneRatio = values["ai.reactZoneRatio"]?.toDoubleOrNull() ?: 0.7,
+                    aimError =
+                        values["ai.aimError"]?.toDoubleOrNull()
+                            ?: values["ai.trackingError"]?.toDoubleOrNull()
+                            ?: 10.0,
+                    predictionDepth = values["ai.predictionDepth"]?.toIntOrNull() ?: 1,
+                    aggression =
+                        values["ai.aggression"]?.toDoubleOrNull()
+                            ?: values["ai.reactZoneRatio"]?.toDoubleOrNull()?.coerceIn(0.0, 1.0)
+                            ?: 0.35,
                 ),
         )
 }

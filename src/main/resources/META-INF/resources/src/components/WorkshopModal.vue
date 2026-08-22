@@ -140,10 +140,12 @@
             <span class="pv-val">{{ aiPreview.enabled ? 'On' : 'Off' }}</span>
             <span class="pv-label">Bot delay</span>
             <span class="pv-val">{{ aiPreview.reactionDelayMs }}ms</span>
-            <span class="pv-label">Bot speed</span>
-            <span class="pv-val">{{ aiPreview.maxSpeed.toFixed(0) }}px/s</span>
-            <span class="pv-label">Bot error</span>
-            <span class="pv-val">{{ aiPreview.trackingError.toFixed(0) }}px</span>
+            <span class="pv-label">Aim error</span>
+            <span class="pv-val">{{ aiPreview.aimError.toFixed(0) }}px</span>
+            <span class="pv-label">Prediction</span>
+            <span class="pv-val">{{ aiPreview.predictionDepth }} bounce{{ aiPreview.predictionDepth === 1 ? '' : 's' }}</span>
+            <span class="pv-label">Aggression</span>
+            <span class="pv-val">{{ (aiPreview.aggression * 100).toFixed(0) }}%</span>
           </div>
         </section>
 
@@ -180,7 +182,7 @@ import { ref, reactive, computed, markRaw, shallowRef } from 'vue';
 import { useWorkshopApi, ContentType } from '../api/workshop';
 import type { AiOpponentConfig, PreviewResponse, SpeedConfig } from '../api/workshop';
 
-const props = defineProps<{ lineCount: number; gameLines: unknown[] }>();
+const props = defineProps<{ roomId: string; lineCount: number; gameLines: unknown[] }>();
 const emit  = defineEmits<{ close: [] }>();
 
 const { setSpeedConfig, setAiOpponentConfig, publishContent } = useWorkshopApi();
@@ -225,11 +227,14 @@ interface AiPreset extends AiOpponentConfig {
 }
 
 const AI_PRESETS: AiPreset[] = [
-  { id: 'off',      icon: '○', name: 'Off',      enabled: false, reactionDelayMs: 0,   maxSpeed: 160, trackingError: 0,  reactZoneRatio: 0.7 },
-  { id: 'training', icon: 'I', name: 'Training', enabled: true,  reactionDelayMs: 360, maxSpeed: 110, trackingError: 24, reactZoneRatio: 0.6 },
-  { id: 'normal',   icon: 'II',name: 'Normal',   enabled: true,  reactionDelayMs: 180, maxSpeed: 180, trackingError: 10, reactZoneRatio: 0.7 },
-  { id: 'hard',     icon: 'III',name: 'Hard',    enabled: true,  reactionDelayMs: 80,  maxSpeed: 260, trackingError: 2,  reactZoneRatio: 0.85 },
-  { id: 'custom',   icon: '⚙', name: 'Custom',   enabled: true,  reactionDelayMs: 180, maxSpeed: 180, trackingError: 10, reactZoneRatio: 0.7 },
+  { id: 'off',        icon: '○',   name: 'Off',        enabled: false, reactionDelayMs: 240, aimError: 16,  predictionDepth: 1, aggression: 0.35 },
+  { id: 'easy',       icon: 'I',   name: 'Easy',       enabled: true,  reactionDelayMs: 420, aimError: 32,  predictionDepth: 0, aggression: 0.15 },
+  { id: 'normal',     icon: 'II',  name: 'Normal',     enabled: true,  reactionDelayMs: 240, aimError: 16,  predictionDepth: 1, aggression: 0.35 },
+  { id: 'hard',       icon: 'III', name: 'Hard',       enabled: true,  reactionDelayMs: 140, aimError: 8,   predictionDepth: 1, aggression: 0.55 },
+  { id: 'expert',     icon: 'IV',  name: 'Expert',     enabled: true,  reactionDelayMs: 80,  aimError: 4,   predictionDepth: 2, aggression: 0.72 },
+  { id: 'master',     icon: 'V',   name: 'Master',     enabled: true,  reactionDelayMs: 40,  aimError: 1.5, predictionDepth: 3, aggression: 0.88 },
+  { id: 'impossible', icon: '∞',   name: 'Impossible', enabled: true,  reactionDelayMs: 0,   aimError: 0,   predictionDepth: 4, aggression: 1.00 },
+  { id: 'custom',     icon: '⚙',   name: 'Custom',     enabled: true,  reactionDelayMs: 240, aimError: 16,  predictionDepth: 1, aggression: 0.35 },
 ];
 
 interface SliderDef {
@@ -249,7 +254,7 @@ const CUSTOM_SLIDERS: SliderDef[] = [
 ];
 
 interface AiSliderDef {
-  key: keyof Pick<AiOpponentConfig, 'reactionDelayMs' | 'maxSpeed' | 'trackingError' | 'reactZoneRatio'>;
+  key: keyof Pick<AiOpponentConfig, 'reactionDelayMs' | 'aimError' | 'predictionDepth' | 'aggression'>;
   label: string;
   min: number;
   max: number;
@@ -258,17 +263,17 @@ interface AiSliderDef {
 }
 
 const AI_SLIDERS: AiSliderDef[] = [
-  { key: 'reactionDelayMs', label: 'Reaction Delay', min: 0,    max: 900, step: 10,   display: c => `${c.reactionDelayMs.toFixed(0)}ms` },
-  { key: 'maxSpeed',        label: 'Paddle Speed',   min: 60,   max: 420, step: 5,    display: c => `${c.maxSpeed.toFixed(0)}px/s` },
-  { key: 'trackingError',   label: 'Tracking Error', min: -40,  max: 60,  step: 1,    display: c => `${c.trackingError.toFixed(0)}px` },
-  { key: 'reactZoneRatio',  label: 'React Zone',     min: 0.35, max: 1,   step: 0.01, display: c => `${(c.reactZoneRatio * 100).toFixed(0)}%` },
+  { key: 'reactionDelayMs', label: 'Reaction Delay', min: 0, max: 900, step: 10, display: c => `${c.reactionDelayMs.toFixed(0)}ms` },
+  { key: 'aimError',        label: 'Aim Error',       min: 0, max: 80,  step: 1,  display: c => `${c.aimError.toFixed(0)}px` },
+  { key: 'predictionDepth', label: 'Wall Prediction', min: 0, max: 4,   step: 1,  display: c => `${c.predictionDepth.toFixed(0)} bounce${c.predictionDepth === 1 ? '' : 's'}` },
+  { key: 'aggression',      label: 'Aggression',      min: 0, max: 1,   step: 0.05, display: c => `${(c.aggression * 100).toFixed(0)}%` },
 ];
 
 const selectedMode  = ref<string>('normal');
 const selectedLevel = ref<string>('l3');
 const selectedAiPreset = ref<string>('normal');
 const customCfg     = reactive<SpeedConfig>({ baseMultiplier: 1.0, maxMultiplier: 3.0, timeAccelerationRate: 0.05, levelAccelerationPerLine: 0.02 });
-const customAi      = reactive<AiOpponentConfig>({ enabled: true, reactionDelayMs: 180, maxSpeed: 180, trackingError: 10, reactZoneRatio: 0.7 });
+const customAi      = reactive<AiOpponentConfig>({ enabled: true, reactionDelayMs: 240, aimError: 16, predictionDepth: 1, aggression: 0.35 });
 
 const statusMsg = ref('');
 const publishing = ref(false);
@@ -310,9 +315,9 @@ const aiPreview = computed<AiOpponentConfig>(() => {
   return {
     enabled: preset.enabled,
     reactionDelayMs: preset.reactionDelayMs,
-    maxSpeed: preset.maxSpeed,
-    trackingError: preset.trackingError,
-    reactZoneRatio: preset.reactZoneRatio,
+    aimError: preset.aimError,
+    predictionDepth: preset.predictionDepth,
+    aggression: preset.aggression,
   };
 });
 
@@ -350,7 +355,7 @@ function requestIdle(callback: () => void): void {
 async function onApply(): Promise<void> {
   const speedResult = await setSpeedConfig(preview.value);
   if (speedResult.error) { showStatus(`✗ ${speedResult.error}`); return; }
-  const aiResult = await setAiOpponentConfig(aiPreview.value);
+  const aiResult = await setAiOpponentConfig(props.roomId, aiPreview.value);
   if (aiResult.error) { showStatus(`✗ ${aiResult.error}`); return; }
   emit('close');
 }

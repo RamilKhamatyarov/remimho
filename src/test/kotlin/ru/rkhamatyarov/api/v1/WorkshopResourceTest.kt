@@ -198,32 +198,38 @@ class WorkshopResourceTest {
 
     @Test
     fun `POST ai-opponent-config with valid config applies to engine`() {
+        val roomId = "workshop-ai-${System.nanoTime()}"
+        val defaultConfig = defaultRoom().reliableState.value.aiConfig
+
         given()
             .contentType(ContentType.JSON)
-            .body("""{"enabled":true,"reactionDelayMs":240,"maxSpeed":210.0,"trackingError":8.0,"reactZoneRatio":0.75}""")
-            .`when`()
+            .body(
+                """{"roomId":"$roomId","enabled":true,"reactionDelayMs":240,"aimError":8.0,"predictionDepth":2,"aggression":0.75}""",
+            ).`when`()
             .post("/api/v1/workshop/ai-opponent-config")
             .then()
             .statusCode(200)
             .body("applied", equalTo(true))
+            .body("roomId", equalTo(roomId))
             .body("enabled", equalTo(true))
             .body("reactionDelayMs", equalTo(240))
-            .body("maxSpeed", equalTo(210.0f))
-            .body("trackingError", equalTo(8.0f))
-            .body("reactZoneRatio", equalTo(0.75f))
+            .body("aimError", equalTo(8.0f))
+            .body("predictionDepth", equalTo(2))
+            .body("aggression", equalTo(0.75f))
 
-        val state = awaitDefaultState { it.aiConfig.reactionDelayMs == 240L }
+        val state = awaitRoomState(roomId) { it.aiConfig.reactionDelayMs == 240L }
         assertEquals(240L, state.aiConfig.reactionDelayMs)
-        assertEquals(210.0, state.aiConfig.maxSpeed, 0.001)
-        assertEquals(8.0, state.aiConfig.trackingError, 0.001)
-        assertEquals(0.75, state.aiConfig.reactZoneRatio, 0.001)
+        assertEquals(8.0, state.aiConfig.aimError, 0.001)
+        assertEquals(2, state.aiConfig.predictionDepth)
+        assertEquals(0.75, state.aiConfig.aggression, 0.001)
+        assertEquals(defaultConfig, defaultRoom().reliableState.value.aiConfig)
     }
 
     @Test
     fun `POST ai-opponent-config with out-of-range delay returns 400`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"enabled":true,"reactionDelayMs":2000,"maxSpeed":210.0,"trackingError":8.0,"reactZoneRatio":0.75}""")
+            .body("""{"enabled":true,"reactionDelayMs":2000,"aimError":8.0,"predictionDepth":2,"aggression":0.75}""")
             .`when`()
             .post("/api/v1/workshop/ai-opponent-config")
             .then()
@@ -293,9 +299,15 @@ class WorkshopResourceTest {
     private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 
     private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =
+        awaitRoomState(RoomRegistry.DEFAULT_ROOM_ID, predicate)
+
+    private fun awaitRoomState(
+        roomId: String,
+        predicate: (MviGameState) -> Boolean,
+    ): MviGameState =
         runBlocking {
             withTimeout(1.seconds) {
-                defaultRoom().reliableState.first(predicate)
+                roomRegistry.get(roomId).reliableState.first(predicate)
             }
         }
 }

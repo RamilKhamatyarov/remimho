@@ -12,10 +12,11 @@ import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.eclipse.microprofile.config.inject.ConfigProperty
+import ru.rkhamatyarov.api.v1.request.AiOpponentConfigRequest
 import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
 import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
-import ru.rkhamatyarov.model.AiOpponentConfig
+import ru.rkhamatyarov.api.v1.response.AiOpponentConfigResponse
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
@@ -129,14 +130,24 @@ class GameResource {
 
     @GET
     @Path("/ai-opponent")
-    fun getAiOpponentConfig(): Response = Response.ok(defaultRoom().reliableState.value.aiConfig).build()
+    fun getAiOpponentConfig(
+        @QueryParam("roomId") roomId: String?,
+    ): Response =
+        Response
+            .ok(
+                roomRegistry
+                    .get(roomId.orEmpty())
+                    .reliableState.value.aiConfig,
+            ).build()
 
     @POST
     @Path("/ai-opponent")
-    fun setAiOpponentConfig(config: AiOpponentConfig): Response {
+    fun setAiOpponentConfig(request: AiOpponentConfigRequest): Response {
+        val config = request.toDomain()
         WorkshopResource.validateAiOpponentConfig(config)?.let { return it }
-        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
-        return WorkshopResource.aiOpponentConfigResponse(config)
+        val roomId = request.roomId.trim().ifBlank { RoomRegistry.DEFAULT_ROOM_ID }
+        roomRegistry.get(roomId).dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(config)))
+        return Response.ok(AiOpponentConfigResponse.applied(roomId, config)).build()
     }
 
     @POST

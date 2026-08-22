@@ -24,9 +24,9 @@ data class RuleSpeedConfig(
 data class RuleAiConfig(
     val enabled: Boolean = true,
     val reactionDelayMs: Long = 180,
-    val maxSpeed: Double = 180.0,
-    val trackingError: Double = 10.0,
-    val reactZoneRatio: Double = 0.7,
+    val aimError: Double = 10.0,
+    val predictionDepth: Int = 1,
+    val aggression: Double = 0.35,
 )
 
 @Serializable
@@ -41,26 +41,4 @@ data class RuleLineConfig(
 data class RuleTeleportConfig(
     val id: String,
     val pair: String,
-)
-
-data class CompileRequest(
-    val source: String,
-    val format: String = "yaml",
-)
-
-data class CompileResponse(
-    val ok: Boolean,
-    val config: RuleConfig? = null,
-    val version: Int = 1,
-    val checksum: String? = null,
-    val errors: List<String> = emptyList(),
-)
-
-data class PreviewResponse(
-    val ok: Boolean,
-    val checksum: String? = null,
-    val collisionCount: Int = 0,
-    val frameTimeMs: Double = 0.0,
-    val memoryBytes: Long = 0,
-    val errors: List<String> = emptyList(),
 )

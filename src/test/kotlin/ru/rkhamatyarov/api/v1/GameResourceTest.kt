@@ -8,7 +8,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
-import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
@@ -108,23 +107,29 @@ class GameResourceTest {
 
     @Test
     fun `test game ai-opponent endpoint updates bot config`() {
-        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplyAiConfig(AiOpponentConfig())))
+        val roomId = "game-ai-${System.nanoTime()}"
 
         RestAssured
             .given()
             .contentType("application/json")
-            .body("""{"enabled":true,"reactionDelayMs":120,"maxSpeed":240.0,"trackingError":4.0,"reactZoneRatio":0.8}""")
-            .`when`()
+            .body(
+                """{"roomId":"$roomId","enabled":true,"reactionDelayMs":120,"aimError":4.0,"predictionDepth":2,"aggression":0.8}""",
+            ).`when`()
             .post("/api/v1/game/ai-opponent")
             .then()
             .statusCode(200)
             .body("applied", equalTo(true))
+            .body("roomId", equalTo(roomId))
             .body("reactionDelayMs", equalTo(120))
-            .body("maxSpeed", equalTo(240.0f))
+            .body("aimError", equalTo(4.0f))
+            .body("predictionDepth", equalTo(2))
+            .body("aggression", equalTo(0.8f))
 
-        val state = awaitDefaultState { it.aiConfig.reactionDelayMs == 120L }
+        val state = awaitRoomState(roomId) { it.aiConfig.reactionDelayMs == 120L }
         assertEquals(120L, state.aiConfig.reactionDelayMs)
-        assertEquals(240.0, state.aiConfig.maxSpeed, 0.0001)
+        assertEquals(4.0, state.aiConfig.aimError, 0.0001)
+        assertEquals(2, state.aiConfig.predictionDepth)
+        assertEquals(0.8, state.aiConfig.aggression, 0.0001)
     }
 
     @Test
@@ -167,9 +172,15 @@ class GameResourceTest {
     private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 
     private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =
+        awaitRoomState(RoomRegistry.DEFAULT_ROOM_ID, predicate)
+
+    private fun awaitRoomState(
+        roomId: String,
+        predicate: (MviGameState) -> Boolean,
+    ): MviGameState =
         runBlocking {
             withTimeout(AWAIT_TIMEOUT) {
-                defaultRoom().reliableState.first(predicate)
+                roomRegistry.get(roomId).reliableState.first(predicate)
             }
         }
 

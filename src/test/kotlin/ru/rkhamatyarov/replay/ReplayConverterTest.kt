@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.SpeedConfig
+import ru.rkhamatyarov.proto.ReplayApplyAiConfig
+import ru.rkhamatyarov.proto.ReplayIntent
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviActivePowerUp
@@ -117,7 +119,7 @@ class ReplayConverterTest {
     @Test
     fun `ApplyAiConfig intent round-trips through proto`() {
         // g
-        val config = AiOpponentConfig(enabled = true, reactionDelayMs = 120L, maxSpeed = 250.0, trackingError = 3.0, reactZoneRatio = 0.9)
+        val config = AiOpponentConfig(enabled = true, reactionDelayMs = 0L, aimError = 0.0, predictionDepth = 4, aggression = 1.0)
         val intent = GameIntent.Reliable(GameAction.ApplyAiConfig(config))
 
         // w
@@ -126,9 +128,33 @@ class ReplayConverterTest {
 
         // t
         val action = restored.action as GameAction.ApplyAiConfig
-        assertEquals(120L, action.config.reactionDelayMs)
-        assertEquals(250.0, action.config.maxSpeed, 1e-9)
-        assertEquals(0.9, action.config.reactZoneRatio, 1e-9)
+        assertEquals(config, action.config)
+    }
+
+    @Suppress("DEPRECATION")
+    @Test
+    fun `legacy ApplyAiConfig fields migrate to current model`() {
+        val proto =
+            ReplayIntent
+                .newBuilder()
+                .setApplyAiConfig(
+                    ReplayApplyAiConfig
+                        .newBuilder()
+                        .setEnabled(true)
+                        .setReactionDelayMs(120L)
+                        .setMaxSpeed(250.0)
+                        .setTrackingError(12.0)
+                        .setReactZoneRatio(0.9)
+                        .build(),
+                ).build()
+
+        val (restored, _) = ReplayConverter.fromProto(proto)
+        val config = (restored.action as GameAction.ApplyAiConfig).config
+
+        assertEquals(120L, config.reactionDelayMs)
+        assertEquals(12.0, config.aimError, 1e-9)
+        assertEquals(2, config.predictionDepth)
+        assertTrue(config.aggression > 0.8)
     }
 
     @Test
@@ -169,7 +195,7 @@ class ReplayConverterTest {
                 paused = true,
                 elapsedSeconds = 42.5,
                 speedConfig = SpeedConfig(baseMultiplier = 1.5, maxMultiplier = 4.0),
-                aiConfig = AiOpponentConfig(enabled = false, reactionDelayMs = 90L, maxSpeed = 300.0),
+                aiConfig = AiOpponentConfig(enabled = false, reactionDelayMs = 90L, aimError = 3.0, predictionDepth = 2, aggression = 0.8),
                 lines = listOf(MviLine("l1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 3.0)),
                 teleports = mapOf("l1" to "l2"),
                 powerUps = listOf(MviPowerUp("pu-1", 400.0, 300.0, PowerUpType.SPEED_BOOST, 100_000L)),
@@ -192,7 +218,7 @@ class ReplayConverterTest {
         assertEquals(state.paddle2Velocity, restored.paddle2Velocity, 1e-9)
         assertEquals(state.score.playerA, restored.score.playerA)
         assertEquals(42.5, restored.elapsedSeconds, 1e-9)
-        assertEquals(state.aiConfig.reactionDelayMs, restored.aiConfig.reactionDelayMs)
+        assertEquals(state.aiConfig, restored.aiConfig)
         assertEquals("l1", restored.lines[0].id)
         assertEquals(mapOf("l1" to "l2"), restored.teleports)
         assertEquals(1, restored.powerUps.size)
