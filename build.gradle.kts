@@ -15,7 +15,7 @@ plugins {
 group = "ru.rkhamatyarov"
 version = "1.0.0"
 
-val protobufVersion = "4.35.1"
+val protobufVersion = "4.36.0"
 
 abstract class GenerateDemoGifTask : JavaExec()
 
