@@ -11,6 +11,13 @@ sealed interface MviDomainEvent {
     ) : MviDomainEvent
 
     data object LineDeflect : MviDomainEvent
+
+    data class OneTimerFired(
+        val side: PaddleSide,
+        val incomingSpeed: Double,
+        val multiplier: Double,
+        val elapsedNs: Long,
+    ) : MviDomainEvent
 }
 
 object MviDomainEvents {

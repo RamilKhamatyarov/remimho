@@ -15,7 +15,7 @@ plugins {
 group = "ru.rkhamatyarov"
 version = "1.0.0"
 
-val protobufVersion = "4.35.1"
+val protobufVersion = "4.36.0"
 
 abstract class GenerateDemoGifTask : JavaExec()
 
@@ -52,7 +52,7 @@ dependencies {
     testImplementation("io.quarkus:quarkus-junit5-mockito")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.kotest:kotest-property-jvm:6.2.3")
+    testImplementation("io.kotest:kotest-property-jvm:6.2.4")
 }
 
 java {

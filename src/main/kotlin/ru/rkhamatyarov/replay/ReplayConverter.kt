@@ -19,8 +19,10 @@ import ru.rkhamatyarov.proto.ReplayTick
 import ru.rkhamatyarov.proto.ReplayTogglePause
 import ru.rkhamatyarov.proto.SnapshotActivePowerUp
 import ru.rkhamatyarov.proto.SnapshotLine
+import ru.rkhamatyarov.proto.SnapshotOneTimerConfig
 import ru.rkhamatyarov.proto.SnapshotPoint
 import ru.rkhamatyarov.proto.SnapshotPowerUp
+import ru.rkhamatyarov.proto.SnapshotTouchLedgerEntry
 import ru.rkhamatyarov.proto.TeleportEntry
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
@@ -31,7 +33,11 @@ import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.OneTimerConfig
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
 import kotlin.math.abs
 
 object ReplayConverter {
@@ -244,6 +250,8 @@ object ReplayConverter {
             .setSpeedMultiplier(state.speedMultiplier)
             .setGhostMode(state.ghostMode)
             .setPaddleShield(state.paddleShield)
+            .addAllTouchLedger(state.touchLedger.entries.map { it.toSnapshotProto() })
+            .setOneTimerConfig(state.oneTimerConfig.toSnapshotProto())
             .build()
 
     fun snapshotToState(proto: FullGameSnapshot): MviGameState =
@@ -285,7 +293,13 @@ object ReplayConverter {
             speedMultiplier = if (proto.speedMultiplier > 0.0) proto.speedMultiplier else 1.0,
             ghostMode = proto.ghostMode,
             paddleShield = proto.paddleShield,
+            touchLedger = TouchLedger(proto.touchLedgerList.mapNotNull { it.toPuckTouchOrNull() }.takeLast(TouchLedger.MAX_ENTRIES)),
+            oneTimerConfig = if (proto.hasOneTimerConfig()) proto.oneTimerConfig.toDomain() else OneTimerConfig(),
         )
+
+    fun oneTimerConfigToProto(config: OneTimerConfig): SnapshotOneTimerConfig = config.toSnapshotProto()
+
+    fun oneTimerConfigFromProto(config: SnapshotOneTimerConfig): OneTimerConfig = config.toDomain()
 
     @Suppress("DEPRECATION")
     private fun ReplayApplyAiConfig.toAiOpponentConfig(): AiOpponentConfig {
@@ -356,41 +370,50 @@ object ReplayConverter {
             .setPartnerLineId(partnerLineId)
             .build()
 
-    private fun MviLine.toSnapshotProto(): SnapshotLine =
-        SnapshotLine
-            .newBuilder()
-            .setId(id)
-            .setWidth(width)
-            .addAllPoints(
-                points.map {
-                    SnapshotPoint
-                        .newBuilder()
-                        .setX(it.x)
-                        .setY(it.y)
-                        .build()
-                },
-            ).build()
+    private fun MviLine.toSnapshotProto(): SnapshotLine {
+        val builder =
+            SnapshotLine
+                .newBuilder()
+                .setId(id)
+                .setWidth(width)
+                .addAllPoints(
+                    points.map {
+                        SnapshotPoint
+                            .newBuilder()
+                            .setX(it.x)
+                            .setY(it.y)
+                            .build()
+                    },
+                )
+        ownerSide?.let { builder.ownerSide = it.name }
+        return builder.build()
+    }
 
-    private fun MviLine.toReplayProto(): ReplayCommitLine =
-        ReplayCommitLine
-            .newBuilder()
-            .setId(id)
-            .setWidth(width)
-            .addAllPoints(
-                points.map {
-                    SnapshotPoint
-                        .newBuilder()
-                        .setX(it.x)
-                        .setY(it.y)
-                        .build()
-                },
-            ).build()
+    private fun MviLine.toReplayProto(): ReplayCommitLine {
+        val builder =
+            ReplayCommitLine
+                .newBuilder()
+                .setId(id)
+                .setWidth(width)
+                .addAllPoints(
+                    points.map {
+                        SnapshotPoint
+                            .newBuilder()
+                            .setX(it.x)
+                            .setY(it.y)
+                            .build()
+                    },
+                )
+        ownerSide?.let { builder.ownerSide = it.name }
+        return builder.build()
+    }
 
     private fun SnapshotLine.toMviLine(): MviLine =
         MviLine(
             id = id,
             points = pointsList.map { MviPoint(it.x, it.y) },
             width = width,
+            ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSide(),
         )
 
     private fun ReplayCommitLine.toMviLine(): MviLine =
@@ -398,6 +421,51 @@ object ReplayConverter {
             id = id,
             points = pointsList.map { MviPoint(it.x, it.y) },
             width = width,
+            ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSide(),
+        )
+
+    private fun PuckTouch.toSnapshotProto(): SnapshotTouchLedgerEntry {
+        val builder =
+            SnapshotTouchLedgerEntry
+                .newBuilder()
+                .setSource(source.name)
+                .setIdentifier(identifier)
+                .setElapsedNs(elapsedNs)
+                .setSpeedAtContact(speedAtContact)
+        ownerSide?.let { builder.ownerSide = it.name }
+        return builder.build()
+    }
+
+    private fun SnapshotTouchLedgerEntry.toPuckTouchOrNull(): PuckTouch? =
+        runCatching {
+            PuckTouch(
+                source = TouchSource.valueOf(source),
+                ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSide(),
+                identifier = identifier,
+                elapsedNs = elapsedNs,
+                speedAtContact = speedAtContact,
+            )
+        }.getOrNull()
+
+    private fun OneTimerConfig.toSnapshotProto(): SnapshotOneTimerConfig =
+        SnapshotOneTimerConfig
+            .newBuilder()
+            .setMinimumIncomingSpeed(minimumIncomingSpeed)
+            .setFreshnessWindowNs(freshnessWindowNs)
+            .setMinimumMultiplier(minimumMultiplier)
+            .setMaximumMultiplier(maximumMultiplier)
+            .setFullStrengthIncomingSpeed(fullStrengthIncomingSpeed)
+            .setMaximumRawSpeed(maximumRawSpeed)
+            .build()
+
+    private fun SnapshotOneTimerConfig.toDomain(): OneTimerConfig =
+        OneTimerConfig(
+            minimumIncomingSpeed = minimumIncomingSpeed,
+            freshnessWindowNs = freshnessWindowNs,
+            minimumMultiplier = minimumMultiplier,
+            maximumMultiplier = maximumMultiplier,
+            fullStrengthIncomingSpeed = fullStrengthIncomingSpeed,
+            maximumRawSpeed = maximumRawSpeed,
         )
 
     private fun MviPowerUp.toSnapshotProto(): SnapshotPowerUp =

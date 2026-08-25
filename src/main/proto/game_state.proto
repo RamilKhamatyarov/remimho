@@ -21,6 +21,8 @@ message GameStateDelta {
   optional double elapsed_seconds = 14;
   optional double puck_spin = 15;
   optional int64 puck_spin_remaining_ms = 16;
+  repeated TouchLedgerEntry touch_ledger = 17;
+  optional OneTimerConfig one_timer_config = 18;
 }
 
 message Line {
@@ -29,6 +31,7 @@ message Line {
   double animation_progress = 3;
   bool is_animating = 4;
   string id = 5;
+  optional string owner_side = 6;
 }
 
 message Point {
@@ -43,6 +46,7 @@ message PowerUp {
   string emoji = 4;
   string color = 5;
   double radius = 6;
+  string id = 7;
 }
 
 message ActivePowerUp {
@@ -51,3 +55,19 @@ message ActivePowerUp {
   int64 remaining_seconds = 3;
 }
 
+message TouchLedgerEntry {
+  string source = 1;
+  optional string owner_side = 2;
+  string identifier = 3;
+  int64 elapsed_ns = 4;
+  double speed_at_contact = 5;
+}
+
+message OneTimerConfig {
+  double minimum_incoming_speed = 1;
+  int64 freshness_window_ns = 2;
+  double minimum_multiplier = 3;
+  double maximum_multiplier = 4;
+  double full_strength_incoming_speed = 5;
+  double maximum_raw_speed = 6;
+}

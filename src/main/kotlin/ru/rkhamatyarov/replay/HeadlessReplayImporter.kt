@@ -3,9 +3,11 @@ package ru.rkhamatyarov.replay
 import jakarta.enterprise.context.ApplicationScoped
 import org.eclipse.microprofile.config.inject.ConfigProperty
 import ru.rkhamatyarov.proto.ReplayFile
+import ru.rkhamatyarov.service.mvi.MviDomainEvent
 import ru.rkhamatyarov.service.mvi.MviDomainEvents
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.reduce
+import ru.rkhamatyarov.service.mvi.toDelta
 import ru.rkhamatyarov.service.turbo.TurboBoostStrategy
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 
@@ -28,17 +30,21 @@ class HeadlessReplayImporter {
         replayFile: ReplayFile,
         sampleEveryFrames: Int? = null,
     ): HeadlessImportRun {
-        val startingState =
+        var startingState =
             if (replayFile.hasStartingState()) {
                 ReplayConverter.snapshotToState(replayFile.startingState)
             } else {
                 MviGameState()
             }
+        if (replayFile.hasOneTimerConfig()) {
+            startingState = startingState.copy(oneTimerConfig = ReplayConverter.oneTimerConfigFromProto(replayFile.oneTimerConfig))
+        }
 
         var state = startingState
         val turboBoostStrategy = TurboBoostStrategy()
         val snapshots = mutableListOf<Pair<Long, ByteArray>>()
         val sampledStates = mutableListOf<MviGameState>()
+        val oneTimerHighlights = mutableListOf<MviDomainEvent.OneTimerFired>()
         var frameIndex = 0
         if (sampleEveryFrames != null) sampledStates.add(state)
 
@@ -48,6 +54,7 @@ class HeadlessReplayImporter {
             turboBoostStrategy.onAction(intent.action, elapsedNs)
             val captured = MviDomainEvents.capture { reduce(state, intent.action) }
             state = captured.value
+            oneTimerHighlights += captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>()
             turboBoostStrategy.onEvents(captured.events, elapsedNs)
             frameIndex++
             if (frameIndex % snapshotIntervalFrames == 0) {
@@ -66,6 +73,7 @@ class HeadlessReplayImporter {
                     snapshots = snapshots,
                     frameCount = frameIndex,
                     turboSnapshot = turboBoostStrategy.snapshot((state.elapsedSeconds * 1_000_000_000L).toLong()),
+                    oneTimerHighlights = oneTimerHighlights,
                 ),
             sampledStates = sampledStates,
         )
@@ -82,4 +90,5 @@ data class HeadlessImportResult(
     val snapshots: List<Pair<Long, ByteArray>>,
     val frameCount: Int,
     val turboSnapshot: TurboSnapshot = TurboSnapshot.initial(),
+    val oneTimerHighlights: List<MviDomainEvent.OneTimerFired> = emptyList(),
 )
