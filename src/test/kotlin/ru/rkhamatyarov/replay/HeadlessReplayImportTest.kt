@@ -6,7 +6,12 @@ import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
+import ru.rkhamatyarov.service.mvi.OneTimerConfig
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
+import kotlin.math.hypot
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -162,6 +167,50 @@ class HeadlessReplayImportTest {
         assertTrue(result.finalState.puck.vx < 0.0)
         assertTrue(result.finalState.puck.spin < 0.0)
         assertTrue(result.finalState.puck.spinRemainingNs > 0L)
+    }
+
+    @Test
+    fun `headless replay re-derives one timer highlight from reliable state`() {
+        val startingState =
+            MviGameState(
+                puck = MviPuck(x = 25.0, y = 300.0, vx = -500.0, vy = 0.0),
+                touchLedger =
+                    TouchLedger(
+                        listOf(
+                            PuckTouch(
+                                TouchSource.PADDLE,
+                                PaddleSide.B,
+                                "paddle:B",
+                                0L,
+                                500.0,
+                            ),
+                        ),
+                    ),
+            )
+        val replayFile =
+            buildReplayFile(
+                startingState,
+                listOf(GameIntent.Reliable(GameAction.Tick(0.016, 1_000_000_000L))),
+            )
+
+        val result = importer.import(replayFile)
+
+        assertEquals(PaddleSide.A, result.oneTimerHighlights.single().side)
+        assertEquals(625.0, hypot(result.finalState.puck.vx, result.finalState.puck.vy), 0.0001)
+    }
+
+    @Test
+    fun `replay-level one timer config overrides future defaults without starting snapshot`() {
+        val expected = OneTimerConfig(minimumIncomingSpeed = 725.0, maximumRawSpeed = 950.0)
+        val replayFile =
+            ReplayFile
+                .newBuilder()
+                .setOneTimerConfig(ReplayConverter.oneTimerConfigToProto(expected))
+                .build()
+
+        val result = importer.import(replayFile)
+
+        assertEquals(expected, result.finalState.oneTimerConfig)
     }
 
     private fun buildReplayFile(

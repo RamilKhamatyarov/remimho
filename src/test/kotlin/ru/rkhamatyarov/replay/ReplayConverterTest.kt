@@ -15,8 +15,13 @@ import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviPowerUp
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.OneTimerConfig
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
 import ru.rkhamatyarov.service.mvi.mviStateFromDelta
+import ru.rkhamatyarov.service.mvi.toDelta
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -84,7 +89,7 @@ class ReplayConverterTest {
     @Test
     fun `CommitLine intent round-trips through proto preserving all points`() {
         // g
-        val line = MviLine("line-1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 5.0)
+        val line = MviLine("line-1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 5.0, PaddleSide.A)
         val intent = GameIntent.Reliable(GameAction.CommitLine(line))
 
         // w
@@ -97,6 +102,7 @@ class ReplayConverterTest {
         assertEquals(2, action.line.points.size)
         assertEquals(10.0, action.line.points[0].x, 1e-9)
         assertEquals(40.0, action.line.points[1].y, 1e-9)
+        assertEquals(PaddleSide.A, action.line.ownerSide)
     }
 
     @Test
@@ -196,13 +202,18 @@ class ReplayConverterTest {
                 elapsedSeconds = 42.5,
                 speedConfig = SpeedConfig(baseMultiplier = 1.5, maxMultiplier = 4.0),
                 aiConfig = AiOpponentConfig(enabled = false, reactionDelayMs = 90L, aimError = 3.0, predictionDepth = 2, aggression = 0.8),
-                lines = listOf(MviLine("l1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 3.0)),
+                lines = listOf(MviLine("l1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 3.0, PaddleSide.B)),
                 teleports = mapOf("l1" to "l2"),
                 powerUps = listOf(MviPowerUp("pu-1", 400.0, 300.0, PowerUpType.SPEED_BOOST, 100_000L)),
                 activePowerUps = listOf(MviActivePowerUp(PowerUpType.GHOST_MODE, 1_000_000L, 6_000_000_000L)),
                 ghostMode = true,
                 paddleShield = false,
                 speedMultiplier = 1.5,
+                touchLedger =
+                    TouchLedger(
+                        listOf(PuckTouch(TouchSource.DRAWN_LINE, PaddleSide.B, "l1", 42_000_000_000L, 725.0)),
+                    ),
+                oneTimerConfig = OneTimerConfig(minimumIncomingSpeed = 550.0, maximumRawSpeed = 900.0),
             )
 
         // w
@@ -220,6 +231,7 @@ class ReplayConverterTest {
         assertEquals(42.5, restored.elapsedSeconds, 1e-9)
         assertEquals(state.aiConfig, restored.aiConfig)
         assertEquals("l1", restored.lines[0].id)
+        assertEquals(PaddleSide.B, restored.lines[0].ownerSide)
         assertEquals(mapOf("l1" to "l2"), restored.teleports)
         assertEquals(1, restored.powerUps.size)
         assertEquals(PowerUpType.SPEED_BOOST, restored.powerUps[0].type)
@@ -229,6 +241,8 @@ class ReplayConverterTest {
         assertEquals(1_000_000L, restored.activePowerUps[0].activatedNs)
         assertTrue(restored.ghostMode)
         assertEquals(1.5, restored.speedMultiplier, 1e-9)
+        assertEquals(state.touchLedger, restored.touchLedger)
+        assertEquals(state.oneTimerConfig, restored.oneTimerConfig)
     }
 
     @Test
@@ -236,11 +250,22 @@ class ReplayConverterTest {
         val state =
             MviGameState(
                 puck = MviPuck(x = 321.0, y = 222.0, vx = 120.0, vy = -30.0, spin = 0.75, spinRemainingNs = 420_000_000L),
+                lines = listOf(MviLine("owned", listOf(MviPoint(1.0, 2.0), MviPoint(3.0, 4.0)), ownerSide = PaddleSide.A)),
+                powerUps = listOf(MviPowerUp("stable-power", 500.0, 300.0, PowerUpType.SPEED_BOOST, 1L)),
+                touchLedger =
+                    TouchLedger(
+                        listOf(PuckTouch(TouchSource.PADDLE, PaddleSide.B, "paddle:B", 100L, 600.0)),
+                    ),
+                oneTimerConfig = OneTimerConfig(freshnessWindowNs = 3_000_000_000L),
             )
 
         val restored = mviStateFromDelta(state.toDelta())
 
         assertEquals(0.75, restored.puck.spin, 1e-9)
         assertEquals(420_000_000L, restored.puck.spinRemainingNs)
+        assertEquals(PaddleSide.A, restored.lines.single().ownerSide)
+        assertEquals("stable-power", restored.powerUps.single().id)
+        assertEquals(state.touchLedger, restored.touchLedger)
+        assertEquals(state.oneTimerConfig, restored.oneTimerConfig)
     }
 }

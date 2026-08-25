@@ -30,4 +30,11 @@ sealed interface EphemeralEvent {
         val x: Double,
         val y: Double,
     ) : EphemeralEvent
+
+    data class OneTimerFired(
+        val side: PaddleSide,
+        val incomingSpeed: Double,
+        val multiplier: Double,
+        val elapsedNs: Long,
+    ) : EphemeralEvent
 }

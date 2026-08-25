@@ -12,7 +12,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { gameStateRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
+import { gameStateRef, oneTimerEffectRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
@@ -29,6 +29,7 @@ const PUCK_LERP = 0.35
 const PUCK_SNAP_DISTANCE = 60
 const DEFAULT_PUCK_X = 400
 const DEFAULT_PUCK_Y = 300
+const ONE_TIMER_EFFECT_MS = 500
 
 let smoothPuckX = DEFAULT_PUCK_X
 let smoothPuckY = DEFAULT_PUCK_Y
@@ -77,18 +78,26 @@ function draw(state: GameState) {
   resizeCanvasToGameState(canvas, state)
 
   const scale = getPixelScale(canvas, state)
+  const oneTimerProgress = activeOneTimerProgress()
+  ctx.save()
+  if (oneTimerProgress !== null) {
+    const shakeX = Math.sin(oneTimerProgress * Math.PI * 12) * (1 - oneTimerProgress) * 5
+    ctx.translate(shakeX, 0)
+  }
   drawBackground(ctx, canvas)
   drawCenterLine(ctx, canvas)
   drawBarrierLines(ctx, state.lines, scale)
   drawPowerUps(ctx, state, scale)
   drawPaddles(ctx, state, canvas, scale)
   drawPuck(ctx, state, scale)
+  drawOneTimerEffect(ctx, state, canvas, scale)
   drawScore(ctx, state, canvas, scale)
   drawRemoteCursors(ctx, scale)
   drawActivePowerUpEffects(ctx, state, canvas, scale)
   drawHint(ctx, state, canvas, scale)
   drawPauseOverlay(ctx, state, canvas, scale)
   drawLocalCursor(ctx, scale)
+  ctx.restore()
 }
 
 function resizeCanvasToGameState(canvas: HTMLCanvasElement, state: GameState) {
@@ -208,6 +217,55 @@ function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point)
     ctx.stroke()
   }
   ctx.restore()
+}
+
+function drawOneTimerEffect(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
+  const effect = oneTimerEffectRef.value
+  if (!effect) return
+
+  const progress = activeOneTimerProgress()
+  if (progress === null) {
+    oneTimerEffectRef.value = null
+    return
+  }
+
+  const opacity = 1 - progress
+  const velocityLength = Math.hypot(state.puck.vx, state.puck.vy) || 1
+  const directionX = state.puck.vx / velocityLength
+  const directionY = state.puck.vy / velocityLength
+  const unit = Math.min(scale.x, scale.y)
+
+  ctx.save()
+  ctx.strokeStyle = `rgba(255, 215, 64, ${opacity})`
+  ctx.lineWidth = 4 * unit
+  ctx.strokeRect(2 * unit, 2 * unit, canvas.width - 4 * unit, canvas.height - 4 * unit)
+
+  for (let index = 1; index <= 4; index++) {
+    const distance = index * 16 * unit
+    ctx.beginPath()
+    ctx.arc(
+      smoothPuckX * scale.x - directionX * distance,
+      smoothPuckY * scale.y - directionY * distance,
+      state.puck.radius * unit * (1 - index * 0.14),
+      0,
+      Math.PI * 2,
+    )
+    ctx.fillStyle = `rgba(255, 215, 64, ${opacity * (1 - index * 0.18)})`
+    ctx.fill()
+  }
+
+  ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`
+  ctx.font = `bold ${Math.round(18 * unit)}px monospace`
+  ctx.textAlign = 'center'
+  ctx.fillText(`ONE-TIMER ${effect.multiplier.toFixed(2)}x`, canvas.width / 2, 82 * scale.y)
+  ctx.restore()
+}
+
+function activeOneTimerProgress(): number | null {
+  const effect = oneTimerEffectRef.value
+  if (!effect) return null
+  const progress = (performance.now() - effect.startedAtMs) / ONE_TIMER_EFFECT_MS
+  return progress < 1 ? progress : null
 }
 
 function drawScore(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {
@@ -433,5 +491,3 @@ function pointToSegmentDistance(point: Point, start: Point, end: Point): number 
   return Math.hypot(point.x - closestX, point.y - closestY)
 }
 </script>
-
-

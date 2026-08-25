@@ -16,6 +16,7 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.toDelta
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 

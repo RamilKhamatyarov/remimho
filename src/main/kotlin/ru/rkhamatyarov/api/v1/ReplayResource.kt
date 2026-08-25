@@ -52,7 +52,13 @@ class ReplayResource {
                 .setRoomId(roomId)
                 .setStartWallTimeMs(System.currentTimeMillis())
                 .setFrameCount(replayIntents.size)
-                .addAllIntents(replayIntents)
+                .setOneTimerConfig(
+                    ReplayConverter.oneTimerConfigToProto(
+                        roomRegistry
+                            .get(roomId)
+                            .reliableState.value.oneTimerConfig,
+                    ),
+                ).addAllIntents(replayIntents)
 
         if (startingState != null) {
             builder.startingState = ReplayConverter.stateToSnapshot(startingState)

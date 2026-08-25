@@ -32,6 +32,7 @@ import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.mvi.mviStateFromDelta
+import ru.rkhamatyarov.service.mvi.toDelta
 import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 import java.net.URLDecoder
@@ -124,8 +125,17 @@ class GameWebSocket {
             applicationScope.launch {
                 roomRegistry.get(roomId).ephemeralEvents.collectLatest { event ->
                     if (connection.id() in timeshiftSessions || connection.isClosed) return@collectLatest
-                    if (event is EphemeralEvent.CursorMove && event.playerId != connection.id()) {
-                        sendCursorMove(connection, event)
+                    when (event) {
+                        is EphemeralEvent.CursorMove -> {
+                            if (event.playerId != connection.id()) sendCursorMove(connection, event)
+                        }
+
+                        is EphemeralEvent.OneTimerFired -> {
+                            sendOneTimerFired(connection, event)
+                        }
+
+                        else -> {
+                        }
                     }
                 }
             }
@@ -354,7 +364,12 @@ class GameWebSocket {
         if (updateTimeshiftDraftLine(connection, LineDraftCommand.START, x, y)) return
 
         val lineId = UUID.randomUUID().toString()
-        connectionDrawingLines[connection.id()] = MviLine(id = lineId, points = listOf(MviPoint(x, y)))
+        connectionDrawingLines[connection.id()] =
+            MviLine(
+                id = lineId,
+                points = listOf(MviPoint(x, y)),
+                ownerSide = connectionSide(connection),
+            )
         val roomId = roomId(connection)
         roomRegistry.get(roomId).dispatch(GameIntent.Ephemeral(EphemeralEvent.LineDraft(lineId, x, y)))
     }
@@ -567,6 +582,24 @@ class GameWebSocket {
         )
     }
 
+    private fun sendOneTimerFired(
+        connection: WebSocketConnection,
+        event: EphemeralEvent.OneTimerFired,
+    ) {
+        val payload =
+            mapOf(
+                "type" to "ONE_TIMER_FIRED",
+                "side" to event.side.name,
+                "incomingSpeed" to event.incomingSpeed,
+                "multiplier" to event.multiplier,
+                "elapsedNs" to event.elapsedNs,
+            )
+        connection.sendText(mapper.writeValueAsString(payload)).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send one-timer feedback to ${connection.id()}: ${t.message}") },
+        )
+    }
+
     private fun sendGhostFrame(
         connection: WebSocketConnection,
         bytes: ByteArray,
@@ -723,6 +756,7 @@ class GameWebSocket {
                         .setId(UUID.randomUUID().toString())
                         .setWidth(5.0)
                         .setIsAnimating(true)
+                        .setOwnerSide(connectionSide(connection).name)
                         .addPoints(protoPoint(x, y)),
                 )
             }
