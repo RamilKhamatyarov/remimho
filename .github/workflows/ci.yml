@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -68,7 +68,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-${{ matrix.os }}-java${{ matrix.java-version }}
           path: build/test-results/
@@ -100,12 +100,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js for GIF
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -140,7 +140,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Java 21
         uses: actions/setup-java@v4
@@ -177,10 +177,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'npm'
@@ -190,13 +190,24 @@ jobs:
         working-directory: src/main/resources/META-INF/resources
         run: npm ci
 
-      - name: Setup GraalVM JDK 21
+      - name: Setup GraalVM 25.0
         uses: graalvm/setup-graalvm@v1
         with:
-          java-version: '21'
+          version: '25.0'
           distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: 'true'
           cache: 'gradle'
+
+      - name: Verify native-image toolchain
+        if: runner.os != 'Windows'
+        shell: bash
+        run: '"$GRAALVM_HOME/bin/native-image" --version'
+
+      - name: Verify native-image toolchain (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '& "$env:GRAALVM_HOME\bin\native-image.cmd" --version'
 
       - name: Make gradlew executable
         shell: bash
@@ -204,11 +215,11 @@ jobs:
 
       - name: Build native executable
         shell: bash
-        run: ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -DskipTests
+        run: ./gradlew build -Dquarkus.native.enabled=true -Dquarkus.package.jar.enabled=false -x test
 
       - name: Upload native binary (${{ matrix.artifact }})
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.artifact }}
           path: build/*-runner*
@@ -253,8 +264,4 @@ jobs:
               repo: context.repo.repo,
               body: 'All checks passed! Ready to merge.'
             })
-
-
-
-
 
