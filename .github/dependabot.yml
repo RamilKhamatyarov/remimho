@@ -8,6 +8,14 @@ updates:
     labels:
       - "dependencies"
       - "gradle"
+    groups:
+      kotlin-gradle:
+        applies-to: "version-updates"
+        patterns:
+          - "org.jetbrains.kotlin*"
+        update-types:
+          - "minor"
+          - "patch"
     commit-message:
       prefix: "chore"
       include: "scope"
