@@ -4,6 +4,7 @@ export interface Puck {
 export interface Score { playerA: number; playerB: number }
 export interface Point { x: number; y: number }
 export interface RemoteCursor { playerId: string; x: number; y: number; lastSeenMs: number }
+export interface OneTimerEffect { side: PaddleSide; incomingSpeed: number; multiplier: number; startedAtMs: number }
 export interface Line {
   id: string
   controlPoints: Point[]
@@ -41,4 +42,3 @@ export interface TurboSideState {
 export interface TurboHudState {
   states: TurboSideState[]
 }
-

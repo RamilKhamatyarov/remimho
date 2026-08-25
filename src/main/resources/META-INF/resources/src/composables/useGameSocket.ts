@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import type { Ref } from 'vue'
-import type { GameState, PaddleSide, RemoteCursor, TurboHudState, TurboSideState } from '../types/game'
+import type { GameState, OneTimerEffect, PaddleSide, RemoteCursor, TurboHudState, TurboSideState } from '../types/game'
 import { GameStateDelta as protoGameStateDelta } from '../proto/game_state'
 import { configureGameLoop, enqueueDelta } from './useGameLoop'
 
@@ -8,6 +8,7 @@ export const gameStateRef: Ref<GameState | null> = ref<GameState | null>(null)
 export const connectedRef: Ref<boolean> = ref(false)
 export const turboStateRef: Ref<TurboHudState> = ref<TurboHudState>({ states: [] })
 export const remoteCursorsRef: Ref<RemoteCursor[]> = ref<RemoteCursor[]>([])
+export const oneTimerEffectRef: Ref<OneTimerEffect | null> = ref<OneTimerEffect | null>(null)
 
 const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
@@ -163,6 +164,10 @@ function applyJsonMessage(message: string) {
       applyCursorMove(data)
       return
     }
+    if (isOneTimerFired(data)) {
+      applyOneTimerFired(data)
+      return
+    }
     applyJsonStateMessage(data)
   } catch (error) {
     console.error('[WS] JSON parse error', error)
@@ -187,6 +192,43 @@ function applyCursorMove(data: Record<string, unknown>) {
     ...remoteCursorsRef.value.filter((cursor) => cursor.playerId !== playerId),
     { playerId, x, y, lastSeenMs: Date.now() },
   ]
+}
+
+function isOneTimerFired(data: Record<string, unknown>): boolean {
+  return data['type'] === 'ONE_TIMER_FIRED'
+}
+
+function applyOneTimerFired(data: Record<string, unknown>) {
+  const incomingSpeed = Number(data['incomingSpeed'])
+  const multiplier = Number(data['multiplier'])
+  if (!Number.isFinite(incomingSpeed) || !Number.isFinite(multiplier)) return
+
+  oneTimerEffectRef.value = {
+    side: data['side'] === 'A' ? 'A' : 'B',
+    incomingSpeed,
+    multiplier,
+    startedAtMs: performance.now(),
+  }
+  playOneTimerSound(multiplier)
+}
+
+function playOneTimerSound(multiplier: number) {
+  try {
+    const audioContext = new AudioContext()
+    const oscillator = audioContext.createOscillator()
+    const gain = audioContext.createGain()
+    oscillator.type = 'square'
+    oscillator.frequency.setValueAtTime(180 + multiplier * 120, audioContext.currentTime)
+    gain.gain.setValueAtTime(0.08, audioContext.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.12)
+    oscillator.connect(gain)
+    gain.connect(audioContext.destination)
+    oscillator.start()
+    oscillator.stop(audioContext.currentTime + 0.12)
+    oscillator.addEventListener('ended', () => void audioContext.close())
+  } catch {
+    // Browser audio policies may reject effects before user interaction.
+  }
 }
 
 function isTurboState(data: Record<string, unknown>): boolean {
@@ -367,5 +409,3 @@ export function useGameSocket() {
     send,
   }
 }
-
-

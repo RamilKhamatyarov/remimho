@@ -2,6 +2,7 @@ package ru.rkhamatyarov.service
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -15,7 +16,11 @@ import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -79,6 +84,32 @@ class GameRoomActorTest {
             advanceUntilIdle()
 
             assertEquals(listOf(line), room.reliableState.value.lines)
+            room.shutdown()
+        }
+
+    @Test
+    fun `one timer feedback is ephemeral while physics tick remains replayable`() =
+        runTest {
+            val room = testRoom()
+            room.registerHumanSide(PaddleSide.A)
+            val state =
+                room.reliableState.value.copy(
+                    puck = MviPuck(x = 25.0, y = 300.0, vx = -500.0, vy = 0.0),
+                    touchLedger =
+                        TouchLedger(
+                            listOf(PuckTouch(TouchSource.PADDLE, PaddleSide.B, "paddle:B", 0L, 500.0)),
+                        ),
+                )
+            val received = async { room.ephemeralEvents.filterIsInstance<EphemeralEvent.OneTimerFired>().first() }
+
+            runCurrent()
+            room.dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(state)))
+            room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs = 1_000_000_000L)))
+            advanceUntilIdle()
+
+            assertEquals(PaddleSide.A, received.await().side)
+            assertEquals(2, room.getReplayLog().size)
+            assertTrue(room.getReplayLog().all { it.action is GameAction.RestoreSnapshot || it.action is GameAction.Tick })
             room.shutdown()
         }
 

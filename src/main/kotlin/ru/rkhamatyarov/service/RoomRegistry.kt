@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 import ru.rkhamatyarov.service.mvi.EphemeralEvent
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.MviDomainEvent
 import ru.rkhamatyarov.service.mvi.MviDomainEvents
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.PaddleSide
@@ -131,6 +132,7 @@ class GameRoom(
         val captured = MviDomainEvents.capture { reducer(mutableReliableState.value, action) }
         mutableReliableState.value = captured.value
         turboBoostStrategy.onEvents(captured.events, elapsedNs)
+        captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().forEach(::emitOneTimerFeedback)
         resetBotControllerAfter(action)
         spawnPowerUpAfterTick(action)
         moveBotAfterTick(action)
@@ -170,6 +172,17 @@ class GameRoom(
         }
 
     private fun currentElapsedNs(): Long = (reliableState.value.elapsedSeconds * 1_000_000_000L).toLong()
+
+    private fun emitOneTimerFeedback(event: MviDomainEvent.OneTimerFired) {
+        emitEphemeral(
+            EphemeralEvent.OneTimerFired(
+                side = event.side,
+                incomingSpeed = event.incomingSpeed,
+                multiplier = event.multiplier,
+                elapsedNs = event.elapsedNs,
+            ),
+        )
+    }
 
     private fun spawnPowerUpAfterTick(action: GameAction) {
         if (!autoPowerUpsEnabled || action !is GameAction.Tick) return

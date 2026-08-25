@@ -8,6 +8,13 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.proto.GameStateDelta
+import ru.rkhamatyarov.service.mvi.MviGameState
+import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
+import ru.rkhamatyarov.service.mvi.mviStateFromDelta
+import ru.rkhamatyarov.service.mvi.toDelta
 
 class StateHistoryTest {
     private lateinit var history: StateHistory
@@ -154,6 +161,21 @@ class StateHistoryTest {
         assertEquals(2, exported.size)
         assertEquals(now - 500_000_000L, exported[0].first)
         assertEquals(2.0, GameStateDelta.parseFrom(reimported[0].second).puckX)
+    }
+
+    @Test
+    fun `historical snapshot restores exact touch ledger`() {
+        val now = 10_000_000_000L
+        val expected =
+            TouchLedger(
+                listOf(PuckTouch(TouchSource.PADDLE, PaddleSide.B, "paddle:B", 9_000_000_000L, 650.0)),
+            )
+        history.add(MviGameState(touchLedger = expected).toDelta().toByteArray(), now)
+
+        val snapshot = history.getByOffsetSeconds(0.0, now)!!
+        val restored = mviStateFromDelta(GameStateDelta.parseFrom(snapshot))
+
+        assertEquals(expected, restored.touchLedger)
     }
 
     @Test

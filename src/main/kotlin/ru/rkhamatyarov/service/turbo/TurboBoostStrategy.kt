@@ -44,6 +44,9 @@ class TurboBoostStrategy(
                 MviDomainEvent.LineDeflect -> {
                     addCharge(lastPaddleTouch, elapsedNs)
                 }
+
+                is MviDomainEvent.OneTimerFired -> {
+                }
             }
         }
         publish(elapsedNs)

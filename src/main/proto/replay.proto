@@ -13,6 +13,7 @@ message ReplayFile {
     string app_version = 6;
     FullGameSnapshot starting_state = 7;
     repeated ReplayIntent intents = 8;
+    SnapshotOneTimerConfig one_timer_config = 9;
 }
 
 message FullGameSnapshot {
@@ -57,17 +58,37 @@ message FullGameSnapshot {
     optional double ai_aim_error = 39;
     optional int32 ai_prediction_depth = 40;
     optional double ai_aggression = 41;
+    repeated SnapshotTouchLedgerEntry touch_ledger = 42;
+    SnapshotOneTimerConfig one_timer_config = 43;
 }
 
 message SnapshotLine {
     string id = 1;
     repeated SnapshotPoint points = 2;
     double width = 3;
+    optional string owner_side = 4;
 }
 
 message SnapshotPoint {
     double x = 1;
     double y = 2;
+}
+
+message SnapshotTouchLedgerEntry {
+    string source = 1;
+    optional string owner_side = 2;
+    string identifier = 3;
+    int64 elapsed_ns = 4;
+    double speed_at_contact = 5;
+}
+
+message SnapshotOneTimerConfig {
+    double minimum_incoming_speed = 1;
+    int64 freshness_window_ns = 2;
+    double minimum_multiplier = 3;
+    double maximum_multiplier = 4;
+    double full_strength_incoming_speed = 5;
+    double maximum_raw_speed = 6;
 }
 
 message TeleportEntry {
@@ -141,6 +162,7 @@ message ReplayCommitLine {
     string id = 1;
     repeated SnapshotPoint points = 2;
     double width = 3;
+    optional string owner_side = 4;
 }
 
 message ReplayEraseLine {
