@@ -6,7 +6,7 @@ plugins {
     kotlin("jvm") version "2.4.10"
     kotlin("plugin.allopen") version "2.4.10"
     kotlin("plugin.serialization") version "2.4.10"
-    id("io.quarkus") version "3.39.0"
+    id("io.quarkus") version "3.39.1"
     id("com.google.protobuf") version "0.10.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.10.0"
@@ -24,7 +24,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.39.0"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.39.1"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
