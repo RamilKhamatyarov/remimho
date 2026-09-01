@@ -72,7 +72,10 @@ internal object TickReducer {
         val score =
             when {
                 frame.puck.x - frame.puck.radius <= 0.0 -> state.score.copy(playerB = state.score.playerB + 1)
-                frame.puck.x + frame.puck.radius >= state.canvasWidth -> state.score.copy(playerA = state.score.playerA + 1)
+                frame.puck.x + frame.puck.radius >= state.canvasWidth ->
+                    state.score.copy(
+                        playerA = state.score.playerA + 1,
+                    )
                 else -> state.score
             }
         if (score == state.score) return ScoringResult(frame, score)

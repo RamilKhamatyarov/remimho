@@ -26,10 +26,9 @@ internal object PaddlePhysics {
         effectiveSpeed: Double,
         elapsedNs: Long,
     ): TickFrame {
-        val puck = frame.puck
-        if (!puck.hitsLeftPaddle(state)) return frame
+        val puck = frame.puck.paddleContact(state, PaddleSide.A) ?: return frame
         return resolveContact(
-            frame = frame,
+            frame = frame.copy(puck = puck),
             side = PaddleSide.A,
             paddleY = state.paddle1Y,
             paddleHeight = state.paddleHeight,
@@ -48,10 +47,9 @@ internal object PaddlePhysics {
         effectiveSpeed: Double,
         elapsedNs: Long,
     ): TickFrame {
-        val puck = frame.puck
-        if (!puck.hitsRightPaddle(state)) return frame
+        val puck = frame.puck.paddleContact(state, PaddleSide.B) ?: return frame
         return resolveContact(
-            frame = frame,
+            frame = frame.copy(puck = puck),
             side = PaddleSide.B,
             paddleY = state.paddle2Y,
             paddleHeight = state.paddleHeight,
@@ -190,18 +188,76 @@ internal object PaddlePhysics {
             .coerceIn(-MAX_BOUNCE_ANGLE, MAX_BOUNCE_ANGLE)
     }
 
-    private fun MviPuck.hitsLeftPaddle(state: MviGameState): Boolean =
-        vx < 0 &&
-            x - radius <= PADDLE_WIDTH &&
-            x + radius >= 0.0 &&
-            overlapsY(state.paddle1Y, state.paddleHeight)
+    /** Returns the puck at its swept contact point, or null when its path misses the paddle. */
+    private fun MviPuck.paddleContact(
+        state: MviGameState,
+        side: PaddleSide,
+    ): MviPuck? {
+        if (!movesToward(side)) return null
 
-    private fun MviPuck.hitsRightPaddle(state: MviGameState): Boolean {
-        val paddleLeft = state.canvasWidth - PADDLE_WIDTH
-        return vx > 0 &&
-            x + radius >= paddleLeft &&
-            x - radius <= state.canvasWidth &&
-            overlapsY(state.paddle2Y, state.paddleHeight)
+        val previous = state.puck
+        val paddleFaceX = side.paddleFaceX(state.canvasWidth, radius)
+        val crossedFace = crossesPaddleFace(previous, paddleFaceX, side)
+        if (!crossedFace && !overlapsPaddleFace(state.canvasWidth, side)) return null
+
+        val paddleY = state.paddleY(side)
+        val contactY = if (crossedFace) yAtX(previous, paddleFaceX) else y
+        return copy(
+            x = paddleFaceX,
+            y = contactY,
+        ).takeIf { it.overlapsY(paddleY, state.paddleHeight) }
+    }
+
+    private fun MviPuck.movesToward(side: PaddleSide): Boolean =
+        when (side) {
+            PaddleSide.A -> vx < 0.0
+            PaddleSide.B -> vx > 0.0
+        }
+
+    private fun MviPuck.crossesPaddleFace(
+        previous: MviPuck,
+        paddleFaceX: Double,
+        side: PaddleSide,
+    ): Boolean =
+        when (side) {
+            PaddleSide.A -> previous.x >= paddleFaceX && x <= paddleFaceX
+            PaddleSide.B -> previous.x <= paddleFaceX && x >= paddleFaceX
+        }
+
+    private fun MviPuck.overlapsPaddleFace(
+        canvasWidth: Double,
+        side: PaddleSide,
+    ): Boolean =
+        when (side) {
+            PaddleSide.A -> x - radius <= PADDLE_WIDTH && x + radius >= 0.0
+            PaddleSide.B -> x + radius >= canvasWidth - PADDLE_WIDTH && x - radius <= canvasWidth
+        }
+
+    private fun PaddleSide.paddleFaceX(
+        canvasWidth: Double,
+        radius: Double,
+    ): Double =
+        when (this) {
+            PaddleSide.A -> PADDLE_WIDTH + radius
+            PaddleSide.B -> canvasWidth - PADDLE_WIDTH - radius
+        }
+
+    private fun MviGameState.paddleY(side: PaddleSide): Double =
+        when (side) {
+            PaddleSide.A -> paddle1Y
+            PaddleSide.B -> paddle2Y
+        }
+
+    /** Interpolates the puck center Y at a horizontal point along the current tick path. */
+    private fun MviPuck.yAtX(
+        previous: MviPuck,
+        targetX: Double,
+    ): Double {
+        val distanceX = x - previous.x
+        if (abs(distanceX) < MIN_SWEEP_DISTANCE) return y
+
+        val fraction = ((targetX - previous.x) / distanceX).coerceIn(0.0, 1.0)
+        return previous.y + (y - previous.y) * fraction
     }
 
     private fun MviPuck.overlapsY(
@@ -230,6 +286,7 @@ internal object PaddlePhysics {
     private const val PADDLE_SPIN_NORMALIZER = 90.0
     private const val SPIN_DURATION_NS = 750_000_000L
     private const val WALL_SPIN_RETENTION = 0.75
+    private const val MIN_SWEEP_DISTANCE = 1e-9
     private const val MIN_PUCK_SPEED = 1.0
     private const val MAX_SPIN = 1.0
     private const val MIN_SPIN = 0.05

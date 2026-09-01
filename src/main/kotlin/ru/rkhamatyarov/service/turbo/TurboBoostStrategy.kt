@@ -174,8 +174,26 @@ data class TurboSideSnapshot(
             side = side,
             charge = charge,
             status = status,
-            activeMs = if (status == TurboStatus.ACTIVE) ((activeUntilNs - elapsedNs).coerceAtLeast(0L) / 1_000_000L) else 0L,
-            cooldownMs = if (status == TurboStatus.COOLDOWN) ((cooldownUntilNs - elapsedNs).coerceAtLeast(0L) / 1_000_000L) else 0L,
+            activeMs =
+                if (status == TurboStatus.ACTIVE) {
+                    (
+                        (activeUntilNs - elapsedNs).coerceAtLeast(
+                            0L,
+                        ) / 1_000_000L
+                    )
+                } else {
+                    0L
+                },
+            cooldownMs =
+                if (status == TurboStatus.COOLDOWN) {
+                    (
+                        (cooldownUntilNs - elapsedNs).coerceAtLeast(
+                            0L,
+                        ) / 1_000_000L
+                    )
+                } else {
+                    0L
+                },
         )
     }
 }

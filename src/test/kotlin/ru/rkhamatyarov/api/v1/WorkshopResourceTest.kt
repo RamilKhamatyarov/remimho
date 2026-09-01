@@ -112,7 +112,9 @@ class WorkshopResourceTest {
     fun `POST speed-config with valid config returns 200 and applied true`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"baseMultiplier":1.5,"timeAccelerationRate":0.1,"levelAccelerationPerLine":0.03,"maxMultiplier":4.0}""")
+            .body(
+                speedConfigBody(1.5, 0.1, 0.03, 4.0),
+            )
             .`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
@@ -128,7 +130,9 @@ class WorkshopResourceTest {
     fun `POST speed-config applies config to engine`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"baseMultiplier":2.0,"timeAccelerationRate":0.08,"levelAccelerationPerLine":0.01,"maxMultiplier":5.0}""")
+            .body(
+                speedConfigBody(2.0, 0.08, 0.01, 5.0),
+            )
             .`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
@@ -145,7 +149,9 @@ class WorkshopResourceTest {
     fun `POST speed-config with out-of-range baseMultiplier returns 400`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"baseMultiplier":0.0,"timeAccelerationRate":0.05,"levelAccelerationPerLine":0.02,"maxMultiplier":3.0}""")
+            .body(
+                speedConfigBody(0.0, 0.05, 0.02, 3.0),
+            )
             .`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
@@ -157,7 +163,9 @@ class WorkshopResourceTest {
     fun `POST speed-config with out-of-range timeAccelerationRate returns 400`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"baseMultiplier":1.0,"timeAccelerationRate":2.0,"levelAccelerationPerLine":0.02,"maxMultiplier":3.0}""")
+            .body(
+                speedConfigBody(1.0, 2.0, 0.02, 3.0),
+            )
             .`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
@@ -169,7 +177,9 @@ class WorkshopResourceTest {
     fun `POST speed-config with out-of-range maxMultiplier returns 400`() {
         given()
             .contentType(ContentType.JSON)
-            .body("""{"baseMultiplier":1.0,"timeAccelerationRate":0.05,"levelAccelerationPerLine":0.02,"maxMultiplier":0.5}""")
+            .body(
+                speedConfigBody(1.0, 0.05, 0.02, 0.5),
+            )
             .`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
@@ -204,7 +214,16 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                """{"roomId":"$roomId","enabled":true,"reactionDelayMs":240,"aimError":8.0,"predictionDepth":2,"aggression":0.75}""",
+                """
+                {
+                  "roomId": "$roomId",
+                  "enabled": true,
+                  "reactionDelayMs": 240,
+                  "aimError": 8.0,
+                  "predictionDepth": 2,
+                  "aggression": 0.75
+                }
+                """.trimIndent(),
             ).`when`()
             .post("/api/v1/workshop/ai-opponent-config")
             .then()
@@ -295,6 +314,21 @@ class WorkshopResourceTest {
             0.001,
         )
     }
+
+    private fun speedConfigBody(
+        baseMultiplier: Double,
+        timeAccelerationRate: Double,
+        levelAccelerationPerLine: Double,
+        maxMultiplier: Double,
+    ): String =
+        """
+        {
+          "baseMultiplier": $baseMultiplier,
+          "timeAccelerationRate": $timeAccelerationRate,
+          "levelAccelerationPerLine": $levelAccelerationPerLine,
+          "maxMultiplier": $maxMultiplier
+        }
+        """.trimIndent()
 
     private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 

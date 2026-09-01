@@ -109,7 +109,9 @@ class GameRoomActorTest {
 
             assertEquals(PaddleSide.A, received.await().side)
             assertEquals(2, room.getReplayLog().size)
-            assertTrue(room.getReplayLog().all { it.action is GameAction.RestoreSnapshot || it.action is GameAction.Tick })
+            assertTrue(
+                room.getReplayLog().all { it.action is GameAction.RestoreSnapshot || it.action is GameAction.Tick },
+            )
             room.shutdown()
         }
 

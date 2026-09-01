@@ -125,7 +125,14 @@ class ReplayConverterTest {
     @Test
     fun `ApplyAiConfig intent round-trips through proto`() {
         // g
-        val config = AiOpponentConfig(enabled = true, reactionDelayMs = 0L, aimError = 0.0, predictionDepth = 4, aggression = 1.0)
+        val config =
+            AiOpponentConfig(
+                enabled = true,
+                reactionDelayMs = 0L,
+                aimError = 0.0,
+                predictionDepth = 4,
+                aggression = 1.0,
+            )
         val intent = GameIntent.Reliable(GameAction.ApplyAiConfig(config))
 
         // w
@@ -201,8 +208,18 @@ class ReplayConverterTest {
                 paused = true,
                 elapsedSeconds = 42.5,
                 speedConfig = SpeedConfig(baseMultiplier = 1.5, maxMultiplier = 4.0),
-                aiConfig = AiOpponentConfig(enabled = false, reactionDelayMs = 90L, aimError = 3.0, predictionDepth = 2, aggression = 0.8),
-                lines = listOf(MviLine("l1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 3.0, PaddleSide.B)),
+                aiConfig =
+                    AiOpponentConfig(
+                        enabled = false,
+                        reactionDelayMs = 90L,
+                        aimError = 3.0,
+                        predictionDepth = 2,
+                        aggression = 0.8,
+                    ),
+                lines =
+                    listOf(
+                        MviLine("l1", listOf(MviPoint(10.0, 20.0), MviPoint(30.0, 40.0)), 3.0, PaddleSide.B),
+                    ),
                 teleports = mapOf("l1" to "l2"),
                 powerUps = listOf(MviPowerUp("pu-1", 400.0, 300.0, PowerUpType.SPEED_BOOST, 100_000L)),
                 activePowerUps = listOf(MviActivePowerUp(PowerUpType.GHOST_MODE, 1_000_000L, 6_000_000_000L)),
@@ -249,8 +266,19 @@ class ReplayConverterTest {
     fun `GameStateDelta round-trips puck spin`() {
         val state =
             MviGameState(
-                puck = MviPuck(x = 321.0, y = 222.0, vx = 120.0, vy = -30.0, spin = 0.75, spinRemainingNs = 420_000_000L),
-                lines = listOf(MviLine("owned", listOf(MviPoint(1.0, 2.0), MviPoint(3.0, 4.0)), ownerSide = PaddleSide.A)),
+                puck =
+                    MviPuck(
+                        x = 321.0,
+                        y = 222.0,
+                        vx = 120.0,
+                        vy = -30.0,
+                        spin = 0.75,
+                        spinRemainingNs = 420_000_000L,
+                    ),
+                lines =
+                    listOf(
+                        MviLine("owned", listOf(MviPoint(1.0, 2.0), MviPoint(3.0, 4.0)), ownerSide = PaddleSide.A),
+                    ),
                 powerUps = listOf(MviPowerUp("stable-power", 500.0, 300.0, PowerUpType.SPEED_BOOST, 1L)),
                 touchLedger =
                     TouchLedger(

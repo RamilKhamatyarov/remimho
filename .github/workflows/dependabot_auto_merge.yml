@@ -1,4 +1,4 @@
-name: Dependabot Kotlin Auto-Merge
+name: Dependabot Gradle Auto-Merge
 
 on:
   pull_request_target:
@@ -13,8 +13,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  kotlin-gradle:
-    name: Approve Kotlin minor and patch updates
+  gradle:
+    name: Enable Gradle minor and patch auto-merge
     if: >-
       github.event.pull_request.user.login == 'dependabot[bot]' &&
       github.event.pull_request.draft == false
@@ -27,43 +27,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check Kotlin update policy
-        id: policy
-        shell: bash
-        env:
-          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
-          PACKAGE_ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
-          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
-        run: |
-          eligible=false
-
-          if [[ "$PACKAGE_ECOSYSTEM" == "gradle" ]] &&
-             [[ "$UPDATE_TYPE" == "version-update:semver-minor" ||
-                "$UPDATE_TYPE" == "version-update:semver-patch" ]]; then
-            IFS=',' read -ra dependencies <<< "$DEPENDENCY_NAMES"
-            if (( ${#dependencies[@]} > 0 )); then
-              eligible=true
-              for dependency in "${dependencies[@]}"; do
-                dependency="${dependency//[[:space:]]/}"
-                if [[ "$dependency" != org.jetbrains.kotlin* ]]; then
-                  eligible=false
-                  break
-                fi
-              done
-            fi
-          fi
-
-          echo "eligible=$eligible" >> "$GITHUB_OUTPUT"
-
-      - name: Approve update
-        if: steps.policy.outputs.eligible == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-        run: gh pr review --approve "$PR_URL"
-
       - name: Enable squash auto-merge
-        if: steps.policy.outputs.eligible == 'true'
+        if: >-
+          steps.metadata.outputs.package-ecosystem == 'gradle' &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+           steps.metadata.outputs.update-type == 'version-update:semver-patch')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}

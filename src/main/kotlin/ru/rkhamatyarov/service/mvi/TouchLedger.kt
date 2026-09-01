@@ -33,8 +33,8 @@ data class TouchLedger(
 data class OneTimerConfig(
     val minimumIncomingSpeed: Double = 500.0,
     val freshnessWindowNs: Long = 2_000_000_000L,
-    val minimumMultiplier: Double = 1.25,
-    val maximumMultiplier: Double = 1.50,
+    val minimumMultiplier: Double = 2.0,
+    val maximumMultiplier: Double = 2.0,
     val fullStrengthIncomingSpeed: Double = 800.0,
     val maximumRawSpeed: Double = 800.0,
 ) {

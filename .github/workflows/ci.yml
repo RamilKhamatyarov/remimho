@@ -170,8 +170,6 @@ jobs:
         include:
           - os: ubuntu-latest
             artifact: remimho-linux
-          - os: macos-latest
-            artifact: remimho-macos
           - os: windows-latest
             artifact: remimho-windows
 

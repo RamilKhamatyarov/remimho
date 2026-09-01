@@ -95,7 +95,9 @@ class WorkshopResource {
     ): Response {
         val bytes =
             compiledConfigCache.get(checksum)
-                ?: return Response.status(Response.Status.NOT_FOUND).entity(mapOf("error" to "compiled config not found")).build()
+                ?: return Response.status(
+                    Response.Status.NOT_FOUND,
+                ).entity(mapOf("error" to "compiled config not found")).build()
         return Response
             .ok(bytes)
             .header("X-Config-Checksum", checksum)
