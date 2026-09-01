@@ -48,7 +48,10 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
     )
 }
 
-private fun MviGameState.activeFieldPowerUps(nowNs: Long): List<MviPowerUp> = powerUps.filter { nowNs - it.createdNs <= it.lifetimeNs }
+private fun MviGameState.activeFieldPowerUps(nowNs: Long): List<MviPowerUp> =
+    powerUps.filter {
+        nowNs - it.createdNs <= it.lifetimeNs
+    }
 
 private fun GameStateDelta.elapsedSecondsOrDefault(): Double = if (hasElapsedSeconds()) elapsedSeconds else 0.0
 

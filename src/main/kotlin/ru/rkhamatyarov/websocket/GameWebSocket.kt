@@ -299,7 +299,10 @@ class GameWebSocket {
             sendError(connection, "Invalid MOVE_PADDLE: y required")
             return
         }
-        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y, connectionSide(connection))))
+        roomRegistry
+            .get(
+                roomId(connection),
+            ).dispatch(GameIntent.Reliable(GameAction.MovePaddle(y, connectionSide(connection))))
     }
 
     private fun handleCursorMove(
@@ -319,7 +322,10 @@ class GameWebSocket {
     }
 
     private fun handleActivateTurbo(connection: WebSocketConnection) {
-        roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.ActivateTurbo(connectionSide(connection))))
+        roomRegistry
+            .get(
+                roomId(connection),
+            ).dispatch(GameIntent.Reliable(GameAction.ActivateTurbo(connectionSide(connection))))
     }
 
     private fun handleTogglePause(connection: WebSocketConnection) {
@@ -481,7 +487,10 @@ class GameWebSocket {
             val mviState = mviStateFromDelta(GameStateDelta.parseFrom(snapshot))
             val room = roomRegistry.get(roomId)
             val turboSnapshot =
-                timeshiftTurboDrafts[connection.id()] ?: room.turboHistory.getByOffsetSeconds(offset, rewindReferenceNs(roomId))
+                timeshiftTurboDrafts[connection.id()] ?: room.turboHistory.getByOffsetSeconds(
+                    offset,
+                    rewindReferenceNs(roomId),
+                )
             room.dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(mviState)))
             turboSnapshot?.let { room.restoreTurbo(it) }
             roomHistory.clear()
@@ -839,7 +848,9 @@ class GameWebSocket {
             .toByteArray()
     }
 
-    private fun connectionSide(connection: WebSocketConnection): PaddleSide = connectionSides[connection.id()] ?: PaddleSide.B
+    private fun connectionSide(connection: WebSocketConnection): PaddleSide {
+        return connectionSides[connection.id()] ?: PaddleSide.B
+    }
 
     private fun sendTurboState(
         connection: WebSocketConnection,
@@ -858,7 +869,13 @@ class GameWebSocket {
         )
     }
 
-    private fun TurboHudState.toClientMessage(): TurboStateMessage = TurboStateMessage(states = states.map { it.toClientMessage() })
+    private fun TurboHudState.toClientMessage(): TurboStateMessage =
+        TurboStateMessage(
+            states =
+                states.map {
+                    it.toClientMessage()
+                },
+        )
 
     private fun ru.rkhamatyarov.service.turbo.TurboSideHudState.toClientMessage(): TurboSideStateMessage =
         TurboSideStateMessage(

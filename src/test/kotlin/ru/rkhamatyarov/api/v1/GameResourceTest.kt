@@ -114,7 +114,16 @@ class GameResourceTest {
             .given()
             .contentType("application/json")
             .body(
-                """{"roomId":"$roomId","enabled":true,"reactionDelayMs":120,"aimError":4.0,"predictionDepth":2,"aggression":0.8}""",
+                """
+                {
+                  "roomId": "$roomId",
+                  "enabled": true,
+                  "reactionDelayMs": 120,
+                  "aimError": 4.0,
+                  "predictionDepth": 2,
+                  "aggression": 0.8
+                }
+                """.trimIndent(),
             ).`when`()
             .post("/api/v1/game/ai-opponent")
             .then()

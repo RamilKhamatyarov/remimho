@@ -139,7 +139,12 @@ class SignalingWebSocketTest {
         val deadlineNs = System.nanoTime() + TimeUnit.SECONDS.toNanos(QUIET_WINDOW_SECONDS)
         while (System.nanoTime() < deadlineNs) {
             val message = client.poll(QUIET_WINDOW_SECONDS) ?: return
-            if (parse(message)["type"] == WEBRTC_ANSWER) fail("Unexpected message of type '$WEBRTC_ANSWER' leaked across rooms")
+            if (parse(
+                    message,
+                )["type"] == WEBRTC_ANSWER
+            ) {
+                fail("Unexpected message of type '$WEBRTC_ANSWER' leaked across rooms")
+            }
         }
     }
 

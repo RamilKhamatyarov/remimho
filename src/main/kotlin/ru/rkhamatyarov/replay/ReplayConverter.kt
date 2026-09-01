@@ -147,7 +147,9 @@ object ReplayConverter {
                         deltaSeconds = proto.tick.deltaSeconds,
                         elapsedNs = proto.elapsedNs,
                         playerAControlledByHuman = proto.tick.playerAControlledByHuman,
-                        turboSpeedMultiplier = if (proto.tick.turboSpeedMultiplier > 0.0) proto.tick.turboSpeedMultiplier else 1.0,
+                        turboSpeedMultiplier =
+                            proto.tick.turboSpeedMultiplier
+                                .takeIf { it > 0.0 } ?: 1.0,
                     )
                 }
 
@@ -293,7 +295,12 @@ object ReplayConverter {
             speedMultiplier = if (proto.speedMultiplier > 0.0) proto.speedMultiplier else 1.0,
             ghostMode = proto.ghostMode,
             paddleShield = proto.paddleShield,
-            touchLedger = TouchLedger(proto.touchLedgerList.mapNotNull { it.toPuckTouchOrNull() }.takeLast(TouchLedger.MAX_ENTRIES)),
+            touchLedger =
+                TouchLedger(
+                    proto.touchLedgerList.mapNotNull {
+                        it.toPuckTouchOrNull()
+                    }.takeLast(TouchLedger.MAX_ENTRIES),
+                ),
             oneTimerConfig = if (proto.hasOneTimerConfig()) proto.oneTimerConfig.toDomain() else OneTimerConfig(),
         )
 

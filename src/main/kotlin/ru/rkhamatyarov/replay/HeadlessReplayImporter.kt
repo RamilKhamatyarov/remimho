@@ -37,7 +37,10 @@ class HeadlessReplayImporter {
                 MviGameState()
             }
         if (replayFile.hasOneTimerConfig()) {
-            startingState = startingState.copy(oneTimerConfig = ReplayConverter.oneTimerConfigFromProto(replayFile.oneTimerConfig))
+            startingState =
+                startingState.copy(
+                    oneTimerConfig = ReplayConverter.oneTimerConfigFromProto(replayFile.oneTimerConfig),
+                )
         }
 
         var state = startingState
@@ -50,7 +53,12 @@ class HeadlessReplayImporter {
 
         for (replayIntent in replayFile.intentsList) {
             val (intent, intentElapsedNs) = ReplayConverter.fromProto(replayIntent)
-            val elapsedNs = if (intentElapsedNs > 0L) intentElapsedNs else (state.elapsedSeconds * 1_000_000_000L).toLong()
+            val elapsedNs =
+                if (intentElapsedNs > 0L) {
+                    intentElapsedNs
+                } else {
+                    (state.elapsedSeconds * 1_000_000_000L).toLong()
+                }
             turboBoostStrategy.onAction(intent.action, elapsedNs)
             val captured = MviDomainEvents.capture { reduce(state, intent.action) }
             state = captured.value

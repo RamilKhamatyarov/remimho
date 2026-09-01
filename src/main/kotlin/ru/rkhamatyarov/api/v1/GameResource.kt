@@ -242,7 +242,9 @@ class GameResource {
         if (start < 0.0 || end < start || end > StateHistory.MAX_RETENTION_SECONDS) {
             return Response
                 .status(Response.Status.BAD_REQUEST)
-                .entity(mapOf("error" to "Range must satisfy 0 <= start <= end <= ${StateHistory.MAX_RETENTION_SECONDS}"))
+                .entity(
+                    mapOf("error" to "Range must satisfy 0 <= start <= end <= ${StateHistory.MAX_RETENTION_SECONDS}"),
+                )
                 .build()
         }
 

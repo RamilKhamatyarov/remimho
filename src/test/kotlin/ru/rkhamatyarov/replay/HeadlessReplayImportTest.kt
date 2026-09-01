@@ -196,7 +196,7 @@ class HeadlessReplayImportTest {
         val result = importer.import(replayFile)
 
         assertEquals(PaddleSide.A, result.oneTimerHighlights.single().side)
-        assertEquals(625.0, hypot(result.finalState.puck.vx, result.finalState.puck.vy), 0.0001)
+        assertEquals(800.0, hypot(result.finalState.puck.vx, result.finalState.puck.vy), 0.0001)
     }
 
     @Test

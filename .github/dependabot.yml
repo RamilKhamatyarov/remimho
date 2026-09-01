@@ -4,6 +4,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Moscow"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -13,6 +16,13 @@ updates:
         applies-to: "version-updates"
         patterns:
           - "org.jetbrains.kotlin*"
+        update-types:
+          - "minor"
+          - "patch"
+      quarkus-gradle:
+        applies-to: "version-updates"
+        patterns:
+          - "io.quarkus*"
         update-types:
           - "minor"
           - "patch"

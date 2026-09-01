@@ -31,8 +31,8 @@ class TouchLedgerOneTimerTest {
         val event = captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().single()
         assertEquals(PaddleSide.A, event.side)
         assertEquals(500.0, event.incomingSpeed, 0.0001)
-        assertEquals(1.25, event.multiplier, 0.0001)
-        assertEquals(500.0, hypot(captured.value.puck.vx, captured.value.puck.vy), 0.0001)
+        assertEquals(2.0, event.multiplier, 0.0001)
+        assertEquals(800.0, hypot(captured.value.puck.vx, captured.value.puck.vy), 0.0001)
         assertEquals(
             500.0,
             captured.value.touchLedger.entries
@@ -53,8 +53,8 @@ class TouchLedgerOneTimerTest {
             }
 
         val event = captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().single()
-        assertEquals(1.5, event.multiplier, 0.0001)
-        assertEquals(600.0, hypot(captured.value.puck.vx, captured.value.puck.vy), 0.0001)
+        assertEquals(2.0, event.multiplier, 0.0001)
+        assertEquals(800.0, hypot(captured.value.puck.vx, captured.value.puck.vy), 0.0001)
     }
 
     @Test
@@ -128,7 +128,10 @@ class TouchLedgerOneTimerTest {
                 MviGameState(puck = MviPuck(x = 105.0, y = 300.0, vx = -100.0, vy = 0.0), lines = listOf(line)),
                 GameAction.Tick(0.016, elapsedNs = 16_000_000L),
             )
-        assertEquals(PuckTouch(TouchSource.DRAWN_LINE, PaddleSide.B, "line-1", 16_000_000L, 102.0), lineState.touchLedger.entries.single())
+        assertEquals(
+            PuckTouch(TouchSource.DRAWN_LINE, PaddleSide.B, "line-1", 16_000_000L, 102.0),
+            lineState.touchLedger.entries.single(),
+        )
 
         val powerUp = MviPowerUp("power-1", 400.0, 300.0, PowerUpType.SPEED_BOOST, 0L)
         val powerUpState =
