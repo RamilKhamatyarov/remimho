@@ -9,6 +9,7 @@ export const connectedRef: Ref<boolean> = ref(false)
 export const turboStateRef: Ref<TurboHudState> = ref<TurboHudState>({ states: [] })
 export const remoteCursorsRef: Ref<RemoteCursor[]> = ref<RemoteCursor[]>([])
 export const oneTimerEffectRef: Ref<OneTimerEffect | null> = ref<OneTimerEffect | null>(null)
+export const comboMessageRef = ref<{ text: string; side: PaddleSide; startedAtMs: number } | null>(null)
 
 const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
@@ -168,6 +169,15 @@ function applyJsonMessage(message: string) {
       applyOneTimerFired(data)
       return
     }
+    if (data['type'] === 'GIVE_AND_GO_COMPLETED' || data['type'] === 'SUPER_GOAL_SCORED') {
+      if (data['side'] !== 'A' && data['side'] !== 'B') return
+      comboMessageRef.value = {
+        text: data['type'] === 'SUPER_GOAL_SCORED' ? 'Super Goal +2' : 'Give-and-Go!',
+        side: data['side'],
+        startedAtMs: performance.now(),
+      }
+      return
+    }
     applyJsonStateMessage(data)
   } catch (error) {
     console.error('[WS] JSON parse error', error)
@@ -294,6 +304,7 @@ function mergeLegacyJsonDelta(data: Record<string, unknown>): GameState {
 function onSocketClose() {
   connectedRef.value = false
   remoteCursorsRef.value = []
+  comboMessageRef.value = null
   reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS)
 }
 

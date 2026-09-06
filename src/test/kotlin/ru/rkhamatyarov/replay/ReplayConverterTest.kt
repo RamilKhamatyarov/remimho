@@ -1,6 +1,8 @@
 package ru.rkhamatyarov.replay
 
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
+import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.SpeedConfig
@@ -20,8 +22,6 @@ import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.mvi.PuckTouch
 import ru.rkhamatyarov.service.mvi.TouchLedger
 import ru.rkhamatyarov.service.mvi.TouchSource
-import ru.rkhamatyarov.service.mvi.mviStateFromDelta
-import ru.rkhamatyarov.service.mvi.toDelta
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue

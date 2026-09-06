@@ -17,6 +17,7 @@ import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
 import ru.rkhamatyarov.api.v1.request.SpeedRequest
 import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
 import ru.rkhamatyarov.api.v1.response.AiOpponentConfigResponse
+import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
@@ -25,7 +26,6 @@ import ru.rkhamatyarov.service.StateHistory
 import ru.rkhamatyarov.service.createDeterministicPowerUp
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
-import ru.rkhamatyarov.service.mvi.mviStateFromDelta
 import java.util.Base64
 
 @Path("/api/v1/game")
@@ -244,8 +244,7 @@ class GameResource {
                 .status(Response.Status.BAD_REQUEST)
                 .entity(
                     mapOf("error" to "Range must satisfy 0 <= start <= end <= ${StateHistory.MAX_RETENTION_SECONDS}"),
-                )
-                .build()
+                ).build()
         }
 
         val frames =

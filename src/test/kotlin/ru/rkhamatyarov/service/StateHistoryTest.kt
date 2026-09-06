@@ -7,14 +7,14 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
+import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.mvi.PuckTouch
 import ru.rkhamatyarov.service.mvi.TouchLedger
 import ru.rkhamatyarov.service.mvi.TouchSource
-import ru.rkhamatyarov.service.mvi.mviStateFromDelta
-import ru.rkhamatyarov.service.mvi.toDelta
 
 class StateHistoryTest {
     private lateinit var history: StateHistory

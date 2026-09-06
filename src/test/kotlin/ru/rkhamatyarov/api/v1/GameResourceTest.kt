@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
+import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
@@ -16,7 +17,6 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
-import ru.rkhamatyarov.service.mvi.toDelta
 import kotlin.test.assertEquals
 import kotlin.time.Duration.Companion.seconds
 
@@ -119,7 +119,7 @@ class GameResourceTest {
                   "roomId": "$roomId",
                   "enabled": true,
                   "reactionDelayMs": 120,
-                  "aimError": 4.0,
+                  "aimError": 4,
                   "predictionDepth": 2,
                   "aggression": 0.8
                 }

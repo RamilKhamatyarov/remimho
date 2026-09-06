@@ -1,7 +1,20 @@
-package ru.rkhamatyarov.service.mvi
+package ru.rkhamatyarov.mapping.proto
 
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
+import ru.rkhamatyarov.service.mvi.Combo
+import ru.rkhamatyarov.service.mvi.MviActivePowerUp
+import ru.rkhamatyarov.service.mvi.MviGameState
+import ru.rkhamatyarov.service.mvi.MviLine
+import ru.rkhamatyarov.service.mvi.MviPoint
+import ru.rkhamatyarov.service.mvi.MviPowerUp
+import ru.rkhamatyarov.service.mvi.MviPuck
+import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.OneTimerConfig
+import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PuckTouch
+import ru.rkhamatyarov.service.mvi.TouchLedger
+import ru.rkhamatyarov.service.mvi.TouchSource
 
 /** Converts authoritative state to a full protobuf snapshot. */
 fun MviGameState.toDelta(): GameStateDelta {
@@ -26,6 +39,7 @@ fun MviGameState.toDelta(): GameStateDelta {
         .addAllActivePowerUps(activePowerUps.map { it.toProto(logicalNowNs) })
         .addAllTouchLedger(touchLedger.entries.map { it.toProto() })
         .setOneTimerConfig(oneTimerConfig.toProto())
+        .setCombo(combo.toProto())
         .build()
 }
 
@@ -45,6 +59,7 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
         activePowerUps = delta.activePowerUpsList.mapNotNull { it.toDomain(logicalNowNs) },
         touchLedger = delta.toTouchLedger(),
         oneTimerConfig = delta.oneTimerConfigOrDefault(),
+        combo = if (delta.hasCombo()) delta.combo.toDomain() else Combo.DISABLED,
     )
 }
 

@@ -45,10 +45,14 @@ class DslCompiler {
         val errors = mutableListOf<String>()
         config.lines.forEachIndexed { index, line ->
             if (line.x1 == line.x2 && line.y1 == line.y2) errors += "line[$index] must not be zero-length"
-            if (line.x1 !in 0.0..800.0 || line.x2 !in 0.0..800.0) {
+            if (line.x1 !in 0.0..800.0 ||
+                line.x2 !in 0.0..800.0
+            ) {
                 errors += "line[$index] x coordinates must be within canvas"
             }
-            if (line.y1 !in 0.0..600.0 || line.y2 !in 0.0..600.0) {
+            if (line.y1 !in 0.0..600.0 ||
+                line.y2 !in 0.0..600.0
+            ) {
                 errors += "line[$index] y coordinates must be within canvas"
             }
         }

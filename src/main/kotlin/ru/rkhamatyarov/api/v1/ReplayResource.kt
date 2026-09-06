@@ -10,6 +10,7 @@ import jakarta.ws.rs.Produces
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.jboss.logging.Logger
+import ru.rkhamatyarov.mapping.proto.toProto
 import ru.rkhamatyarov.proto.ReplayFile
 import ru.rkhamatyarov.replay.HeadlessReplayImporter
 import ru.rkhamatyarov.replay.ReplayConverter
@@ -52,7 +53,12 @@ class ReplayResource {
                 .setRoomId(roomId)
                 .setStartWallTimeMs(System.currentTimeMillis())
                 .setFrameCount(replayIntents.size)
-                .setOneTimerConfig(
+                .setCombo(
+                    roomRegistry
+                        .get(roomId)
+                        .reliableState.value.combo
+                        .toProto(),
+                ).setOneTimerConfig(
                     ReplayConverter.oneTimerConfigToProto(
                         roomRegistry
                             .get(roomId)

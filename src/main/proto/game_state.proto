@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "combo.proto";
+
 package ru.rkhamatyarov.proto;
 
 option java_multiple_files = true;
@@ -23,6 +25,7 @@ message GameStateDelta {
   optional int64 puck_spin_remaining_ms = 16;
   repeated TouchLedgerEntry touch_ledger = 17;
   optional OneTimerConfig one_timer_config = 18;
+  Combo combo = 19;
 }
 
 message Line {

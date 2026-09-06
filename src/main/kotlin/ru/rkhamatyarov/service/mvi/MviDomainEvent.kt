@@ -6,6 +6,15 @@ enum class PaddleSide {
 }
 
 sealed interface MviDomainEvent {
+    data class GiveAndGoCompleted(
+        val side: PaddleSide,
+    ) : MviDomainEvent
+
+    data class SuperGoalScored(
+        val side: PaddleSide,
+        val chainLength: Int,
+    ) : MviDomainEvent
+
     data class PaddleHit(
         val side: PaddleSide,
     ) : MviDomainEvent

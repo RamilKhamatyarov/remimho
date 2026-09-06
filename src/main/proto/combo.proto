@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package ru.rkhamatyarov.proto;
+
+option java_multiple_files = true;
+
+message Combo {
+    bool enabled = 1;
+    double give_and_go_multiplier = 2;
+    double maximum_raw_speed = 3;
+    int64 give_and_go_window_ns = 4;
+    int32 super_goal_threshold = 5;
+    int64 super_goal_window_ns = 6;
+}

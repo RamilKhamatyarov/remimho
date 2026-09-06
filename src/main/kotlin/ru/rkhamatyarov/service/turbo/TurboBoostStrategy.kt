@@ -45,7 +45,10 @@ class TurboBoostStrategy(
                     addCharge(lastPaddleTouch, elapsedNs)
                 }
 
-                is MviDomainEvent.OneTimerFired -> {
+                is MviDomainEvent.OneTimerFired,
+                is MviDomainEvent.GiveAndGoCompleted,
+                is MviDomainEvent.SuperGoalScored,
+                -> {
                 }
             }
         }
