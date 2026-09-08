@@ -80,13 +80,9 @@ internal object TickReducer {
         val points = if (chainLength > 0) 2 else 1
         if (chainLength > 0) MviDomainEvents.record(MviDomainEvent.SuperGoalScored(side, chainLength))
         val score =
-            when {
-                frame.puck.x - frame.puck.radius <= 0.0 -> state.score.copy(playerB = state.score.playerB + 1)
-                frame.puck.x + frame.puck.radius >= state.canvasWidth ->
-                    state.score.copy(
-                        playerA = state.score.playerA + 1,
-                    )
-                else -> state.score
+            when (side) {
+                PaddleSide.A -> state.score.copy(playerA = state.score.playerA + points)
+                PaddleSide.B -> state.score.copy(playerB = state.score.playerB + points)
             }
 
         return ScoringResult(
