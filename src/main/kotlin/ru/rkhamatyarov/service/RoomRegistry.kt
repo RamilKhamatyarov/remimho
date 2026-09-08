@@ -201,7 +201,6 @@ class GameRoom(
             }
 
             else -> {
-                Unit
             }
         }
     }
