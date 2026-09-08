@@ -11,6 +11,15 @@ sealed interface GameIntent {
 }
 
 sealed interface EphemeralEvent {
+    data class GiveAndGoCompleted(
+        val side: PaddleSide,
+    ) : EphemeralEvent
+
+    data class SuperGoalScored(
+        val side: PaddleSide,
+        val chainLength: Int,
+    ) : EphemeralEvent
+
     data class LineDraft(
         val lineId: String,
         val x: Double,

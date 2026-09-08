@@ -20,7 +20,7 @@ internal object TickReducer {
         frame = PaddlePhysics.resolve(frame, state, effectiveSpeed, elapsedNs)
         frame = resolveLines(frame, state, elapsedNs, effectiveSpeed)
 
-        val scoring = resolveScore(frame, state)
+        val scoring = resolveScore(frame, state, elapsedNs)
         val powerUps = resolvePowerUps(scoring.frame, state, elapsedNs, deltaSeconds, effectiveSpeed)
         return finalize(state, scoring.score, powerUps, deltaSeconds)
     }
@@ -68,17 +68,22 @@ internal object TickReducer {
     private fun resolveScore(
         frame: TickFrame,
         state: MviGameState,
+        elapsedNs: Long,
     ): ScoringResult {
-        val score =
+        val side =
             when {
-                frame.puck.x - frame.puck.radius <= 0.0 -> state.score.copy(playerB = state.score.playerB + 1)
-                frame.puck.x + frame.puck.radius >= state.canvasWidth ->
-                    state.score.copy(
-                        playerA = state.score.playerA + 1,
-                    )
-                else -> state.score
+                frame.puck.x - frame.puck.radius <= 0.0 -> PaddleSide.B
+                frame.puck.x + frame.puck.radius >= state.canvasWidth -> PaddleSide.A
+                else -> return ScoringResult(frame, state.score)
             }
-        if (score == state.score) return ScoringResult(frame, score)
+        val chainLength = ComboMechanics.superGoalChainLength(frame.touchLedger, side, elapsedNs, state.combo)
+        val points = if (chainLength > 0) 2 else 1
+        if (chainLength > 0) MviDomainEvents.record(MviDomainEvent.SuperGoalScored(side, chainLength))
+        val score =
+            when (side) {
+                PaddleSide.A -> state.score.copy(playerA = state.score.playerA + points)
+                PaddleSide.B -> state.score.copy(playerB = state.score.playerB + points)
+            }
 
         return ScoringResult(
             frame =
@@ -157,7 +162,8 @@ internal object TickReducer {
             speedMultiplier = if (result.active.has(PowerUpType.SPEED_BOOST)) SPEED_BOOST_MULTIPLIER else 1.0,
             ghostMode = result.active.has(PowerUpType.GHOST_MODE),
             paddleShield = result.active.has(PowerUpType.PADDLE_SHIELD),
-            touchLedger = result.frame.touchLedger,
+            touchLedger =
+                if (state.combo.enabled && score != state.score) TouchLedger() else result.frame.touchLedger,
         )
 
     private fun MviPowerUp.intersects(puck: MviPuck): Boolean = hypot(puck.x - x, puck.y - y) < radius + puck.radius

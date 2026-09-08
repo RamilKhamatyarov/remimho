@@ -38,6 +38,7 @@ internal object PaddlePhysics {
             effectiveSpeed = effectiveSpeed,
             elapsedNs = elapsedNs,
             config = state.oneTimerConfig,
+            combo = state.combo,
         )
     }
 
@@ -59,6 +60,7 @@ internal object PaddlePhysics {
             effectiveSpeed = effectiveSpeed,
             elapsedNs = elapsedNs,
             config = state.oneTimerConfig,
+            combo = state.combo,
         )
     }
 
@@ -73,6 +75,7 @@ internal object PaddlePhysics {
         effectiveSpeed: Double,
         elapsedNs: Long,
         config: OneTimerConfig,
+        combo: Combo,
     ): TickFrame {
         val incomingSpeed = frame.puck.speed(effectiveSpeed)
         val multiplier = oneTimerMultiplier(frame.touchLedger, side, incomingSpeed, elapsedNs, config)
@@ -86,6 +89,10 @@ internal object PaddlePhysics {
                 x = x,
             )
         outgoing = applyOneTimer(outgoing, side, incomingSpeed, multiplier, elapsedNs, config)
+        if (ComboMechanics.isGiveAndGo(frame.touchLedger, side, elapsedNs, combo)) {
+            outgoing = OneTimerMechanic.apply(outgoing, combo.giveAndGoMultiplier, combo.maximumRawSpeed)
+            MviDomainEvents.record(MviDomainEvent.GiveAndGoCompleted(side))
+        }
         return TickFrame(outgoing, frame.touchLedger.append(paddleTouch(side, elapsedNs, incomingSpeed)))
     }
 

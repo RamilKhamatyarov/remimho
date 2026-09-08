@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import ru.rkhamatyarov.config.ComboSettings
+import ru.rkhamatyarov.service.mvi.Combo
 import ru.rkhamatyarov.service.mvi.EphemeralEvent
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
@@ -42,8 +44,9 @@ class GameRoom(
     private val botController: BotController = BotController(roomId = id),
     private val autoPowerUpsEnabled: Boolean = true,
     private val replayLogCapacity: Int = DEFAULT_REPLAY_LOG_CAPACITY,
+    combo: Combo = Combo(),
 ) {
-    private val mutableReliableState = MutableStateFlow(MviGameState())
+    private val mutableReliableState = MutableStateFlow(MviGameState(combo = combo))
     private val mutableEphemeralEvents =
         MutableSharedFlow<EphemeralEvent>(
             replay = 0,
@@ -133,6 +136,7 @@ class GameRoom(
         mutableReliableState.value = captured.value
         turboBoostStrategy.onEvents(captured.events, elapsedNs)
         captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().forEach(::emitOneTimerFeedback)
+        captured.events.forEach(::emitComboFeedback)
         resetBotControllerAfter(action)
         spawnPowerUpAfterTick(action)
         moveBotAfterTick(action)
@@ -184,6 +188,23 @@ class GameRoom(
         )
     }
 
+    private fun emitComboFeedback(event: MviDomainEvent) {
+        when (event) {
+            is MviDomainEvent.GiveAndGoCompleted -> {
+                emitEphemeral(EphemeralEvent.GiveAndGoCompleted(event.side))
+            }
+
+            is MviDomainEvent.SuperGoalScored -> {
+                emitEphemeral(
+                    EphemeralEvent.SuperGoalScored(event.side, event.chainLength),
+                )
+            }
+
+            else -> {
+            }
+        }
+    }
+
     private fun spawnPowerUpAfterTick(action: GameAction) {
         if (!autoPowerUpsEnabled || action !is GameAction.Tick) return
         val elapsedNs = action.elapsedNs.takeIf { it > 0L } ?: currentElapsedNs()
@@ -221,6 +242,7 @@ class RoomRegistry
     @Inject
     constructor(
         private val monitoredReducer: MonitoredReducer,
+        private val comboSettings: ComboSettings = ComboSettings(),
     ) {
         constructor() : this(MonitoredReducer())
 
@@ -239,6 +261,7 @@ class RoomRegistry
                     mailbox = MonitoredMailbox(),
                     reducer = monitoredReducer.wrap(::reduce),
                     replayLogCapacity = replayLogCapacity,
+                    combo = comboSettings.snapshot(),
                 )
             }
 

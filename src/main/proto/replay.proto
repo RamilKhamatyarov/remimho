@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "combo.proto";
+
 package ru.rkhamatyarov.proto;
 
 option java_multiple_files = true;
@@ -14,6 +16,7 @@ message ReplayFile {
     FullGameSnapshot starting_state = 7;
     repeated ReplayIntent intents = 8;
     SnapshotOneTimerConfig one_timer_config = 9;
+    Combo combo = 10;
 }
 
 message FullGameSnapshot {
@@ -60,6 +63,7 @@ message FullGameSnapshot {
     optional double ai_aggression = 41;
     repeated SnapshotTouchLedgerEntry touch_ledger = 42;
     SnapshotOneTimerConfig one_timer_config = 43;
+    Combo combo = 44;
 }
 
 message SnapshotLine {

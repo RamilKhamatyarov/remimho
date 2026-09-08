@@ -21,6 +21,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.jboss.logging.Logger
+import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
+import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
 import ru.rkhamatyarov.service.RoomRegistry
@@ -31,8 +33,6 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.PaddleSide
-import ru.rkhamatyarov.service.mvi.mviStateFromDelta
-import ru.rkhamatyarov.service.mvi.toDelta
 import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 import java.net.URLDecoder
@@ -132,6 +132,14 @@ class GameWebSocket {
 
                         is EphemeralEvent.OneTimerFired -> {
                             sendOneTimerFired(connection, event)
+                        }
+
+                        is EphemeralEvent.GiveAndGoCompleted -> {
+                            sendComboFeedback(connection, "GIVE_AND_GO_COMPLETED", event.side)
+                        }
+
+                        is EphemeralEvent.SuperGoalScored -> {
+                            sendComboFeedback(connection, "SUPER_GOAL_SCORED", event.side, event.chainLength)
                         }
 
                         else -> {
@@ -609,6 +617,19 @@ class GameWebSocket {
         )
     }
 
+    private fun sendComboFeedback(
+        connection: WebSocketConnection,
+        type: String,
+        side: PaddleSide,
+        chainLength: Int? = null,
+    ) {
+        val payload = mapOf("type" to type, "side" to side.name, "chainLength" to chainLength)
+        connection.sendText(mapper.writeValueAsString(payload)).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send combo feedback to ${connection.id()}: ${t.message}") },
+        )
+    }
+
     private fun sendGhostFrame(
         connection: WebSocketConnection,
         bytes: ByteArray,
@@ -848,9 +869,8 @@ class GameWebSocket {
             .toByteArray()
     }
 
-    private fun connectionSide(connection: WebSocketConnection): PaddleSide {
-        return connectionSides[connection.id()] ?: PaddleSide.B
-    }
+    private fun connectionSide(connection: WebSocketConnection): PaddleSide =
+        connectionSides[connection.id()] ?: PaddleSide.B
 
     private fun sendTurboState(
         connection: WebSocketConnection,

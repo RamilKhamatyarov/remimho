@@ -113,9 +113,15 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                speedConfigBody(1.5, 0.1, 0.03, 4.0),
-            )
-            .`when`()
+                """
+                {
+                  "baseMultiplier": 1.5,
+                  "timeAccelerationRate": 0.1,
+                  "levelAccelerationPerLine": 0.03,
+                  "maxMultiplier": 4
+                }
+                """.trimIndent(),
+            ).`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
             .statusCode(200)
@@ -131,9 +137,15 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                speedConfigBody(2.0, 0.08, 0.01, 5.0),
-            )
-            .`when`()
+                """
+                {
+                  "baseMultiplier": 2,
+                  "timeAccelerationRate": 0.08,
+                  "levelAccelerationPerLine": 0.01,
+                  "maxMultiplier": 5
+                }
+                """.trimIndent(),
+            ).`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
             .statusCode(200)
@@ -150,9 +162,15 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                speedConfigBody(0.0, 0.05, 0.02, 3.0),
-            )
-            .`when`()
+                """
+                {
+                  "baseMultiplier": 0,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3
+                }
+                """.trimIndent(),
+            ).`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
             .statusCode(400)
@@ -164,9 +182,15 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                speedConfigBody(1.0, 2.0, 0.02, 3.0),
-            )
-            .`when`()
+                """
+                {
+                  "baseMultiplier": 1,
+                  "timeAccelerationRate": 2,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3
+                }
+                """.trimIndent(),
+            ).`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
             .statusCode(400)
@@ -178,9 +202,15 @@ class WorkshopResourceTest {
         given()
             .contentType(ContentType.JSON)
             .body(
-                speedConfigBody(1.0, 0.05, 0.02, 0.5),
-            )
-            .`when`()
+                """
+                {
+                  "baseMultiplier": 1,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 0.5
+                }
+                """.trimIndent(),
+            ).`when`()
             .post("/api/v1/workshop/speed-config")
             .then()
             .statusCode(400)
@@ -219,7 +249,7 @@ class WorkshopResourceTest {
                   "roomId": "$roomId",
                   "enabled": true,
                   "reactionDelayMs": 240,
-                  "aimError": 8.0,
+                  "aimError": 8,
                   "predictionDepth": 2,
                   "aggression": 0.75
                 }

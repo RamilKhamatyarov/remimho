@@ -12,6 +12,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { comboMessageRef } from '../composables/useGameSocket'
 import { gameStateRef, oneTimerEffectRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
 import type { GameState, Line, Point } from '../types/game'
 
@@ -92,6 +93,7 @@ function draw(state: GameState) {
   drawPuck(ctx, state, scale)
   drawOneTimerEffect(ctx, state, canvas, scale)
   drawScore(ctx, state, canvas, scale)
+  drawComboMessage(ctx, canvas, scale)
   drawRemoteCursors(ctx, scale)
   drawActivePowerUpEffects(ctx, state, canvas, scale)
   drawHint(ctx, state, canvas, scale)
@@ -266,6 +268,23 @@ function activeOneTimerProgress(): number | null {
   if (!effect) return null
   const progress = (performance.now() - effect.startedAtMs) / ONE_TIMER_EFFECT_MS
   return progress < 1 ? progress : null
+}
+
+function drawComboMessage(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, scale: Point) {
+  const message = comboMessageRef.value
+  if (!message) return
+  const progress = (performance.now() - message.startedAtMs) / 1200
+  if (progress >= 1 || props.timeshiftActive) {
+    comboMessageRef.value = null
+    return
+  }
+  ctx.save()
+  ctx.globalAlpha = 1 - progress
+  ctx.fillStyle = message.side === 'A' ? '#e94560' : '#4ecca3'
+  ctx.font = `bold ${Math.round(18 * Math.min(scale.x, scale.y))}px monospace`
+  ctx.textAlign = 'center'
+  ctx.fillText(message.text, canvas.width / 2, 110 * scale.y, canvas.width - 24)
+  ctx.restore()
 }
 
 function drawScore(ctx: CanvasRenderingContext2D, state: GameState, canvas: HTMLCanvasElement, scale: Point) {

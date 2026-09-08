@@ -1,5 +1,7 @@
 package ru.rkhamatyarov.replay
 
+import ru.rkhamatyarov.mapping.proto.toDomain
+import ru.rkhamatyarov.mapping.proto.toProto
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.model.SpeedConfig
@@ -24,6 +26,7 @@ import ru.rkhamatyarov.proto.SnapshotPoint
 import ru.rkhamatyarov.proto.SnapshotPowerUp
 import ru.rkhamatyarov.proto.SnapshotTouchLedgerEntry
 import ru.rkhamatyarov.proto.TeleportEntry
+import ru.rkhamatyarov.service.mvi.Combo
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviActivePowerUp
@@ -148,8 +151,11 @@ object ReplayConverter {
                         elapsedNs = proto.elapsedNs,
                         playerAControlledByHuman = proto.tick.playerAControlledByHuman,
                         turboSpeedMultiplier =
-                            proto.tick.turboSpeedMultiplier
-                                .takeIf { it > 0.0 } ?: 1.0,
+                            if (proto.tick.turboSpeedMultiplier > 0.0) {
+                                proto.tick.turboSpeedMultiplier
+                            } else {
+                                1.0
+                            },
                     )
                 }
 
@@ -254,6 +260,7 @@ object ReplayConverter {
             .setPaddleShield(state.paddleShield)
             .addAllTouchLedger(state.touchLedger.entries.map { it.toSnapshotProto() })
             .setOneTimerConfig(state.oneTimerConfig.toSnapshotProto())
+            .setCombo(state.combo.toProto())
             .build()
 
     fun snapshotToState(proto: FullGameSnapshot): MviGameState =
@@ -297,11 +304,13 @@ object ReplayConverter {
             paddleShield = proto.paddleShield,
             touchLedger =
                 TouchLedger(
-                    proto.touchLedgerList.mapNotNull {
-                        it.toPuckTouchOrNull()
-                    }.takeLast(TouchLedger.MAX_ENTRIES),
+                    proto.touchLedgerList
+                        .mapNotNull {
+                            it.toPuckTouchOrNull()
+                        }.takeLast(TouchLedger.MAX_ENTRIES),
                 ),
             oneTimerConfig = if (proto.hasOneTimerConfig()) proto.oneTimerConfig.toDomain() else OneTimerConfig(),
+            combo = if (proto.hasCombo()) proto.combo.toDomain() else Combo.DISABLED,
         )
 
     fun oneTimerConfigToProto(config: OneTimerConfig): SnapshotOneTimerConfig = config.toSnapshotProto()
