@@ -3,6 +3,10 @@ package ru.rkhamatyarov.service.mvi
 enum class PaddleSide {
     A,
     B,
+    ;
+
+    /** The side defending the goal that this side scores into. */
+    fun opponent(): PaddleSide = if (this == A) B else A
 }
 
 sealed interface MviDomainEvent {

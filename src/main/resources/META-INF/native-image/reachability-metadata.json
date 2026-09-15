@@ -3485,12 +3485,12 @@
       ]
     },
     {
-      "type": "ru.rkhamatyarov.api.v1.request.WorkshopContentRequest",
+      "type": "ru.rkhamatyarov.api.v1.payload.WorkshopContentRequest",
       "methods": [
         {
           "name": "<init>",
           "parameterTypes": [
-            "ru.rkhamatyarov.api.v1.request.ContentType",
+            "ru.rkhamatyarov.api.v1.payload.ContentType",
             "com.fasterxml.jackson.databind.JsonNode",
             "java.util.Map"
           ]
@@ -3510,10 +3510,10 @@
       ]
     },
     {
-      "type": "ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest"
+      "type": "ru.rkhamatyarov.api.v1.payload.PowerUpSpawnRequest"
     },
     {
-      "type": "ru.rkhamatyarov.api.v1.request.SpeedRequest"
+      "type": "ru.rkhamatyarov.api.v1.payload.SpeedRequest"
     },
     {
       "type": "ru.rkhamatyarov.config.JacksonConfig"

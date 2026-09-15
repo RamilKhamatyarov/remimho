@@ -12,11 +12,11 @@ import jakarta.ws.rs.QueryParam
 import jakarta.ws.rs.core.MediaType
 import jakarta.ws.rs.core.Response
 import org.eclipse.microprofile.config.inject.ConfigProperty
-import ru.rkhamatyarov.api.v1.request.AiOpponentConfigRequest
-import ru.rkhamatyarov.api.v1.request.PowerUpSpawnRequest
-import ru.rkhamatyarov.api.v1.request.SpeedRequest
-import ru.rkhamatyarov.api.v1.request.TimeTravelRequest
-import ru.rkhamatyarov.api.v1.response.AiOpponentConfigResponse
+import ru.rkhamatyarov.api.v1.payload.AiOpponentConfigRequest
+import ru.rkhamatyarov.api.v1.payload.AiOpponentConfigResponse
+import ru.rkhamatyarov.api.v1.payload.PowerUpSpawnRequest
+import ru.rkhamatyarov.api.v1.payload.SpeedRequest
+import ru.rkhamatyarov.api.v1.payload.TimeTravelRequest
 import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
 import ru.rkhamatyarov.model.PowerUpType
 import ru.rkhamatyarov.proto.GameStateDelta
