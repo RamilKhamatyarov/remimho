@@ -16,8 +16,8 @@ internal object TickReducer {
 
         val effectiveSpeed = effectiveSpeed(state, turboSpeedMultiplier)
         var frame = TickFrame(PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed), state.touchLedger)
-        frame = PuckPhysics.resolveWalls(frame, state.canvasHeight, elapsedNs, effectiveSpeed)
         frame = PaddlePhysics.resolve(frame, state, effectiveSpeed, elapsedNs)
+        frame = PuckPhysics.resolveWalls(frame, state.canvasHeight, elapsedNs, effectiveSpeed)
         frame = resolveLines(frame, state, elapsedNs, effectiveSpeed)
 
         val scoring = resolveScore(frame, state, elapsedNs)
@@ -76,6 +76,11 @@ internal object TickReducer {
                 frame.puck.x + frame.puck.radius >= state.canvasWidth -> PaddleSide.A
                 else -> return ScoringResult(frame, state.score)
             }
+        // A paddle that touched the puck this tick has defended it: later stages (line rebound,
+        // teleport) may still have pushed the puck across the goal line, but that is not a goal.
+        if (frame.touchLedger.defendedThisTick(side.opponent(), elapsedNs)) {
+            return ScoringResult(frame, state.score)
+        }
         val chainLength = ComboMechanics.superGoalChainLength(frame.touchLedger, side, elapsedNs, state.combo)
         val points = if (chainLength > 0) 2 else 1
         if (chainLength > 0) MviDomainEvents.record(MviDomainEvent.SuperGoalScored(side, chainLength))
@@ -165,6 +170,12 @@ internal object TickReducer {
             touchLedger =
                 if (state.combo.enabled && score != state.score) TouchLedger() else result.frame.touchLedger,
         )
+
+    /** True when the given paddle registered a touch during this very tick. */
+    private fun TouchLedger.defendedThisTick(
+        side: PaddleSide,
+        elapsedNs: Long,
+    ): Boolean = entries.any { it.source == TouchSource.PADDLE && it.ownerSide == side && it.elapsedNs == elapsedNs }
 
     private fun MviPowerUp.intersects(puck: MviPuck): Boolean = hypot(puck.x - x, puck.y - y) < radius + puck.radius
 

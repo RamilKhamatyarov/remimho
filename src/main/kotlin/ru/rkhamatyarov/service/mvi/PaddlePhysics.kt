@@ -169,7 +169,7 @@ internal object PaddlePhysics {
         horizontalDirection: Double,
         x: Double,
     ): MviPuck {
-        val speed = hypot(puck.vx, puck.vy).coerceAtLeast(MIN_PUCK_SPEED)
+        val speed = ejectionSpeed(puck)
         val angle = bounceAngle(puck, paddleY, paddleHeight, paddleVelocity)
         val spin = (paddleVelocity / PADDLE_SPIN_NORMALIZER).coerceIn(-MAX_SPIN, MAX_SPIN)
         val hasSpin = abs(spin) >= MIN_SPIN
@@ -180,6 +180,12 @@ internal object PaddlePhysics {
             spin = if (hasSpin) spin else 0.0,
             spinRemainingNs = if (hasSpin) SPIN_DURATION_NS else 0L,
         )
+    }
+
+    /** A puck resting on the face carries no usable direction, so it leaves at a playable serve speed. */
+    private fun ejectionSpeed(puck: MviPuck): Double {
+        val incoming = hypot(puck.vx, puck.vy)
+        return if (incoming < MIN_CONTACT_SPEED) MIN_EJECT_SPEED else incoming
     }
 
     private fun bounceAngle(
@@ -195,50 +201,68 @@ internal object PaddlePhysics {
             .coerceIn(-MAX_BOUNCE_ANGLE, MAX_BOUNCE_ANGLE)
     }
 
-    /** Returns the puck at its swept contact point, or null when its path misses the paddle. */
+    /**
+     * Returns the puck at its swept contact point, or null when its path misses the paddle.
+     *
+     * The sweep spans the whole tick, from the puck position before integration to its advanced
+     * position, so no puck can tunnel through the face regardless of speed. A puck that already
+     * sits behind the face still counts as contact unless it is separating, which covers both a
+     * resting puck and one that has partially penetrated the paddle.
+     */
     private fun MviPuck.paddleContact(
         state: MviGameState,
         side: PaddleSide,
     ): MviPuck? {
-        if (!movesToward(side)) return null
+        if (separatingFrom(side)) return null
 
-        val previous = state.puck
-        val paddleFaceX = side.paddleFaceX(state.canvasWidth, radius)
-        val crossedFace = crossesPaddleFace(previous, paddleFaceX, side)
-        if (!crossedFace && !overlapsPaddleFace(state.canvasWidth, side)) return null
+        val faceX = side.paddleFaceX(state.canvasWidth, radius)
+        if (!reachedFace(faceX, side)) return null
 
-        val paddleY = state.paddleY(side)
-        val contactY = if (crossedFace) yAtX(previous, paddleFaceX) else y
-        return copy(
-            x = paddleFaceX,
-            y = contactY,
-        ).takeIf { it.overlapsY(paddleY, state.paddleHeight) }
+        val contactY = reflectIntoField(sweptY(state.puck, faceX), state.canvasHeight)
+        return copy(x = faceX, y = contactY)
+            .takeIf { it.overlapsY(state.paddleY(side), state.paddleHeight) }
     }
 
-    private fun MviPuck.movesToward(side: PaddleSide): Boolean =
+    /** Zero horizontal velocity counts as contact; only a puck actively leaving the face is skipped. */
+    private fun MviPuck.separatingFrom(side: PaddleSide): Boolean =
         when (side) {
-            PaddleSide.A -> vx < 0.0
-            PaddleSide.B -> vx > 0.0
+            PaddleSide.A -> vx > 0.0
+            PaddleSide.B -> vx < 0.0
         }
 
-    private fun MviPuck.crossesPaddleFace(
-        previous: MviPuck,
-        paddleFaceX: Double,
+    private fun MviPuck.reachedFace(
+        faceX: Double,
         side: PaddleSide,
     ): Boolean =
         when (side) {
-            PaddleSide.A -> previous.x >= paddleFaceX && x <= paddleFaceX
-            PaddleSide.B -> previous.x <= paddleFaceX && x >= paddleFaceX
+            PaddleSide.A -> x <= faceX
+            PaddleSide.B -> x >= faceX
         }
 
-    private fun MviPuck.overlapsPaddleFace(
-        canvasWidth: Double,
-        side: PaddleSide,
-    ): Boolean =
-        when (side) {
-            PaddleSide.A -> x - radius <= PADDLE_WIDTH && x + radius >= 0.0
-            PaddleSide.B -> x + radius >= canvasWidth - PADDLE_WIDTH && x - radius <= canvasWidth
-        }
+    /** Puck centre Y where the swept path first meets the paddle face. */
+    private fun MviPuck.sweptY(
+        start: MviPuck,
+        faceX: Double,
+    ): Double {
+        val travelX = x - start.x
+        if (abs(travelX) < MIN_SWEEP_DISTANCE) return y
+
+        val fraction = ((faceX - start.x) / travelX).coerceIn(0.0, 1.0)
+        return start.y + (y - start.y) * fraction
+    }
+
+    /** Mirrors the swept Y back inside the playfield so a same-tick wall rebound still lands on the paddle. */
+    private fun MviPuck.reflectIntoField(
+        candidate: Double,
+        canvasHeight: Double,
+    ): Double {
+        val low = radius
+        val span = canvasHeight - radius - low
+        if (span <= 0.0) return low
+
+        val offset = (candidate - low).mod(2.0 * span)
+        return low + if (offset <= span) offset else 2.0 * span - offset
+    }
 
     private fun PaddleSide.paddleFaceX(
         canvasWidth: Double,
@@ -254,18 +278,6 @@ internal object PaddlePhysics {
             PaddleSide.A -> paddle1Y
             PaddleSide.B -> paddle2Y
         }
-
-    /** Interpolates the puck center Y at a horizontal point along the current tick path. */
-    private fun MviPuck.yAtX(
-        previous: MviPuck,
-        targetX: Double,
-    ): Double {
-        val distanceX = x - previous.x
-        if (abs(distanceX) < MIN_SWEEP_DISTANCE) return y
-
-        val fraction = ((targetX - previous.x) / distanceX).coerceIn(0.0, 1.0)
-        return previous.y + (y - previous.y) * fraction
-    }
 
     private fun MviPuck.overlapsY(
         paddleY: Double,
@@ -294,7 +306,8 @@ internal object PaddlePhysics {
     private const val SPIN_DURATION_NS = 750_000_000L
     private const val WALL_SPIN_RETENTION = 0.75
     private const val MIN_SWEEP_DISTANCE = 1e-9
-    private const val MIN_PUCK_SPEED = 1.0
+    private const val MIN_CONTACT_SPEED = 1.0
+    private const val MIN_EJECT_SPEED = 120.0
     private const val MAX_SPIN = 1.0
     private const val MIN_SPIN = 0.05
 }

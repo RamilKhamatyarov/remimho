@@ -64,11 +64,15 @@ fun reduce(
         }
     }
 
+/**
+ * Accumulates travel since the last tick so several moves inside one frame all reach the physics
+ * step; [TickReducer] zeroes the velocities once the tick has consumed them.
+ */
 private fun MviGameState.movePaddle(action: GameAction.MovePaddle): MviGameState {
     val y = action.y.coerceIn(0.0, canvasHeight - paddleHeight)
     return when (action.side) {
-        PaddleSide.A -> copy(paddle1Y = y, paddle1Velocity = y - paddle1Y)
-        PaddleSide.B -> copy(paddle2Y = y, paddle2Velocity = y - paddle2Y)
+        PaddleSide.A -> copy(paddle1Y = y, paddle1Velocity = paddle1Velocity + (y - paddle1Y))
+        PaddleSide.B -> copy(paddle2Y = y, paddle2Velocity = paddle2Velocity + (y - paddle2Y))
     }
 }
 

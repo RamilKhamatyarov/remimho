@@ -1,4 +1,4 @@
-package ru.rkhamatyarov.api.v1.response
+package ru.rkhamatyarov.api.v1.payload
 
 import ru.rkhamatyarov.config.RuleConfig
 

@@ -1,4 +1,4 @@
-package ru.rkhamatyarov.api.v1.request
+package ru.rkhamatyarov.api.v1.payload
 
 import com.fasterxml.jackson.databind.JsonNode
 
