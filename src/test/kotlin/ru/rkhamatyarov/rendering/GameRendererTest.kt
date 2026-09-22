@@ -5,9 +5,11 @@ import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviPuck
+import ru.rkhamatyarov.service.mvi.MviScore
 import java.awt.Color
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertTrue
 
 class GameRendererTest {
     private val renderer = GameRenderer()
@@ -35,5 +37,36 @@ class GameRendererTest {
 
         assertNotEquals(background, image.getRGB(20, 30), "puck center should be painted at matching coordinates")
         assertNotEquals(background, image.getRGB(40, 40), "line should be painted at matching coordinates")
+    }
+
+    @Test
+    fun `score is drawn as seven-segment digits`() {
+        val background = Color(0x1A, 0x1A, 0x2E).rgb
+        val eight = renderer.render(MviGameState(score = MviScore(playerA = 8)))
+        val zero = renderer.render(MviGameState(score = MviScore(playerA = 0)))
+
+        assertNotEquals(background, eight.getRGB(200, 33), "8 lights the middle segment")
+        assertEquals(background, zero.getRGB(200, 33), "0 leaves the middle segment dark")
+    }
+
+    @Test
+    fun `rendering the same state is byte-identical`() {
+        val state = MviGameState(score = MviScore(playerA = 3, playerB = 12))
+
+        val first = renderer.render(state)
+        val second = renderer.render(state)
+
+        val pixels = { image: java.awt.image.BufferedImage ->
+            image.getRGB(
+                0,
+                0,
+                image.width,
+                image.height,
+                null,
+                0,
+                image.width,
+            )
+        }
+        assertTrue(pixels(first).contentEquals(pixels(second)))
     }
 }
