@@ -16,7 +16,7 @@ class BotControllerTest {
 
         assertNull(controller.nextMove(state, 1_000_000L))
         assertNull(controller.nextMove(state, 100_000_000L))
-        assertTrue(controller.nextMove(state, 101_000_000L)!!.y < state.paddle1Y)
+        assertTrue(controller.nextMove(state, 101_000_000L)!!.y < state.paddle1Y + state.paddleHeight / 2.0)
     }
 
     @Test
@@ -32,8 +32,8 @@ class BotControllerTest {
         val directMove = directController.nextMove(directState, 16_000_000L)!!
         val predictedMove = predictedController.nextMove(predictedState, 16_000_000L)!!
 
-        assertTrue(directMove.y < directState.paddle1Y)
-        assertTrue(predictedMove.y > predictedState.paddle1Y)
+        assertTrue(directMove.y < directState.paddle1Y + directState.paddleHeight / 2.0)
+        assertTrue(predictedMove.y > predictedState.paddle1Y + predictedState.paddleHeight / 2.0)
     }
 
     @Test

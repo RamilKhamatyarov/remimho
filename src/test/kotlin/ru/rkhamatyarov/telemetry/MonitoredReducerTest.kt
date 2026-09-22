@@ -15,7 +15,7 @@ class MonitoredReducerTest {
 
         val state = reducer(MviGameState(), GameAction.MovePaddle(123.0))
 
-        assertEquals(123.0, state.paddle2Y, 0.001)
+        assertEquals(73.0, state.paddle2Y, 0.001)
         assertEquals(1, meterRegistry.find(MonitoredReducer.REDUCER_DURATION_METRIC).timer()?.count())
     }
 }

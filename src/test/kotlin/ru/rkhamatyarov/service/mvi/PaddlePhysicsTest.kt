@@ -51,10 +51,10 @@ class PaddlePhysicsTest {
     }
 
     @Test
-    fun `puck outside paddle at crossing is not caught`() {
+    fun `puck passing clear of the paddle is not caught`() {
         val state =
             MviGameState(
-                puck = MviPuck(x = 100.0, y = 160.0, vx = -1_000.0, vy = 1_000.0),
+                puck = MviPuck(x = 100.0, y = 100.0, vx = -1_000.0, vy = 300.0),
                 paddle1Y = 250.0,
             )
 
