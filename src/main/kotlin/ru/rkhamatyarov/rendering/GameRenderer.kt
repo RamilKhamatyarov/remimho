@@ -3,8 +3,6 @@ package ru.rkhamatyarov.rendering
 import ru.rkhamatyarov.service.mvi.MviGameState
 import java.awt.BasicStroke
 import java.awt.Color
-import java.awt.Font
-import java.awt.FontMetrics
 import java.awt.Graphics2D
 import java.awt.RenderingHints
 import java.awt.geom.Ellipse2D
@@ -116,19 +114,78 @@ class GameRenderer {
         scaleY: Double,
     ) {
         graphics.color = Color(255, 255, 255, 180)
-        graphics.font = Font(Font.MONOSPACED, Font.BOLD, (32 * scaleY).roundToInt().coerceAtLeast(12))
-        val metrics = graphics.fontMetrics
-        drawCenteredText(graphics, state.score.playerA.toString(), width * 0.25, 50.0 * scaleY, metrics)
-        drawCenteredText(graphics, state.score.playerB.toString(), width * 0.75, 50.0 * scaleY, metrics)
+        val digitHeight = (SCORE_DIGIT_HEIGHT * scaleY).roundToInt().coerceAtLeast(MIN_DIGIT_HEIGHT)
+        val top = (SCORE_BASELINE * scaleY).roundToInt() - digitHeight
+        drawCenteredNumber(graphics, state.score.playerA, (width * 0.25).roundToInt(), top, digitHeight)
+        drawCenteredNumber(graphics, state.score.playerB, (width * 0.75).roundToInt(), top, digitHeight)
     }
 
-    private fun drawCenteredText(
+    private fun drawCenteredNumber(
         graphics: Graphics2D,
-        text: String,
-        centerX: Double,
-        baselineY: Double,
-        metrics: FontMetrics,
+        value: Int,
+        centerX: Int,
+        top: Int,
+        digitHeight: Int,
     ) {
-        graphics.drawString(text, (centerX - metrics.stringWidth(text) / 2.0).toFloat(), baselineY.toFloat())
+        val digits = value.coerceAtLeast(0).toString()
+        val digitWidth = (digitHeight * DIGIT_WIDTH_RATIO).roundToInt().coerceAtLeast(3)
+        val spacing = (digitWidth * DIGIT_SPACING_RATIO).roundToInt().coerceAtLeast(1)
+        val totalWidth = digits.length * digitWidth + (digits.length - 1) * spacing
+        var left = centerX - totalWidth / 2
+        for (digit in digits) {
+            drawDigit(graphics, digit - '0', left, top, digitWidth, digitHeight)
+            left += digitWidth + spacing
+        }
+    }
+
+    private fun drawDigit(
+        graphics: Graphics2D,
+        digit: Int,
+        left: Int,
+        top: Int,
+        width: Int,
+        height: Int,
+    ) {
+        val thickness = (height * SEGMENT_THICKNESS_RATIO).roundToInt().coerceAtLeast(1)
+        val half = height / 2
+        val mask = SEGMENT_MASKS[digit]
+        if (mask and SEG_A != 0) graphics.fillRect(left, top, width, thickness)
+        if (mask and SEG_B != 0) graphics.fillRect(left + width - thickness, top, thickness, half)
+        if (mask and SEG_C != 0) graphics.fillRect(left + width - thickness, top + half, thickness, height - half)
+        if (mask and SEG_D != 0) graphics.fillRect(left, top + height - thickness, width, thickness)
+        if (mask and SEG_E != 0) graphics.fillRect(left, top + half, thickness, height - half)
+        if (mask and SEG_F != 0) graphics.fillRect(left, top, thickness, half)
+        if (mask and SEG_G != 0) graphics.fillRect(left, top + half - thickness / 2, width, thickness)
+    }
+
+    private companion object {
+        const val SCORE_DIGIT_HEIGHT = 32.0
+        const val SCORE_BASELINE = 50.0
+        const val MIN_DIGIT_HEIGHT = 12
+        const val DIGIT_WIDTH_RATIO = 0.6
+        const val DIGIT_SPACING_RATIO = 0.35
+        const val SEGMENT_THICKNESS_RATIO = 0.14
+
+        const val SEG_A = 1
+        const val SEG_B = 2
+        const val SEG_C = 4
+        const val SEG_D = 8
+        const val SEG_E = 16
+        const val SEG_F = 32
+        const val SEG_G = 64
+
+        val SEGMENT_MASKS =
+            intArrayOf(
+                SEG_A or SEG_B or SEG_C or SEG_D or SEG_E or SEG_F,
+                SEG_B or SEG_C,
+                SEG_A or SEG_B or SEG_D or SEG_E or SEG_G,
+                SEG_A or SEG_B or SEG_C or SEG_D or SEG_G,
+                SEG_B or SEG_C or SEG_F or SEG_G,
+                SEG_A or SEG_C or SEG_D or SEG_F or SEG_G,
+                SEG_A or SEG_C or SEG_D or SEG_E or SEG_F or SEG_G,
+                SEG_A or SEG_B or SEG_C,
+                SEG_A or SEG_B or SEG_C or SEG_D or SEG_E or SEG_F or SEG_G,
+                SEG_A or SEG_B or SEG_C or SEG_D or SEG_F or SEG_G,
+            )
     }
 }
