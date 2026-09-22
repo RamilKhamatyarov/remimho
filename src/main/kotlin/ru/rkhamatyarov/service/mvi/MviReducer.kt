@@ -65,14 +65,16 @@ fun reduce(
     }
 
 /**
- * Accumulates travel since the last tick so several moves inside one frame all reach the physics
- * step; [TickReducer] zeroes the velocities once the tick has consumed them.
+ * [GameAction.MovePaddle.y] is the requested paddle CENTRE, so a pointer aimed at the puck puts the
+ * middle of the paddle there rather than its top edge. Travel accumulates since the last tick so
+ * several moves inside one frame all reach the physics step; [TickReducer] zeroes the velocities
+ * once the tick has consumed them.
  */
 private fun MviGameState.movePaddle(action: GameAction.MovePaddle): MviGameState {
-    val y = action.y.coerceIn(0.0, canvasHeight - paddleHeight)
+    val top = (action.y - paddleHeight / 2.0).coerceIn(0.0, canvasHeight - paddleHeight)
     return when (action.side) {
-        PaddleSide.A -> copy(paddle1Y = y, paddle1Velocity = paddle1Velocity + (y - paddle1Y))
-        PaddleSide.B -> copy(paddle2Y = y, paddle2Velocity = paddle2Velocity + (y - paddle2Y))
+        PaddleSide.A -> copy(paddle1Y = top, paddle1Velocity = paddle1Velocity + (top - paddle1Y))
+        PaddleSide.B -> copy(paddle2Y = top, paddle2Velocity = paddle2Velocity + (top - paddle2Y))
     }
 }
 

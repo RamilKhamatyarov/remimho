@@ -45,7 +45,7 @@ class MviGameEngineTest {
 
         val next = reduce(state, GameAction.MovePaddle(123.0, PaddleSide.A))
 
-        assertEquals(123.0, next.paddle1Y, 0.0001)
+        assertEquals(73.0, next.paddle1Y, 0.0001)
         assertEquals(state.paddle2Y, next.paddle2Y, 0.0001)
     }
 
@@ -224,7 +224,7 @@ class MviGameEngineTest {
 
             assertTrue(badTickSent)
             assertTrue(moveSent)
-            assertEquals(123.0, engine.state.value.paddle2Y, 0.0001)
+            assertEquals(73.0, engine.state.value.paddle2Y, 0.0001)
             engine.close()
         }
 }

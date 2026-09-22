@@ -63,7 +63,7 @@ object DemoGifGenerator {
         repeat(180) { frame ->
             val elapsedNs = frame * 16_000_000L
             if (frame % 6 == 0) {
-                val paddleY = 250.0 + sin(frame / 24.0 * PI) * 110.0
+                val paddleY = 300.0 + sin(frame / 24.0 * PI) * 110.0
                 intents += GameIntent.Reliable(GameAction.MovePaddle(paddleY, PaddleSide.B))
             }
             intents += GameIntent.Reliable(GameAction.Tick(0.016, elapsedNs))

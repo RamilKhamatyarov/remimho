@@ -4,6 +4,8 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 
 internal object PaddlePhysics {
@@ -15,84 +17,88 @@ internal object PaddlePhysics {
     ): TickFrame {
         if (state.ghostMode) return frame
 
-        var resolved = resolveLeft(frame, state, effectiveSpeed, elapsedNs)
-        resolved = resolveRight(resolved, state, effectiveSpeed, elapsedNs)
+        var resolved = resolveSide(frame, state, PaddleSide.A, effectiveSpeed, elapsedNs)
+        resolved = resolveSide(resolved, state, PaddleSide.B, effectiveSpeed, elapsedNs)
         return resolveShield(resolved, state, effectiveSpeed, elapsedNs)
     }
 
-    private fun resolveLeft(
+    private fun resolveSide(
         frame: TickFrame,
         state: MviGameState,
+        side: PaddleSide,
         effectiveSpeed: Double,
         elapsedNs: Long,
     ): TickFrame {
-        val puck = frame.puck.paddleContact(state, PaddleSide.A) ?: return frame
-        return resolveContact(
-            frame = frame.copy(puck = puck),
-            side = PaddleSide.A,
-            paddleY = state.paddle1Y,
-            paddleHeight = state.paddleHeight,
-            paddleVelocity = state.paddle1Velocity,
-            horizontalDirection = 1.0,
-            x = PADDLE_WIDTH + puck.radius,
-            effectiveSpeed = effectiveSpeed,
-            elapsedNs = elapsedNs,
-            config = state.oneTimerConfig,
-            combo = state.combo,
-        )
+        val impact = frame.puck.paddleImpact(state, side) ?: return frame
+        return when (impact.axis) {
+            ImpactAxis.FACE ->
+                resolveFace(
+                    frame = frame.copy(puck = impact.puck),
+                    side = side,
+                    state = state,
+                    effectiveSpeed = effectiveSpeed,
+                    elapsedNs = elapsedNs,
+                )
+
+            ImpactAxis.EDGE ->
+                resolveEdge(
+                    frame = frame,
+                    impact = impact.puck,
+                    side = side,
+                    state = state,
+                    effectiveSpeed = effectiveSpeed,
+                    elapsedNs = elapsedNs,
+                )
+        }
     }
 
-    private fun resolveRight(
-        frame: TickFrame,
-        state: MviGameState,
-        effectiveSpeed: Double,
-        elapsedNs: Long,
-    ): TickFrame {
-        val puck = frame.puck.paddleContact(state, PaddleSide.B) ?: return frame
-        return resolveContact(
-            frame = frame.copy(puck = puck),
-            side = PaddleSide.B,
-            paddleY = state.paddle2Y,
-            paddleHeight = state.paddleHeight,
-            paddleVelocity = state.paddle2Velocity,
-            horizontalDirection = -1.0,
-            x = state.canvasWidth - PADDLE_WIDTH - puck.radius,
-            effectiveSpeed = effectiveSpeed,
-            elapsedNs = elapsedNs,
-            config = state.oneTimerConfig,
-            combo = state.combo,
-        )
-    }
-
-    private fun resolveContact(
+    private fun resolveFace(
         frame: TickFrame,
         side: PaddleSide,
-        paddleY: Double,
-        paddleHeight: Double,
-        paddleVelocity: Double,
-        horizontalDirection: Double,
-        x: Double,
+        state: MviGameState,
         effectiveSpeed: Double,
         elapsedNs: Long,
-        config: OneTimerConfig,
-        combo: Combo,
     ): TickFrame {
         val incomingSpeed = frame.puck.speed(effectiveSpeed)
+        val config = state.oneTimerConfig
         val multiplier = oneTimerMultiplier(frame.touchLedger, side, incomingSpeed, elapsedNs, config)
         var outgoing =
             redirect(
                 puck = frame.puck,
-                paddleY = paddleY,
-                paddleHeight = paddleHeight,
-                paddleVelocity = paddleVelocity,
-                horizontalDirection = horizontalDirection,
-                x = x,
+                paddleY = state.paddleY(side),
+                paddleHeight = state.paddleHeight,
+                paddleVelocity = state.paddleVelocity(side),
+                horizontalDirection = side.horizontalDirection(),
+                x = side.faceX(state.canvasWidth, frame.puck.radius),
             )
         outgoing = applyOneTimer(outgoing, side, incomingSpeed, multiplier, elapsedNs, config)
-        if (ComboMechanics.isGiveAndGo(frame.touchLedger, side, elapsedNs, combo)) {
-            outgoing = OneTimerMechanic.apply(outgoing, combo.giveAndGoMultiplier, combo.maximumRawSpeed)
+        if (ComboMechanics.isGiveAndGo(frame.touchLedger, side, elapsedNs, state.combo)) {
+            outgoing = OneTimerMechanic.apply(outgoing, state.combo.giveAndGoMultiplier, state.combo.maximumRawSpeed)
             MviDomainEvents.record(MviDomainEvent.GiveAndGoCompleted(side))
         }
+        return TickFrame(outgoing, frame.touchLedger.append(paddleTouch(side, elapsedNs, incomingSpeed)))
+    }
+
+    /** A puck that meets the top or bottom of the paddle rebounds off that edge instead of entering the body. */
+    private fun resolveEdge(
+        frame: TickFrame,
+        impact: MviPuck,
+        side: PaddleSide,
+        state: MviGameState,
+        effectiveSpeed: Double,
+        elapsedNs: Long,
+    ): TickFrame {
+        val incomingSpeed = frame.puck.speed(effectiveSpeed)
+        val paddleY = state.paddleY(side)
+        val fromAbove = impact.y <= paddleY + state.paddleHeight / 2.0
+        val outgoing =
+            impact.copy(
+                y = if (fromAbove) paddleY - impact.radius else paddleY + state.paddleHeight + impact.radius,
+                vy = if (fromAbove) -abs(impact.vy) else abs(impact.vy),
+                spin = 0.0,
+                spinRemainingNs = 0L,
+            )
+        MviDomainEvents.record(MviDomainEvent.PaddleHit(side))
         return TickFrame(outgoing, frame.touchLedger.append(paddleTouch(side, elapsedNs, incomingSpeed)))
     }
 
@@ -202,56 +208,81 @@ internal object PaddlePhysics {
     }
 
     /**
-     * Returns the puck at its swept contact point, or null when its path misses the paddle.
+     * Sweeps the puck against the whole paddle rectangle rather than only its face plane.
      *
-     * The sweep spans the whole tick, from the puck position before integration to its advanced
-     * position, so no puck can tunnel through the face regardless of speed. A puck that already
-     * sits behind the face still counts as contact unless it is separating, which covers both a
-     * resting puck and one that has partially penetrated the paddle.
+     * The rectangle is expanded by the puck radius and the tick travel is clipped against it with
+     * the slab method, so the puck cannot tunnel through the face, clip a corner, or finish a tick
+     * inside the paddle body. The arrival height is mirrored back into the playfield first so a
+     * puck that rebounds off a wall within the same tick is still tested at its true height.
      */
-    private fun MviPuck.paddleContact(
+    private fun MviPuck.paddleImpact(
         state: MviGameState,
         side: PaddleSide,
-    ): MviPuck? {
+    ): PaddleImpact? {
         if (separatingFrom(side)) return null
 
-        val faceX = side.paddleFaceX(state.canvasWidth, radius)
-        if (!reachedFace(faceX, side)) return null
+        val start = state.puck
+        val paddleY = state.paddleY(side)
+        val dx = x - start.x
+        val dy = reflectIntoField(y, state.canvasHeight) - start.y
 
-        val contactY = reflectIntoField(sweptY(state.puck, faceX), state.canvasHeight)
-        return copy(x = faceX, y = contactY)
-            .takeIf { it.overlapsY(state.paddleY(side), state.paddleHeight) }
+        var enter = 0.0
+        var exit = 1.0
+        var axis = ImpactAxis.FACE
+
+        val horizontal =
+            slab(
+                origin = start.x,
+                travel = dx,
+                low = side.minX(state.canvasWidth) - radius,
+                high = side.maxX(state.canvasWidth) + radius,
+            ) ?: return null
+        if (horizontal.near > enter) {
+            enter = horizontal.near
+            axis = ImpactAxis.FACE
+        }
+        exit = min(exit, horizontal.far)
+
+        val vertical =
+            slab(
+                origin = start.y,
+                travel = dy,
+                low = paddleY - radius,
+                high = paddleY + state.paddleHeight + radius,
+            ) ?: return null
+        if (vertical.near > enter) {
+            enter = vertical.near
+            axis = ImpactAxis.EDGE
+        }
+        exit = min(exit, vertical.far)
+
+        if (enter > exit || enter > 1.0) return null
+
+        return PaddleImpact(axis, copy(x = start.x + dx * enter, y = start.y + dy * enter))
     }
 
-    /** Zero horizontal velocity counts as contact; only a puck actively leaving the face is skipped. */
+    /** Clips the travel against one axis of the expanded rectangle, or null when it never overlaps. */
+    private fun slab(
+        origin: Double,
+        travel: Double,
+        low: Double,
+        high: Double,
+    ): Slab? {
+        if (abs(travel) < MIN_SWEEP_DISTANCE) {
+            return if (origin < low || origin > high) null else Slab(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+        }
+
+        val a = (low - origin) / travel
+        val b = (high - origin) / travel
+        return Slab(min(a, b), max(a, b))
+    }
+
     private fun MviPuck.separatingFrom(side: PaddleSide): Boolean =
         when (side) {
             PaddleSide.A -> vx > 0.0
             PaddleSide.B -> vx < 0.0
         }
 
-    private fun MviPuck.reachedFace(
-        faceX: Double,
-        side: PaddleSide,
-    ): Boolean =
-        when (side) {
-            PaddleSide.A -> x <= faceX
-            PaddleSide.B -> x >= faceX
-        }
-
-    /** Puck centre Y where the swept path first meets the paddle face. */
-    private fun MviPuck.sweptY(
-        start: MviPuck,
-        faceX: Double,
-    ): Double {
-        val travelX = x - start.x
-        if (abs(travelX) < MIN_SWEEP_DISTANCE) return y
-
-        val fraction = ((faceX - start.x) / travelX).coerceIn(0.0, 1.0)
-        return start.y + (y - start.y) * fraction
-    }
-
-    /** Mirrors the swept Y back inside the playfield so a same-tick wall rebound still lands on the paddle. */
     private fun MviPuck.reflectIntoField(
         candidate: Double,
         canvasHeight: Double,
@@ -264,7 +295,19 @@ internal object PaddlePhysics {
         return low + if (offset <= span) offset else 2.0 * span - offset
     }
 
-    private fun PaddleSide.paddleFaceX(
+    private fun PaddleSide.minX(canvasWidth: Double): Double =
+        when (this) {
+            PaddleSide.A -> 0.0
+            PaddleSide.B -> canvasWidth - PADDLE_WIDTH
+        }
+
+    private fun PaddleSide.maxX(canvasWidth: Double): Double =
+        when (this) {
+            PaddleSide.A -> PADDLE_WIDTH
+            PaddleSide.B -> canvasWidth
+        }
+
+    private fun PaddleSide.faceX(
         canvasWidth: Double,
         radius: Double,
     ): Double =
@@ -273,16 +316,23 @@ internal object PaddlePhysics {
             PaddleSide.B -> canvasWidth - PADDLE_WIDTH - radius
         }
 
+    private fun PaddleSide.horizontalDirection(): Double =
+        when (this) {
+            PaddleSide.A -> 1.0
+            PaddleSide.B -> -1.0
+        }
+
     private fun MviGameState.paddleY(side: PaddleSide): Double =
         when (side) {
             PaddleSide.A -> paddle1Y
             PaddleSide.B -> paddle2Y
         }
 
-    private fun MviPuck.overlapsY(
-        paddleY: Double,
-        paddleHeight: Double,
-    ): Boolean = y + radius >= paddleY && y - radius <= paddleY + paddleHeight
+    private fun MviGameState.paddleVelocity(side: PaddleSide): Double =
+        when (side) {
+            PaddleSide.A -> paddle1Velocity
+            PaddleSide.B -> paddle2Velocity
+        }
 
     private fun paddleTouch(
         side: PaddleSide,
@@ -296,6 +346,21 @@ internal object PaddlePhysics {
             elapsedNs = elapsedNs,
             speedAtContact = incomingSpeed,
         )
+
+    private enum class ImpactAxis {
+        FACE,
+        EDGE,
+    }
+
+    private data class PaddleImpact(
+        val axis: ImpactAxis,
+        val puck: MviPuck,
+    )
+
+    private data class Slab(
+        val near: Double,
+        val far: Double,
+    )
 
     private const val PADDLE_WIDTH = 20.0
     private const val SHIELD_A_ID = "shield:A"

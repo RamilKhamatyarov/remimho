@@ -79,8 +79,8 @@ class PaddleContactIntegrationTest {
             repeat(RALLY_TICKS) { index ->
                 val current = room.reliableState.value
                 val target =
-                    (current.puck.y - current.paddleHeight / 2.0)
-                        .coerceIn(0.0, current.canvasHeight - current.paddleHeight)
+                    current.puck.y
+                        .coerceIn(current.paddleHeight / 2.0, current.canvasHeight - current.paddleHeight / 2.0)
                 room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(target, PaddleSide.A)))
                 room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(target, PaddleSide.B)))
                 room.dispatch(GameIntent.Reliable(GameAction.Tick(TICK_SECONDS, (index + 1) * TICK_NS)))

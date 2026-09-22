@@ -34,7 +34,7 @@ class GameRoomActorTest {
             room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(150.0)))
             advanceUntilIdle()
 
-            assertEquals(150.0, room.reliableState.value.paddle2Y, 0.001)
+            assertEquals(100.0, room.reliableState.value.paddle2Y, 0.001)
             room.shutdown()
         }
 
@@ -149,7 +149,7 @@ class GameRoomActorTest {
             val oldestLogged = room.getReplayLog().first()
             assertEquals(64, room.getReplayLog().size)
             assertEquals(6.0, (oldestLogged.action as GameAction.MovePaddle).y, 0.001)
-            assertEquals(69.0, room.reliableState.value.paddle2Y, 0.001)
+            assertEquals(19.0, room.reliableState.value.paddle2Y, 0.001)
             room.shutdown()
         }
 
