@@ -93,7 +93,7 @@ internal object TickReducer {
         return ScoringResult(
             frame =
                 TickFrame(
-                    puck = frame.puck.resetForServe(state.canvasWidth, state.canvasHeight),
+                    puck = frame.puck.resetForServe(state.canvasWidth, state.canvasHeight, state.serveSide.opponent()),
                     touchLedger = TouchLedger(),
                 ),
             score = score,
@@ -159,6 +159,7 @@ internal object TickReducer {
         state.copy(
             puck = result.frame.puck,
             score = score,
+            serveSide = if (score != state.score) state.serveSide.opponent() else state.serveSide,
             paddle1Velocity = 0.0,
             paddle2Velocity = 0.0,
             elapsedSeconds = state.elapsedSeconds + deltaSeconds,

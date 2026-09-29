@@ -40,6 +40,7 @@ fun MviGameState.toDelta(): GameStateDelta {
         .addAllTouchLedger(touchLedger.entries.map { it.toProto() })
         .setOneTimerConfig(oneTimerConfig.toProto())
         .setCombo(combo.toProto())
+        .setServeSide(serveSide.name)
         .build()
 }
 
@@ -60,6 +61,7 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
         touchLedger = delta.toTouchLedger(),
         oneTimerConfig = delta.oneTimerConfigOrDefault(),
         combo = if (delta.hasCombo()) delta.combo.toDomain() else Combo.DISABLED,
+        serveSide = delta.serveSide.toPaddleSideOrNull() ?: PaddleSide.B,
     )
 }
 

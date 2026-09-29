@@ -7,6 +7,36 @@ import kotlin.test.assertTrue
 
 class PaddleContactTest {
     @Test
+    fun `opening diagonal is caught by a stationary paddle on either side`() {
+        for (side in PaddleSide.entries) {
+            var state =
+                MviGameState(
+                    puck = MviPuck(vx = if (side == PaddleSide.A) -300.0 else 300.0),
+                    paddle1Y = 500.0,
+                    paddle2Y = 500.0,
+                )
+            repeat(90) { index ->
+                state = reduce(state, GameAction.Tick(0.016, (index + 1) * 16_000_000L))
+                assertEquals(MviScore(), state.score, "opening serve missed stationary paddle $side at tick $index")
+            }
+            assertTrue(state.touchLedger.entries.any { it.source == TouchSource.PADDLE && it.ownerSide == side })
+        }
+    }
+
+    @Test
+    fun `opening diagonal is caught while either paddle tracks the puck`() {
+        for (side in PaddleSide.entries) {
+            var state = MviGameState(puck = MviPuck(vx = if (side == PaddleSide.A) -300.0 else 300.0))
+            repeat(90) { index ->
+                state = reduce(state, GameAction.MovePaddle(state.puck.y, side))
+                state = reduce(state, GameAction.Tick(0.016, (index + 1) * 16_000_000L))
+                assertEquals(MviScore(), state.score, "opening serve missed moving paddle $side at tick $index")
+            }
+            assertTrue(state.touchLedger.entries.any { it.source == TouchSource.PADDLE && it.ownerSide == side })
+        }
+    }
+
+    @Test
     fun `fast puck aimed at the centre of a stationary paddle is deflected`() {
         val state =
             MviGameState(

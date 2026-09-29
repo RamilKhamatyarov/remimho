@@ -166,6 +166,19 @@ tasks.register<Exec>("installFrontend") {
     outputs.dir(frontendDir.dir("node_modules"))
 }
 
+val testFrontend =
+    tasks.register<Exec>("testFrontend") {
+        group = "verification"
+        description = "Runs frontend protocol regression tests"
+        workingDir = frontendDir.asFile
+        commandLine(npmCommand, "test")
+        dependsOn("installFrontend")
+    }
+
+tasks.named("check") {
+    dependsOn(testFrontend)
+}
+
 tasks.register<Sync>("copyFrontend") {
     dependsOn("buildFrontend", "processResources")
     from(frontendDistDir)
@@ -179,6 +192,7 @@ tasks.processResources {
         val tail = rel.removePrefix("META-INF/resources/")
         tail.startsWith("dist/") ||
             tail.startsWith("node_modules/") ||
+            tail.startsWith("test/") ||
             tail.startsWith("src/") ||
             tail == "index.html" ||
             tail == "package.json" ||

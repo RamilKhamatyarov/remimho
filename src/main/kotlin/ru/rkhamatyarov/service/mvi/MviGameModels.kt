@@ -78,6 +78,7 @@ data class MviGameState(
     val touchLedger: TouchLedger = TouchLedger(),
     val oneTimerConfig: OneTimerConfig = OneTimerConfig(),
     val combo: Combo = Combo(),
+    val serveSide: PaddleSide = PaddleSide.B,
 )
 
 private const val NANOS_PER_SECOND = 1_000_000_000L

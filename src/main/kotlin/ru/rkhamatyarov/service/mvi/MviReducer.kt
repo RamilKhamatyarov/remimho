@@ -87,7 +87,10 @@ private fun MviGameState.commitLine(line: MviLine): MviGameState =
 
 private fun MviGameState.resetMatch(): MviGameState =
     copy(
-        puck = puck.resetForServe(canvasWidth, canvasHeight),
+        puck = puck.resetForServe(canvasWidth, canvasHeight, serveSide.opponent()),
+        serveSide = serveSide.opponent(),
+        paddle1Velocity = 0.0,
+        paddle2Velocity = 0.0,
         paused = false,
         lines = emptyList(),
         elapsedSeconds = 0.0,
@@ -99,15 +102,17 @@ private fun MviGameState.resetMatch(): MviGameState =
         touchLedger = TouchLedger(),
     )
 
+/** Alternates the diagonal using reliable serve state, not the last rally's velocity. */
 internal fun MviPuck.resetForServe(
     canvasWidth: Double,
     canvasHeight: Double,
+    side: PaddleSide,
 ): MviPuck =
     copy(
         x = canvasWidth / 2,
         y = canvasHeight / 2,
-        vx = if (vx > 0) DEFAULT_SERVE_VX else -DEFAULT_SERVE_VX,
-        vy = DEFAULT_SERVE_VY,
+        vx = if (side == PaddleSide.B) DEFAULT_SERVE_VX else -DEFAULT_SERVE_VX,
+        vy = if (side == PaddleSide.B) DEFAULT_SERVE_VY else -DEFAULT_SERVE_VY,
         spin = 0.0,
         spinRemainingNs = 0L,
         teleportCooldownUntilNs = 0L,
