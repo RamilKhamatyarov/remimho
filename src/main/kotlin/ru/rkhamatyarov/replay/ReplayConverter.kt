@@ -261,6 +261,7 @@ object ReplayConverter {
             .addAllTouchLedger(state.touchLedger.entries.map { it.toSnapshotProto() })
             .setOneTimerConfig(state.oneTimerConfig.toSnapshotProto())
             .setCombo(state.combo.toProto())
+            .setServeSide(state.serveSide.name)
             .build()
 
     fun snapshotToState(proto: FullGameSnapshot): MviGameState =
@@ -311,6 +312,7 @@ object ReplayConverter {
                 ),
             oneTimerConfig = if (proto.hasOneTimerConfig()) proto.oneTimerConfig.toDomain() else OneTimerConfig(),
             combo = if (proto.hasCombo()) proto.combo.toDomain() else Combo.DISABLED,
+            serveSide = PaddleSide.entries.firstOrNull { it.name == proto.serveSide } ?: PaddleSide.B,
         )
 
     fun oneTimerConfigToProto(config: OneTimerConfig): SnapshotOneTimerConfig = config.toSnapshotProto()

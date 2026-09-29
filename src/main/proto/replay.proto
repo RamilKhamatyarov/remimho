@@ -64,6 +64,7 @@ message FullGameSnapshot {
     repeated SnapshotTouchLedgerEntry touch_ledger = 42;
     SnapshotOneTimerConfig one_timer_config = 43;
     Combo combo = 44;
+    optional string serve_side = 45;
 }
 
 message SnapshotLine {

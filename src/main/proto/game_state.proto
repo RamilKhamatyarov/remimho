@@ -26,6 +26,7 @@ message GameStateDelta {
   repeated TouchLedgerEntry touch_ledger = 17;
   optional OneTimerConfig one_timer_config = 18;
   Combo combo = 19;
+  optional string serve_side = 20;
 }
 
 message Line {

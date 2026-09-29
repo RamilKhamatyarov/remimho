@@ -13,11 +13,34 @@ import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.TouchSource
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class PaddleContactIntegrationTest {
+    @Test
+    fun `room catches opening human serve and bot return without conceding`() =
+        runTest {
+            val room = testRoom()
+            try {
+                room.registerHumanSide(PaddleSide.B)
+                repeat(350) { index ->
+                    val state = room.reliableState.value
+                    room.dispatch(GameIntent.Reliable(GameAction.MovePaddle(state.puck.y, PaddleSide.B)))
+                    room.dispatch(GameIntent.Reliable(GameAction.Tick(0.016, (index + 1) * 16_000_000L)))
+                    advanceUntilIdle()
+                    assertEquals(MviScore(), room.reliableState.value.score, "unexpected opening goal at tick $index")
+                }
+                val contacts = room.reliableState.value.touchLedger.entries
+                for (side in PaddleSide.entries) {
+                    assertTrue(contacts.any { it.source == TouchSource.PADDLE && it.ownerSide == side })
+                }
+            } finally {
+                room.shutdown()
+            }
+        }
+
     @Test
     fun `fast puck at the paddle centre is deflected without conceding`() =
         runTest {
