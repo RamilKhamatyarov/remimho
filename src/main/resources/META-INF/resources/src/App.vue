@@ -56,6 +56,9 @@
         {{ eraserMode ? '✏️ Eraser ON' : '✏️ Eraser' }}
       </button>
       <button class="btn-workshop" @click="workshopOpen = true">🔧 Workshop</button>
+      <button class="btn-combinations" :disabled="!connected || isRewinding" @click="combinationsOpen = true">
+        <Route :size="17" /> Combinations
+      </button>
       <button class="btn-turbo" :disabled="!turboReady || isRewinding" @click="activateTurbo">
         Turbo {{ turboLabel }}
       </button>
@@ -73,6 +76,7 @@
       :game-lines="gameState?.lines ?? []"
       @close="workshopOpen = false"
     />
+    <CombinationsModal v-if="combinationsOpen" @close="combinationsOpen = false" />
   </div>
 </template>
 
@@ -81,6 +85,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import GameCanvas from './components/GameCanvas.vue';
 import Lobby from './components/Lobby.vue';
 import WorkshopModal from './components/WorkshopModal.vue';
+import CombinationsModal from './components/CombinationsModal.vue';
+import { Route } from '@lucide/vue';
 import { setSocketRoom, useGameSocket } from './composables/useGameSocket';
 import { useRoomStore } from './stores/roomStore';
 
@@ -94,6 +100,7 @@ const {
 const { roomId, joinRoom: setRoom } = useRoomStore();
 
 function joinRoom(nextRoomId: string): void {
+  combinationsOpen.value = false;
   setRoom(nextRoomId);
   setSocketRoom(nextRoomId);
   goLive();
@@ -183,6 +190,7 @@ function movePaddleIfLive(y: number) {
 }
 
 function handleHotkey(e: KeyboardEvent) {
+  if (combinationsOpen.value || workshopOpen.value) return;
   const target = e.target as HTMLElement | null;
   const tag = target?.tagName?.toLowerCase();
   if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
@@ -248,6 +256,7 @@ onUnmounted(() => {
 });
 
 const workshopOpen = ref(false);
+const combinationsOpen = ref(false);
 </script>
 
 <style>
@@ -306,6 +315,7 @@ button:hover { background: #e94560; }
 .btn-clear:hover  { background: #f0a500; color: #000; }
 
 .btn-workshop       { border-color: #4ecca3; }
+.btn-combinations { display: inline-flex; align-items: center; gap: 7px; border-color: #64d9b0; }
 .btn-workshop:hover { background: #4ecca3; color: #000; }
 
 .btn-eraser         { border-color: #b388ff; }

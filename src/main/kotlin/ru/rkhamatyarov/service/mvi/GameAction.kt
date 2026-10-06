@@ -35,6 +35,12 @@ sealed interface GameAction {
 
     data object ClearLines : GameAction
 
+    /** Replaces one player's preset and pauses atomically; empty lines disable it. */
+    data class ApplyCombination(
+        val side: PaddleSide,
+        val lines: List<MviLine>,
+    ) : GameAction
+
     data class RestoreSnapshot(
         val state: MviGameState,
     ) : GameAction

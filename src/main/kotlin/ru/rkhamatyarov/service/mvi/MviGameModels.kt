@@ -31,6 +31,7 @@ data class MviLine(
     val points: List<MviPoint>,
     val width: Double = 5.0,
     val ownerSide: PaddleSide? = null,
+    val combinationId: String? = null,
 )
 
 data class MviPowerUp(

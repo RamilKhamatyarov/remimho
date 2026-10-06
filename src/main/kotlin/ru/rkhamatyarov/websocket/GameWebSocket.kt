@@ -21,8 +21,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.jboss.logging.Logger
+import ru.rkhamatyarov.api.v1.payload.CombinationRequest
 import ru.rkhamatyarov.mapping.proto.mviStateFromDelta
 import ru.rkhamatyarov.mapping.proto.toDelta
+import ru.rkhamatyarov.mapping.toAction
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.GameRoom
 import ru.rkhamatyarov.service.RoomRegistry
@@ -255,6 +257,10 @@ class GameWebSocket {
                 handleClearLines(connection)
             }
 
+            "APPLY_COMBINATION" -> {
+                handleCombination(data, connection)
+            }
+
             "START_LINE" -> {
                 handleStartLine(data, connection)
             }
@@ -363,6 +369,32 @@ class GameWebSocket {
 
     private fun handleClearLines(connection: WebSocketConnection) {
         roomRegistry.get(roomId(connection)).dispatch(GameIntent.Reliable(GameAction.ClearLines))
+    }
+
+    private fun handleCombination(
+        data: Map<*, *>,
+        connection: WebSocketConnection,
+    ) {
+        if (connection.id() in timeshiftSessions) {
+            sendError(connection, "Return to live play before changing a combination")
+            return
+        }
+        val room = roomRegistry.get(roomId(connection))
+        val action =
+            try {
+                mapper.convertValue(data, CombinationRequest::class.java)
+                    .toAction(connectionSide(connection), room.reliableState.value, UUID.randomUUID().toString())
+            } catch (error: IllegalArgumentException) {
+                log.debugf("Rejected combination in room %s: %s", room.id, error.message)
+                sendError(connection, error.message ?: "Invalid combination")
+                return
+            }
+        if (!room.dispatch(GameIntent.Reliable(action))) {
+            sendError(connection, "Room is busy; retry applying the combination")
+            return
+        }
+        pauseAnchorNsByRoom.putIfAbsent(room.id, System.nanoTime())
+        connection.sendTextAndAwait(mapper.writeValueAsString(mapOf("type" to "COMBINATION_ACCEPTED")))
     }
 
     private fun handleStartLine(
@@ -741,6 +773,7 @@ class GameWebSocket {
         prev: GameStateDelta,
         curr: GameStateDelta,
     ): GameStateDelta {
+        if (curr.linesList != prev.linesList) return curr
         val b = GameStateDelta.newBuilder()
         if (curr.puckX != prev.puckX) b.puckX = curr.puckX
         if (curr.puckY != prev.puckY) b.puckY = curr.puckY

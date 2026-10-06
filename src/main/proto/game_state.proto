@@ -36,6 +36,7 @@ message Line {
   bool is_animating = 4;
   string id = 5;
   optional string owner_side = 6;
+  optional string combination_id = 7;
 }
 
 message Point {

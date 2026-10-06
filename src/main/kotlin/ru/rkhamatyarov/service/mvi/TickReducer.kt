@@ -15,9 +15,13 @@ internal object TickReducer {
         if (state.paused || deltaSeconds <= 0.0) return state
 
         val effectiveSpeed = effectiveSpeed(state, turboSpeedMultiplier)
-        var frame = TickFrame(PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed), state.touchLedger)
-        frame = PaddlePhysics.resolve(frame, state, effectiveSpeed, elapsedNs)
-        frame = PuckPhysics.resolveWalls(frame, state.canvasHeight, elapsedNs, effectiveSpeed)
+        var frame =
+            BoundaryPhysics.resolve(
+                state = state,
+                advanced = PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed),
+                effectiveSpeed = effectiveSpeed,
+                elapsedNs = elapsedNs,
+            )
         frame = resolveLines(frame, state, elapsedNs, effectiveSpeed)
 
         val scoring = resolveScore(frame, state, elapsedNs)
@@ -76,8 +80,6 @@ internal object TickReducer {
                 frame.puck.x + frame.puck.radius >= state.canvasWidth -> PaddleSide.A
                 else -> return ScoringResult(frame, state.score)
             }
-        // A paddle that touched the puck this tick has defended it: later stages (line rebound,
-        // teleport) may still have pushed the puck across the goal line, but that is not a goal.
         if (frame.touchLedger.defendedThisTick(side.opponent(), elapsedNs)) {
             return ScoringResult(frame, state.score)
         }

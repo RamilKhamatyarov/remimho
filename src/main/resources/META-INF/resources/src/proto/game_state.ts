@@ -53,6 +53,7 @@ function readLine(buf: Uint8Array) {
   const r = new ProtoReader(buf);
   const points: { x: number; y: number }[] = [];
   let width = 3, animationProgress = 0, isAnimating = false, id = '';
+  let ownerSide: string | undefined, combinationId: string | undefined;
   while (!r.done) {
     const tag = r.varint(), f = tag >>> 3, w = tag & 7;
     if      (f === 1 && w === 2) points.push(readPoint(r.bytes_field()));
@@ -60,9 +61,14 @@ function readLine(buf: Uint8Array) {
     else if (f === 3 && w === 1) animationProgress = r.f64();
     else if (f === 4 && w === 0) isAnimating = r.varint() !== 0;
     else if (f === 5 && w === 2) id = r.str();
+    else if (f === 6 && w === 2) ownerSide = r.str();
+    else if (f === 7 && w === 2) combinationId = r.str();
     else r.skip(w);
   }
-  return { id, controlPoints: points, flattenedPoints: points.length > 1 ? points : null, width, animationProgress, isAnimating };
+  return {
+    id, ownerSide, combinationId, controlPoints: points,
+    flattenedPoints: points.length > 1 ? points : null, width, animationProgress, isAnimating,
+  };
 }
 
 function readPowerUp(buf: Uint8Array) {

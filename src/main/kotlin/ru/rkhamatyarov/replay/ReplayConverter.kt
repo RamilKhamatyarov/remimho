@@ -8,6 +8,7 @@ import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.FullGameSnapshot
 import ru.rkhamatyarov.proto.ReplayActivateTurbo
 import ru.rkhamatyarov.proto.ReplayApplyAiConfig
+import ru.rkhamatyarov.proto.ReplayApplyCombination
 import ru.rkhamatyarov.proto.ReplayApplySpeedConfig
 import ru.rkhamatyarov.proto.ReplayApplyTeleports
 import ru.rkhamatyarov.proto.ReplayClearLines
@@ -90,6 +91,14 @@ object ReplayConverter {
 
             GameAction.ClearLines -> {
                 builder.clearLines = ReplayClearLines.getDefaultInstance()
+            }
+
+            is GameAction.ApplyCombination -> {
+                builder.applyCombination =
+                    ReplayApplyCombination.newBuilder()
+                        .setSide(action.side.name)
+                        .addAllLines(action.lines.map { it.toSnapshotProto() })
+                        .build()
             }
 
             is GameAction.RestoreSnapshot -> {
@@ -181,6 +190,13 @@ object ReplayConverter {
 
                 ReplayIntent.PayloadCase.CLEAR_LINES -> {
                     GameAction.ClearLines
+                }
+
+                ReplayIntent.PayloadCase.APPLY_COMBINATION -> {
+                    GameAction.ApplyCombination(
+                        side = proto.applyCombination.side.toPaddleSide(),
+                        lines = proto.applyCombination.linesList.map { it.toMviLine() },
+                    )
                 }
 
                 ReplayIntent.PayloadCase.ACTIVATE_TURBO -> {
@@ -404,6 +420,7 @@ object ReplayConverter {
                     },
                 )
         ownerSide?.let { builder.ownerSide = it.name }
+        combinationId?.let { builder.combinationId = it }
         return builder.build()
     }
 
@@ -423,6 +440,7 @@ object ReplayConverter {
                     },
                 )
         ownerSide?.let { builder.ownerSide = it.name }
+        combinationId?.let { builder.combinationId = it }
         return builder.build()
     }
 
@@ -432,6 +450,7 @@ object ReplayConverter {
             points = pointsList.map { MviPoint(it.x, it.y) },
             width = width,
             ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSide(),
+            combinationId = combinationId.takeIf { hasCombinationId() },
         )
 
     private fun ReplayCommitLine.toMviLine(): MviLine =
@@ -440,6 +459,7 @@ object ReplayConverter {
             points = pointsList.map { MviPoint(it.x, it.y) },
             width = width,
             ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSide(),
+            combinationId = combinationId.takeIf { hasCombinationId() },
         )
 
     private fun PuckTouch.toSnapshotProto(): SnapshotTouchLedgerEntry {

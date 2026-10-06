@@ -31,6 +31,7 @@ import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 import ru.rkhamatyarov.telemetry.MonitoredMailbox
 import ru.rkhamatyarov.telemetry.MonitoredReducer
+import ru.rkhamatyarov.telemetry.PaddleDiagnostics
 import java.util.concurrent.ConcurrentHashMap
 
 class GameRoom(
@@ -132,7 +133,9 @@ class GameRoom(
         turboBoostStrategy.onAction(action, elapsedNs)
         appendReplayIntent(effectiveIntent)
 
-        val captured = MviDomainEvents.capture { reducer(mutableReliableState.value, action) }
+        val before = mutableReliableState.value
+        val captured = MviDomainEvents.capture { reducer(before, action) }
+        PaddleDiagnostics.record(id, before, captured.value, action)
         mutableReliableState.value = captured.value
         turboBoostStrategy.onEvents(captured.events, elapsedNs)
         captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().forEach(::emitOneTimerFeedback)

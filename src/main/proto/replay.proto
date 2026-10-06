@@ -72,6 +72,7 @@ message SnapshotLine {
     repeated SnapshotPoint points = 2;
     double width = 3;
     optional string owner_side = 4;
+    optional string combination_id = 5;
 }
 
 message SnapshotPoint {
@@ -139,6 +140,7 @@ message ReplayIntent {
         ReplayApplySpeedConfig apply_speed_config = 11;
         ReplayApplyAiConfig apply_ai_config = 12;
         ReplayActivateTurbo activate_turbo = 13;
+        ReplayApplyCombination apply_combination = 14;
     }
 }
 
@@ -168,6 +170,12 @@ message ReplayCommitLine {
     repeated SnapshotPoint points = 2;
     double width = 3;
     optional string owner_side = 4;
+    optional string combination_id = 5;
+}
+
+message ReplayApplyCombination {
+    string side = 1;
+    repeated SnapshotLine lines = 2;
 }
 
 message ReplayEraseLine {

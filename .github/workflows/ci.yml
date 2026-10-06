@@ -129,7 +129,10 @@ jobs:
         run: |
           if ! git diff --quiet -- docs/demo.gif src/test/resources/demo.replay; then
             git status --short -- docs/demo.gif src/test/resources/demo.replay
-            echo "::error file=docs/demo.gif::docs/demo.gif is out of date. Run './gradlew generateDemoGif' with JDK 21 and commit docs/demo.gif and src/test/resources/demo.replay."
+            echo "committed: $(git show HEAD:docs/demo.gif | sha256sum | cut -c1-12)"
+            echo "rendered : $(sha256sum docs/demo.gif | cut -c1-12)"
+            echo "If 'rendered' matches your local ./gradlew build output, the GIF was simply not committed."
+            echo "::error file=docs/demo.gif::docs/demo.gif is out of date. Run './gradlew build' (or generateDemoGif) locally with JDK 21 and commit docs/demo.gif and src/test/resources/demo.replay."
             exit 1
           fi
 
