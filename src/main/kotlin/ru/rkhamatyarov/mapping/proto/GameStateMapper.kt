@@ -109,6 +109,7 @@ private fun ru.rkhamatyarov.proto.Line.toDomain(): MviLine =
         points = pointsList.map { MviPoint(it.x, it.y) },
         width = width,
         ownerSide = ownerSide.takeIf { hasOwnerSide() }?.toPaddleSideOrNull(),
+        combinationId = combinationId.takeIf { hasCombinationId() },
     )
 
 private fun ru.rkhamatyarov.proto.PowerUp.toDomain(logicalNowNs: Long): MviPowerUp? =
@@ -163,6 +164,7 @@ private fun MviLine.toProto(): ru.rkhamatyarov.proto.Line {
             .setIsAnimating(false)
             .addAllPoints(points.map { it.toProto() })
     ownerSide?.let { builder.ownerSide = it.name }
+    combinationId?.let { builder.combinationId = it }
     return builder.build()
 }
 

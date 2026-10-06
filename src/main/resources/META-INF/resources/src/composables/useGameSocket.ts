@@ -10,6 +10,7 @@ export const turboStateRef: Ref<TurboHudState> = ref<TurboHudState>({ states: []
 export const remoteCursorsRef: Ref<RemoteCursor[]> = ref<RemoteCursor[]>([])
 export const oneTimerEffectRef: Ref<OneTimerEffect | null> = ref<OneTimerEffect | null>(null)
 export const comboMessageRef = ref<{ text: string; side: PaddleSide; startedAtMs: number } | null>(null)
+export const combinationResultRef = ref<{ ok: boolean; message: string } | null>(null)
 
 const JSON_FALLBACK_ENABLED = true
 const DEFAULT_ROOM_ID = 'default'
@@ -154,7 +155,12 @@ function applyJsonMessage(message: string) {
   try {
     const data = JSON.parse(message) as Record<string, unknown>
     if (isServerError(data)) {
+      combinationResultRef.value = { ok: false, message: String(data['message'] ?? 'Command rejected') }
       console.warn('[WS] Server error:', data['message'])
+      return
+    }
+    if (data['type'] === 'COMBINATION_ACCEPTED') {
+      combinationResultRef.value = { ok: true, message: 'Combination accepted' }
       return
     }
     if (isTurboState(data)) {
@@ -369,7 +375,9 @@ export function useGameSocket() {
   function send(type: string, data: Record<string, unknown> = {}) {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type, data }))
+      return true
     }
+    return false
   }
 
   const movePaddle = (y: number) => send('MOVE_PADDLE', { y })

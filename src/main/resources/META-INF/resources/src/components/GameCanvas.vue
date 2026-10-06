@@ -26,14 +26,8 @@ const localCursor = ref<Point | null>(null)
 
 const PADDLE_WIDTH = 20
 const ERASE_HIT_RADIUS = 12
-const PUCK_LERP = 0.35
-const PUCK_SNAP_DISTANCE = 60
-const DEFAULT_PUCK_X = 400
-const DEFAULT_PUCK_Y = 300
 const ONE_TIMER_EFFECT_MS = 500
 
-let smoothPuckX = DEFAULT_PUCK_X
-let smoothPuckY = DEFAULT_PUCK_Y
 let animationFrameId = 0
 
 const cursorStyle = computed(() => {
@@ -52,23 +46,9 @@ onUnmounted(() => {
 function renderLoop() {
   const state = gameStateRef.value
   if (state) {
-    updateSmoothPuck(state)
     draw(state)
   }
   animationFrameId = requestAnimationFrame(renderLoop)
-}
-
-function updateSmoothPuck(state: GameState) {
-  const dx = state.puck.x - smoothPuckX
-  const dy = state.puck.y - smoothPuckY
-  if (Math.abs(dx) > PUCK_SNAP_DISTANCE || Math.abs(dy) > PUCK_SNAP_DISTANCE) {
-    smoothPuckX = state.puck.x
-    smoothPuckY = state.puck.y
-    return
-  }
-
-  smoothPuckX += dx * PUCK_LERP
-  smoothPuckY += dy * PUCK_LERP
 }
 
 function draw(state: GameState) {
@@ -202,8 +182,8 @@ function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point)
   }
   ctx.beginPath()
   ctx.arc(
-    smoothPuckX * scale.x,
-    smoothPuckY * scale.y,
+    state.puck.x * scale.x,
+    state.puck.y * scale.y,
     state.puck.radius * Math.min(scale.x, scale.y),
     0,
     Math.PI * 2,
@@ -215,7 +195,9 @@ function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point)
     ctx.strokeStyle = state.puck.spin > 0 ? '#f0a500' : '#4ecca3'
     ctx.lineWidth = 2 * Math.min(scale.x, scale.y)
     ctx.beginPath()
-    ctx.arc(smoothPuckX * scale.x, smoothPuckY * scale.y, radius, state.puck.spin > 0 ? 0.2 : Math.PI + 0.2, state.puck.spin > 0 ? Math.PI * 1.45 : Math.PI * 2.45)
+    ctx.arc(state.puck.x * scale.x, state.puck.y * scale.y, radius,
+      state.puck.spin > 0 ? 0.2 : Math.PI + 0.2,
+      state.puck.spin > 0 ? Math.PI * 1.45 : Math.PI * 2.45)
     ctx.stroke()
   }
   ctx.restore()
@@ -246,8 +228,8 @@ function drawOneTimerEffect(ctx: CanvasRenderingContext2D, state: GameState, can
     const distance = index * 16 * unit
     ctx.beginPath()
     ctx.arc(
-      smoothPuckX * scale.x - directionX * distance,
-      smoothPuckY * scale.y - directionY * distance,
+      state.puck.x * scale.x - directionX * distance,
+      state.puck.y * scale.y - directionY * distance,
       state.puck.radius * unit * (1 - index * 0.14),
       0,
       Math.PI * 2,

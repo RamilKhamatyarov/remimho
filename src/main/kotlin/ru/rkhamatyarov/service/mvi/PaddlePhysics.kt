@@ -207,14 +207,7 @@ internal object PaddlePhysics {
             .coerceIn(-MAX_BOUNCE_ANGLE, MAX_BOUNCE_ANGLE)
     }
 
-    /**
-     * Sweeps the puck against the whole paddle rectangle rather than only its face plane.
-     *
-     * The rectangle is expanded by the puck radius and the tick travel is clipped against it with
-     * the slab method, so the puck cannot tunnel through the face, clip a corner, or finish a tick
-     * inside the paddle body. The arrival height is mirrored back into the playfield first so a
-     * puck that rebounds off a wall within the same tick is still tested at its true height.
-     */
+    /** Clips one straight travel segment against the radius-expanded paddle rectangle. */
     private fun MviPuck.paddleImpact(
         state: MviGameState,
         side: PaddleSide,
@@ -224,7 +217,7 @@ internal object PaddlePhysics {
         val start = state.puck
         val paddleY = state.paddleY(side)
         val dx = x - start.x
-        val dy = reflectIntoField(y, state.canvasHeight) - start.y
+        val dy = y - start.y
 
         var enter = 0.0
         var exit = 1.0
@@ -282,18 +275,6 @@ internal object PaddlePhysics {
             PaddleSide.A -> vx > 0.0
             PaddleSide.B -> vx < 0.0
         }
-
-    private fun MviPuck.reflectIntoField(
-        candidate: Double,
-        canvasHeight: Double,
-    ): Double {
-        val low = radius
-        val span = canvasHeight - radius - low
-        if (span <= 0.0) return low
-
-        val offset = (candidate - low).mod(2.0 * span)
-        return low + if (offset <= span) offset else 2.0 * span - offset
-    }
 
     private fun PaddleSide.minX(canvasWidth: Double): Double =
         when (this) {

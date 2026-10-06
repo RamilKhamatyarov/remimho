@@ -57,3 +57,16 @@ test('decodes an opening snapshot followed by a paddle contact snapshot', () => 
     assert.deepEqual(decode(packet), { puckX: x, puckY: 546, paddle1Y: 440, paddle2Y: 500 });
   }
 });
+
+test('preserves line ownership and preset grouping for saved layouts', () => {
+  const line = Buffer.concat([
+    message(5, Buffer.from('line-1')),
+    message(6, Buffer.from('B')),
+    message(7, Buffer.from('triangle')),
+    message(1, Buffer.concat([double(1, 500), double(2, 200)])),
+  ]);
+  const decoded = decode(message(10, line)).lines[0];
+  assert.equal(decoded.ownerSide, 'B');
+  assert.equal(decoded.combinationId, 'triangle');
+  assert.deepEqual(decoded.controlPoints, [{ x: 500, y: 200 }]);
+});

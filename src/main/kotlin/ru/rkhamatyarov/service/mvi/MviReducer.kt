@@ -43,6 +43,10 @@ fun reduce(
             state.copy(lines = emptyList())
         }
 
+        is GameAction.ApplyCombination -> {
+            state.applyCombination(action)
+        }
+
         is GameAction.RestoreSnapshot -> {
             action.state
         }
@@ -84,6 +88,22 @@ private fun MviGameState.commitLine(line: MviLine): MviGameState =
     } else {
         copy(lines = lines.filterNot { it.id == line.id } + line)
     }
+
+/** Keeps unrelated lines intact, including freehand geometry captured in a saved preset. */
+private fun MviGameState.applyCombination(action: GameAction.ApplyCombination): MviGameState {
+    val retained = lines.filterNot { it.ownerSide == action.side && it.combinationId != null }
+    val additions =
+        action.lines.filterNot { candidate ->
+            retained.any { it.ownerSide == action.side && it.points == candidate.points && it.width == candidate.width }
+        }
+    val nextLines = retained + additions
+    val ids = nextLines.mapTo(mutableSetOf()) { it.id }
+    return copy(
+        paused = true,
+        lines = nextLines,
+        teleports = teleports.filter { (entry, exit) -> entry in ids && exit in ids },
+    )
+}
 
 private fun MviGameState.resetMatch(): MviGameState =
     copy(

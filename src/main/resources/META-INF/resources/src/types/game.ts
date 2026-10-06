@@ -7,6 +7,8 @@ export interface RemoteCursor { playerId: string; x: number; y: number; lastSeen
 export interface OneTimerEffect { side: PaddleSide; incomingSpeed: number; multiplier: number; startedAtMs: number }
 export interface Line {
   id: string
+  ownerSide?: PaddleSide
+  combinationId?: string
   controlPoints: Point[]
   flattenedPoints: Point[] | null
   width: number
