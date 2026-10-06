@@ -133,6 +133,13 @@ tasks.register<GenerateDemoGifTask>("generateDemoGif") {
     classpath = mainSourceSet.get().runtimeClasspath
     args(layout.projectDirectory.asFile.absolutePath)
     systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+    inputs.files(layout.projectDirectory.file("src/test/resources/demo.replay")).optional()
+    outputs.file(layout.projectDirectory.file("docs/demo.gif"))
+    mustRunAfter("test")
+}
+
+if (System.getenv("CI") != "true") {
+    tasks.named("build") { dependsOn("generateDemoGif") }
 }
 
 val frontendDir = layout.projectDirectory.dir("src/main/resources/META-INF/resources")
