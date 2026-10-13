@@ -73,12 +73,14 @@ class GameWebSocket {
     private val connectionDrawingLines = ConcurrentHashMap<String, MviLine>()
     private var tickTimerId: Long? = null
 
+    @Suppress("UNUSED_PARAMETER")
     fun onStart(
         @Observes event: StartupEvent,
     ) {
         tickTimerId = vertx.setPeriodic(16L) { tick() }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun onStop(
         @Observes event: ShutdownEvent,
     ) {
@@ -100,7 +102,10 @@ class GameWebSocket {
         launchStateCollector(connection, roomId)
         launchTurboCollector(connection, roomId)
         launchEphemeralCollector(connection, roomId)
-        connection.sendBinary(currentStateBinary(roomId))
+        connection.sendBinary(currentStateBinary(roomId)).subscribe().with(
+            {},
+            { t -> log.warn("Failed to send opening snapshot to ${connection.id()}: ${t.message}") },
+        )
     }
 
     @OnClose
@@ -769,21 +774,25 @@ class GameWebSocket {
         return delta.toByteArray()
     }
 
+    /** Motion must be self-contained because the live flow may drop earlier frames. */
     private fun computeDelta(
         prev: GameStateDelta,
         curr: GameStateDelta,
     ): GameStateDelta {
         if (curr.linesList != prev.linesList) return curr
-        val b = GameStateDelta.newBuilder()
-        if (curr.puckX != prev.puckX) b.puckX = curr.puckX
-        if (curr.puckY != prev.puckY) b.puckY = curr.puckY
-        if (curr.puckVx != prev.puckVx) b.puckVx = curr.puckVx
-        if (curr.puckVy != prev.puckVy) b.puckVy = curr.puckVy
-        if (curr.paddle1Y != prev.paddle1Y) b.paddle1Y = curr.paddle1Y
-        if (curr.paddle2Y != prev.paddle2Y) b.paddle2Y = curr.paddle2Y
-        if (curr.scoreA != prev.scoreA) b.scoreA = curr.scoreA
-        if (curr.scoreB != prev.scoreB) b.scoreB = curr.scoreB
-        if (curr.paused != prev.paused) b.paused = curr.paused
+        val b =
+            GameStateDelta.newBuilder()
+                .setPuckX(curr.puckX)
+                .setPuckY(curr.puckY)
+                .setPuckVx(curr.puckVx)
+                .setPuckVy(curr.puckVy)
+                .setPuckSpin(curr.puckSpin)
+                .setPuckSpinRemainingMs(curr.puckSpinRemainingMs)
+                .setPaddle1Y(curr.paddle1Y)
+                .setPaddle2Y(curr.paddle2Y)
+                .setScoreA(curr.scoreA)
+                .setScoreB(curr.scoreB)
+                .setPaused(curr.paused)
         if (curr.linesList != prev.linesList) b.addAllLines(curr.linesList)
         if (curr.powerUpsList != prev.powerUpsList) b.addAllPowerUps(curr.powerUpsList)
         if (curr.activePowerUpsList != prev.activePowerUpsList) b.addAllActivePowerUps(curr.activePowerUpsList)

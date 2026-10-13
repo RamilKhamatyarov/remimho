@@ -2,5 +2,6 @@ root = true
 
 [*.{kt,kts}]
 # Shared by ktlint and Spotless; keep this file in version control for CI.
+end_of_line = lf
 max_line_length = 120
 ktlint_standard_max-line-length = enabled
