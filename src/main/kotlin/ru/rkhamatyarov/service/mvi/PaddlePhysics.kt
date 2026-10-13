@@ -212,8 +212,6 @@ internal object PaddlePhysics {
         state: MviGameState,
         side: PaddleSide,
     ): PaddleImpact? {
-        if (separatingFrom(side)) return null
-
         val start = state.puck
         val paddleY = state.paddleY(side)
         val dx = x - start.x
@@ -250,6 +248,7 @@ internal object PaddlePhysics {
         exit = min(exit, vertical.far)
 
         if (enter > exit || enter > 1.0) return null
+        if (axis == ImpactAxis.FACE && separatingFrom(side)) return null
 
         return PaddleImpact(axis, copy(x = start.x + dx * enter, y = start.y + dy * enter))
     }

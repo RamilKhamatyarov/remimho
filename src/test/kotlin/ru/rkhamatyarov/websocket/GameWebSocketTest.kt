@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.mvi.GameAction
+import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.PaddleSide
 import java.net.URI
 import java.net.http.HttpClient
@@ -23,7 +25,9 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.fail
+import kotlin.time.Duration.Companion.milliseconds
 
 @QuarkusTest
 class GameWebSocketTest {
@@ -36,8 +40,43 @@ class GameWebSocketTest {
     lateinit var registry: RoomRegistry
 
     @Test
+    fun `new player receives a full opening snapshot`() {
+        val client = GameTestClient(wsUri())
+        try {
+            val initial = client.awaitSnapshot { it.fullState }
+            assertTrue(initial.hasPaddle1Y() && initial.hasPaddle2Y())
+            assertTrue(initial.hasPuckX() && initial.hasPuckY())
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
+    fun `later motion frames recover paddle positions when the movement frame was dropped`() {
+        val roomId = "paddle-frames-${UUID.randomUUID()}"
+        val client = GameTestClient(wsUri(roomId))
+        try {
+            client.awaitSnapshot { true }
+            val state = MviGameState(paused = true, paddle1Y = 100.0, paddle2Y = 450.0)
+
+            assertTrue(registry.get(roomId).dispatch(GameIntent.Reliable(GameAction.RestoreSnapshot(state))))
+            client.awaitSnapshot { it.hasPaddle1Y() && it.paddle1Y == 100.0 }
+
+            val later = client.awaitSnapshot { true }
+
+            assertTrue(later.hasPaddle1Y(), "Lost motion update leaves the opponent paddle stale")
+            assertTrue(later.hasPaddle2Y(), "Lost motion update leaves the player paddle stale")
+            assertEquals(state.paddle1Y, later.paddle1Y)
+            assertEquals(state.paddle2Y, later.paddle2Y)
+            assertTrue(later.hasPuckX() && later.hasPuckY(), "Puck and paddles must share a snapshot")
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test
     fun `combination is owned by sender recorded and cleared for both clients`() =
-        runBlocking {
+        runBlocking<Unit> {
             val roomId = "combination-${UUID.randomUUID()}"
             val a = GameTestClient(wsUri(roomId, "A"))
             val b = GameTestClient(wsUri(roomId, "B"))
@@ -45,7 +84,7 @@ class GameWebSocketTest {
                 a.send(combinationCommand())
                 awaitMessageType(a, "COMBINATION_ACCEPTED")
                 val room = registry.get(roomId)
-                val applied = withTimeout(5000) { room.reliableState.first { it.lines.size == 1 } }
+                val applied = withTimeout(5000.milliseconds) { room.reliableState.first { it.lines.size == 1 } }
                 assertEquals(true, applied.paused)
                 assertEquals(PaddleSide.A, applied.lines.single().ownerSide)
                 assertEquals("triangle", applied.lines.single().combinationId)
@@ -55,7 +94,7 @@ class GameWebSocketTest {
 
                 a.send("""{"type":"APPLY_COMBINATION","data":{"lines":[]}}""")
                 awaitMessageType(a, "COMBINATION_ACCEPTED")
-                withTimeout(5000) { room.reliableState.first { it.lines.isEmpty() } }
+                withTimeout(5000.milliseconds) { room.reliableState.first { it.lines.isEmpty() } }
                 b.awaitSnapshot { it.fullState && it.linesCount == 0 }
             } finally {
                 a.close()
@@ -128,7 +167,7 @@ class GameWebSocketTest {
                 assertEquals(123.0, cursor["x"] as Double, 0.001)
                 assertEquals(234.0, cursor["y"] as Double, 0.001)
                 assertEquals(true, (cursor["playerId"] as String).isNotBlank())
-                assertNoMessageType(sender, "CURSOR_MOVE")
+                assertNoMessageType(sender)
                 sender.close()
                 receiver.close()
                 return
@@ -156,7 +195,7 @@ class GameWebSocketTest {
 
     private fun assertNoMessageType(
         client: GameTestClient,
-        type: String,
+        type: String = "CURSOR_MOVE",
     ) {
         val deadlineNs = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(350L)
         while (System.nanoTime() < deadlineNs) {
