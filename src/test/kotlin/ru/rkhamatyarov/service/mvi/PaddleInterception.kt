@@ -14,15 +14,17 @@ internal object PaddleInterception {
     ): MviGameState {
         val direction = if (fromAbove) 1.0 else -1.0
         val edge = if (fromAbove) 240.0 else 360.0
-        return MviGameState(
-            puck =
-                MviPuck(
-                    x = if (side == PaddleSide.A) 15.0 else 785.0,
-                    y = edge - direction * verticalSpeed * 0.008,
-                    vx = if (side == PaddleSide.A) horizontalSpeed else -horizontalSpeed,
-                    vy = direction * verticalSpeed,
-                ),
-        )
+        val puck =
+            MviPuck(
+                x = if (side == PaddleSide.A) 15.0 else 785.0,
+                y = edge,
+                vx = if (side == PaddleSide.A) horizontalSpeed else -horizontalSpeed,
+                vy = direction * verticalSpeed,
+            )
+        val state = MviGameState(puck = puck)
+        // Start half a tick of on-screen travel short of the edge, after the effective-speed cap.
+        val onScreenVerticalSpeed = verticalSpeed * SpeedModel.effectiveMultiplier(state, turboSpeedMultiplier = 1.0)
+        return state.copy(puck = puck.copy(y = edge - direction * onScreenVerticalSpeed * 0.008))
     }
 
     fun verifyEdge(
@@ -99,18 +101,11 @@ internal object PaddleInterception {
         return Contact(side, contactY)
     }
 
+    /** Free flight uses the production speed model so the oracle sees the same effective-speed cap. */
     private fun effectiveSpeed(
         state: MviGameState,
         tick: GameAction.Tick,
-    ): Double {
-        val config = state.speedConfig
-        val progressive =
-            (
-                config.baseMultiplier + state.elapsedSeconds / 60 * config.timeAccelerationRate +
-                    state.lines.size * config.levelAccelerationPerLine
-            ).coerceAtMost(config.maxMultiplier)
-        return state.speedMultiplier * progressive * tick.turboSpeedMultiplier
-    }
+    ): Double = SpeedModel.effectiveMultiplier(state, tick.turboSpeedMultiplier)
 
     data class Contact(
         val side: PaddleSide,

@@ -65,6 +65,10 @@ message FullGameSnapshot {
     SnapshotOneTimerConfig one_timer_config = 43;
     Combo combo = 44;
     optional string serve_side = 45;
+    optional double speed_rally_growth_per_hit = 46;
+    optional double speed_smash_boost = 47;
+    optional double speed_max_rally_speed = 48;
+    optional double speed_max_effective_speed = 49;
 }
 
 message SnapshotLine {
@@ -201,6 +205,10 @@ message ReplayApplySpeedConfig {
     double time_acceleration_rate = 2;
     double level_acceleration_per_line = 3;
     double max_multiplier = 4;
+    optional double rally_growth_per_hit = 5;
+    optional double smash_boost = 6;
+    optional double max_rally_speed = 7;
+    optional double max_effective_speed = 8;
 }
 
 message ReplayApplyAiConfig {

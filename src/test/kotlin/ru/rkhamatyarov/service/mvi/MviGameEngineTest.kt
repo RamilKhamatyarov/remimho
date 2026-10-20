@@ -78,6 +78,7 @@ class MviGameEngineTest {
             MviGameState(
                 puck = MviPuck(x = 25.0, y = 300.0, vx = -50.0, vy = 0.0),
                 paddle1Y = 250.0,
+                speedConfig = NO_RALLY_SPEED,
             )
 
         val next = reduce(state, GameAction.Tick(0.016, elapsedNs = 1L))

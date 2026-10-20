@@ -5,6 +5,7 @@ import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.SpeedModel
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.max
@@ -51,7 +52,7 @@ class BotController(
         val desiredY = targetY ?: return null
         val deltaNs = (elapsedNs - (previousTickNs ?: elapsedNs)).coerceAtLeast(0L)
         if (deltaNs == 0L) return null
-        val maxMovement = paddleSpeed(state.puck, effectiveConfig) * deltaNs / NANOS_PER_SECOND
+        val maxMovement = paddleSpeed(state, effectiveConfig) * deltaNs / NANOS_PER_SECOND
         val difference = desiredY - state.paddle1Y
         if (abs(difference) < MIN_MOVEMENT) return null
 
@@ -64,15 +65,17 @@ class BotController(
 
     /**
      * The paddle must be able to out-run the puck vertically, otherwise the bot concedes by being
-     * outpaced rather than by its configured aim error. Skill still widens the margin.
+     * outpaced rather than by its configured aim error. Demand uses the on-screen vertical speed,
+     * so fast rallies raise the bot's paddle speed with them, up to the match's effective cap.
      */
     private fun paddleSpeed(
-        puck: MviPuck,
+        state: MviGameState,
         config: AiOpponentConfig,
     ): Double {
         val skill = BASE_PADDLE_SPEED + config.aggression * AGGRESSION_SPEED_BONUS
-        val demand = abs(puck.vy) * VERTICAL_TRACKING_HEADROOM
-        return max(skill, demand).coerceAtMost(MAX_PADDLE_SPEED)
+        val onScreenVerticalSpeed = abs(state.puck.vy) * SpeedModel.stateMultiplier(state)
+        val demand = onScreenVerticalSpeed * VERTICAL_TRACKING_HEADROOM
+        return max(skill, demand).coerceAtMost(state.speedConfig.maxEffectiveSpeed)
     }
 
     fun reset() {
@@ -146,7 +149,6 @@ class BotController(
         private const val BASE_PADDLE_SPEED = 260.0
         private const val AGGRESSION_SPEED_BONUS = 340.0
         private const val VERTICAL_TRACKING_HEADROOM = 1.15
-        private const val MAX_PADDLE_SPEED = 900.0
         private const val PADDLE_WIDTH = 20.0
         private const val MIN_HORIZONTAL_SPEED = 0.000_001
         private const val MIN_MOVEMENT = 0.25

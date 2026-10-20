@@ -1,5 +1,6 @@
 package ru.rkhamatyarov.service.mvi
 
+import ru.rkhamatyarov.model.SpeedConfig
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -71,12 +72,26 @@ internal object PaddlePhysics {
                 horizontalDirection = side.horizontalDirection(),
                 x = side.faceX(state.canvasWidth, frame.puck.radius),
             )
+        outgoing = rallyReturn(outgoing, state.paddleVelocity(side), state.speedConfig)
         outgoing = applyOneTimer(outgoing, side, incomingSpeed, multiplier, elapsedNs, config)
         if (ComboMechanics.isGiveAndGo(frame.touchLedger, side, elapsedNs, state.combo)) {
             outgoing = OneTimerMechanic.apply(outgoing, state.combo.giveAndGoMultiplier, state.combo.maximumRawSpeed)
             MviDomainEvents.record(MviDomainEvent.GiveAndGoCompleted(side))
         }
         return TickFrame(outgoing, frame.touchLedger.append(paddleTouch(side, elapsedNs, incomingSpeed)))
+    }
+
+    /** A face return is a stroke: rallies build speed and a swinging paddle smashes. Edge glances are not. */
+    private fun rallyReturn(
+        puck: MviPuck,
+        paddleTravel: Double,
+        config: SpeedConfig,
+    ): MviPuck {
+        val current = hypot(puck.vx, puck.vy)
+        if (current <= 0.0 || !current.isFinite()) return puck
+
+        val scale = SpeedModel.rallyReturnSpeed(current, paddleTravel, config) / current
+        return puck.copy(vx = puck.vx * scale, vy = puck.vy * scale)
     }
 
     /** A puck that meets the top or bottom of the paddle rebounds off that edge instead of entering the body. */

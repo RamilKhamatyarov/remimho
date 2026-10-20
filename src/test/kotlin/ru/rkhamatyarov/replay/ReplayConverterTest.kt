@@ -296,4 +296,48 @@ class ReplayConverterTest {
         assertEquals(state.touchLedger, restored.touchLedger)
         assertEquals(state.oneTimerConfig, restored.oneTimerConfig)
     }
+
+    @Test
+    fun `rally speed settings round-trip through the snapshot`() {
+        val speed =
+            SpeedConfig(
+                rallyGrowthPerHit = 1.12,
+                smashBoost = 0.0,
+                maxRallySpeed = 2_500.0,
+                maxEffectiveSpeed = 3_000.0,
+            )
+
+        val restored =
+            ReplayConverter.snapshotToState(
+                ReplayConverter.stateToSnapshot(MviGameState(speedConfig = speed)),
+            )
+
+        assertEquals(speed, restored.speedConfig, "an explicit zero smash boost must survive, not become the default")
+    }
+
+    @Test
+    fun `snapshot recorded before rally speed decodes to the defaults`() {
+        val legacy =
+            ReplayConverter
+                .stateToSnapshot(MviGameState())
+                .toBuilder()
+                .clearSpeedRallyGrowthPerHit()
+                .clearSpeedSmashBoost()
+                .clearSpeedMaxRallySpeed()
+                .clearSpeedMaxEffectiveSpeed()
+                .build()
+
+        assertEquals(SpeedConfig(), ReplayConverter.snapshotToState(legacy).speedConfig)
+    }
+
+    @Test
+    fun `apply speed config intent round-trips rally settings`() {
+        val speed =
+            SpeedConfig(rallyGrowthPerHit = 1.2, smashBoost = 0.7, maxRallySpeed = 5_000.0, maxEffectiveSpeed = 7_000.0)
+
+        val proto = ReplayConverter.toProto(GameIntent.Reliable(GameAction.ApplySpeedConfig(speed)))!!
+        val (restored, _) = ReplayConverter.fromProto(proto)
+
+        assertEquals(GameAction.ApplySpeedConfig(speed), restored.action)
+    }
 }

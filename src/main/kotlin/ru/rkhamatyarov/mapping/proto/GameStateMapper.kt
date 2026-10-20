@@ -1,6 +1,7 @@
 package ru.rkhamatyarov.mapping.proto
 
 import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.proto.GameStateDelta
 import ru.rkhamatyarov.service.mvi.Combo
 import ru.rkhamatyarov.service.mvi.MviActivePowerUp
@@ -41,6 +42,7 @@ fun MviGameState.toDelta(): GameStateDelta {
         .setOneTimerConfig(oneTimerConfig.toProto())
         .setCombo(combo.toProto())
         .setServeSide(serveSide.name)
+        .setSpeedRules(speedConfig.toProto())
         .build()
 }
 
@@ -62,6 +64,7 @@ fun mviStateFromDelta(delta: GameStateDelta): MviGameState {
         oneTimerConfig = delta.oneTimerConfigOrDefault(),
         combo = if (delta.hasCombo()) delta.combo.toDomain() else Combo.DISABLED,
         serveSide = delta.serveSide.toPaddleSideOrNull() ?: PaddleSide.B,
+        speedConfig = if (delta.hasSpeedRules()) delta.speedRules.toDomain() else SpeedConfig(),
     )
 }
 

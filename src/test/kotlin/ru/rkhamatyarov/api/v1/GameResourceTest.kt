@@ -10,6 +10,7 @@ import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.model.PowerUpType
+import ru.rkhamatyarov.model.SpeedConfig
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.StateHistory
 import ru.rkhamatyarov.service.mvi.GameAction
@@ -104,6 +105,28 @@ class GameResourceTest {
         assertEquals(222.0, state.puck.y, 0.0001)
         assertEquals(3, state.score.playerA)
         assertEquals(0, history.size())
+    }
+
+    @Test
+    fun `time travel restores the speed rules that were active at that moment`() {
+        val earlierRules = SpeedConfig(baseMultiplier = 1.7, rallyGrowthPerHit = 1.12, maxRallySpeed = 2_000.0)
+        history.clear()
+        history.add(
+            MviGameState(puck = MviPuck(x = 123.0, y = 234.0), speedConfig = earlierRules).toDelta().toByteArray(),
+        )
+        defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplySpeedConfig(SpeedConfig(baseMultiplier = 3.0))))
+
+        RestAssured
+            .given()
+            .contentType("application/json")
+            .body("""{"offset":0.0}""")
+            .`when`()
+            .post("/api/v1/game/time-travel")
+            .then()
+            .statusCode(200)
+
+        val state = awaitDefaultState { it.puck.x == 123.0 && it.puck.y == 234.0 }
+        assertEquals(earlierRules, state.speedConfig, "a rewind must not silently reset the speed rules to defaults")
     }
 
     @Test

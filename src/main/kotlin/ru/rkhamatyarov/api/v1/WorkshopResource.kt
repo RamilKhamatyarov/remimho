@@ -119,13 +119,7 @@ class WorkshopResource {
 
         var previewState =
             MviGameState(
-                speedConfig =
-                    SpeedConfig(
-                        baseMultiplier = config.speed.baseMultiplier,
-                        timeAccelerationRate = config.speed.timeAccelerationRate,
-                        levelAccelerationPerLine = config.speed.levelAccelerationPerLine,
-                        maxMultiplier = config.speed.maxMultiplier,
-                    ),
+                speedConfig = config.speed.toSpeedConfig(),
                 aiConfig =
                     AiOpponentConfig(
                         enabled = config.ai.enabled,
@@ -186,6 +180,10 @@ class WorkshopResource {
                     "timeAccelerationRate" to config.timeAccelerationRate,
                     "levelAccelerationPerLine" to config.levelAccelerationPerLine,
                     "maxMultiplier" to config.maxMultiplier,
+                    "rallyGrowthPerHit" to config.rallyGrowthPerHit,
+                    "smashBoost" to config.smashBoost,
+                    "maxRallySpeed" to config.maxRallySpeed,
+                    "maxEffectiveSpeed" to config.maxEffectiveSpeed,
                 ),
             ).build()
     }
@@ -237,6 +235,20 @@ class WorkshopResource {
             }
             if (config.maxMultiplier !in 1.0..10.0) {
                 return badRequest("maxMultiplier must be between 1.0 and 10.0")
+            }
+            if (config.rallyGrowthPerHit !in 1.0..1.25) {
+                return badRequest("rallyGrowthPerHit must be between 1.0 and 1.25")
+            }
+            if (config.smashBoost !in 0.0..1.0) {
+                return badRequest("smashBoost must be between 0.0 and 1.0")
+            }
+            if (config.maxRallySpeed !in 300.0..SpeedConfig.MAX_ALLOWED_RALLY_SPEED) {
+                return badRequest("maxRallySpeed must be between 300.0 and ${SpeedConfig.MAX_ALLOWED_RALLY_SPEED}")
+            }
+            if (config.maxEffectiveSpeed !in config.maxRallySpeed..SpeedConfig.MAX_ALLOWED_EFFECTIVE_SPEED) {
+                return badRequest(
+                    "maxEffectiveSpeed must be between maxRallySpeed and ${SpeedConfig.MAX_ALLOWED_EFFECTIVE_SPEED}",
+                )
             }
             return null
         }
