@@ -231,6 +231,7 @@ internal fun returnState(side: PaddleSide = PaddleSide.A): MviGameState =
                 vy = 0.0,
             ),
         touchLedger = TouchLedger(listOf(touch(TouchSource.PADDLE, side), touch(TouchSource.DRAWN_LINE, side))),
+        speedConfig = NO_RALLY_SPEED,
     )
 
 internal fun goalState(side: PaddleSide = PaddleSide.A): MviGameState =

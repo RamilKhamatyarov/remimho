@@ -1,6 +1,7 @@
 package ru.rkhamatyarov.config
 
 import kotlinx.serialization.Serializable
+import ru.rkhamatyarov.model.SpeedConfig
 
 @Serializable
 data class RuleConfig(
@@ -18,7 +19,23 @@ data class RuleSpeedConfig(
     val timeAccelerationRate: Double = 0.05,
     val levelAccelerationPerLine: Double = 0.02,
     val maxMultiplier: Double = 3.0,
-)
+    val rallyGrowthPerHit: Double = SpeedConfig.DEFAULT_RALLY_GROWTH_PER_HIT,
+    val smashBoost: Double = SpeedConfig.DEFAULT_SMASH_BOOST,
+    val maxRallySpeed: Double = SpeedConfig.DEFAULT_MAX_RALLY_SPEED,
+    val maxEffectiveSpeed: Double = SpeedConfig.DEFAULT_MAX_EFFECTIVE_SPEED,
+) {
+    fun toSpeedConfig(): SpeedConfig =
+        SpeedConfig(
+            baseMultiplier = baseMultiplier,
+            timeAccelerationRate = timeAccelerationRate,
+            levelAccelerationPerLine = levelAccelerationPerLine,
+            maxMultiplier = maxMultiplier,
+            rallyGrowthPerHit = rallyGrowthPerHit,
+            smashBoost = smashBoost,
+            maxRallySpeed = maxRallySpeed,
+            maxEffectiveSpeed = maxEffectiveSpeed,
+        )
+}
 
 @Serializable
 data class RuleAiConfig(

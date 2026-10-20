@@ -2,6 +2,7 @@ package ru.rkhamatyarov.config
 
 import jakarta.enterprise.context.ApplicationScoped
 import kotlinx.serialization.json.Json
+import ru.rkhamatyarov.model.SpeedConfig
 import java.security.MessageDigest
 
 @ApplicationScoped
@@ -112,6 +113,13 @@ class DslCompiler {
                     timeAccelerationRate = values["speed.timeAccelerationRate"]?.toDoubleOrNull() ?: 0.05,
                     levelAccelerationPerLine = values["speed.levelAccelerationPerLine"]?.toDoubleOrNull() ?: 0.02,
                     maxMultiplier = values["speed.maxMultiplier"]?.toDoubleOrNull() ?: 3.0,
+                    rallyGrowthPerHit =
+                        values["speed.rallyGrowthPerHit"]?.toDoubleOrNull() ?: SpeedConfig.DEFAULT_RALLY_GROWTH_PER_HIT,
+                    smashBoost = values["speed.smashBoost"]?.toDoubleOrNull() ?: SpeedConfig.DEFAULT_SMASH_BOOST,
+                    maxRallySpeed =
+                        values["speed.maxRallySpeed"]?.toDoubleOrNull() ?: SpeedConfig.DEFAULT_MAX_RALLY_SPEED,
+                    maxEffectiveSpeed =
+                        values["speed.maxEffectiveSpeed"]?.toDoubleOrNull() ?: SpeedConfig.DEFAULT_MAX_EFFECTIVE_SPEED,
                 ),
             ai =
                 RuleAiConfig(

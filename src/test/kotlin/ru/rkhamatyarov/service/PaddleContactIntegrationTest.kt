@@ -12,6 +12,7 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
 import ru.rkhamatyarov.service.mvi.MviScore
+import ru.rkhamatyarov.service.mvi.NO_RALLY_SPEED
 import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.mvi.TouchSource
 import kotlin.test.assertEquals
@@ -96,6 +97,8 @@ class PaddleContactIntegrationTest {
                 MviGameState(
                     puck = MviPuck(x = 400.0, y = 300.0, vx = -900.0, vy = 260.0),
                     aiConfig = DISABLED_AI,
+                    // This proves contact correctness; rally escalation is covered by RallySpeedTest.
+                    speedConfig = NO_RALLY_SPEED,
                 ),
             )
 

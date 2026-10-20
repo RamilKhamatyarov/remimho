@@ -32,17 +32,7 @@ internal object TickReducer {
     private fun effectiveSpeed(
         state: MviGameState,
         turboSpeedMultiplier: Double,
-    ): Double {
-        val turbo = turboSpeedMultiplier.takeIf { it.isFinite() && it > 0.0 } ?: 1.0
-        return state.speedMultiplier * progressiveSpeed(state) * turbo
-    }
-
-    private fun progressiveSpeed(state: MviGameState): Double {
-        val timeFactor = (state.elapsedSeconds / SECONDS_PER_MINUTE) * state.speedConfig.timeAccelerationRate
-        val levelFactor = state.lines.size * state.speedConfig.levelAccelerationPerLine
-        return (state.speedConfig.baseMultiplier + timeFactor + levelFactor)
-            .coerceAtMost(state.speedConfig.maxMultiplier)
-    }
+    ): Double = SpeedModel.effectiveMultiplier(state, turboSpeedMultiplier)
 
     private fun resolveLines(
         frame: TickFrame,
@@ -202,6 +192,5 @@ internal object TickReducer {
         val active: List<MviActivePowerUp>,
     )
 
-    private const val SECONDS_PER_MINUTE = 60.0
     private const val SPEED_BOOST_MULTIPLIER = 1.5
 }

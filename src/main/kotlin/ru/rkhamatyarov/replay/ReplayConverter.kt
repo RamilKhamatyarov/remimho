@@ -133,6 +133,10 @@ object ReplayConverter {
                         .setTimeAccelerationRate(action.config.timeAccelerationRate)
                         .setLevelAccelerationPerLine(action.config.levelAccelerationPerLine)
                         .setMaxMultiplier(action.config.maxMultiplier)
+                        .setRallyGrowthPerHit(action.config.rallyGrowthPerHit)
+                        .setSmashBoost(action.config.smashBoost)
+                        .setMaxRallySpeed(action.config.maxRallySpeed)
+                        .setMaxEffectiveSpeed(action.config.maxEffectiveSpeed)
                         .build()
             }
 
@@ -220,6 +224,30 @@ object ReplayConverter {
                             timeAccelerationRate = proto.applySpeedConfig.timeAccelerationRate,
                             levelAccelerationPerLine = proto.applySpeedConfig.levelAccelerationPerLine,
                             maxMultiplier = proto.applySpeedConfig.maxMultiplier,
+                            rallyGrowthPerHit =
+                                proto.applySpeedConfig.optional(
+                                    ReplayApplySpeedConfig::hasRallyGrowthPerHit,
+                                    ReplayApplySpeedConfig::getRallyGrowthPerHit,
+                                    SpeedConfig.DEFAULT_RALLY_GROWTH_PER_HIT,
+                                ),
+                            smashBoost =
+                                proto.applySpeedConfig.optional(
+                                    ReplayApplySpeedConfig::hasSmashBoost,
+                                    ReplayApplySpeedConfig::getSmashBoost,
+                                    SpeedConfig.DEFAULT_SMASH_BOOST,
+                                ),
+                            maxRallySpeed =
+                                proto.applySpeedConfig.optional(
+                                    ReplayApplySpeedConfig::hasMaxRallySpeed,
+                                    ReplayApplySpeedConfig::getMaxRallySpeed,
+                                    SpeedConfig.DEFAULT_MAX_RALLY_SPEED,
+                                ),
+                            maxEffectiveSpeed =
+                                proto.applySpeedConfig.optional(
+                                    ReplayApplySpeedConfig::hasMaxEffectiveSpeed,
+                                    ReplayApplySpeedConfig::getMaxEffectiveSpeed,
+                                    SpeedConfig.DEFAULT_MAX_EFFECTIVE_SPEED,
+                                ),
                         ),
                     )
                 }
@@ -263,6 +291,10 @@ object ReplayConverter {
             .setSpeedTimeAccelerationRate(state.speedConfig.timeAccelerationRate)
             .setSpeedLevelAccelerationPerLine(state.speedConfig.levelAccelerationPerLine)
             .setSpeedMaxMultiplier(state.speedConfig.maxMultiplier)
+            .setSpeedRallyGrowthPerHit(state.speedConfig.rallyGrowthPerHit)
+            .setSpeedSmashBoost(state.speedConfig.smashBoost)
+            .setSpeedMaxRallySpeed(state.speedConfig.maxRallySpeed)
+            .setSpeedMaxEffectiveSpeed(state.speedConfig.maxEffectiveSpeed)
             .setElapsedSeconds(state.elapsedSeconds)
             .setAiEnabled(state.aiConfig.enabled)
             .setAiReactionDelayMs(state.aiConfig.reactionDelayMs)
@@ -311,6 +343,30 @@ object ReplayConverter {
                     timeAccelerationRate = proto.speedTimeAccelerationRate,
                     levelAccelerationPerLine = proto.speedLevelAccelerationPerLine,
                     maxMultiplier = if (proto.speedMaxMultiplier > 0.0) proto.speedMaxMultiplier else 3.0,
+                    rallyGrowthPerHit =
+                        proto.optional(
+                            FullGameSnapshot::hasSpeedRallyGrowthPerHit,
+                            FullGameSnapshot::getSpeedRallyGrowthPerHit,
+                            SpeedConfig.DEFAULT_RALLY_GROWTH_PER_HIT,
+                        ),
+                    smashBoost =
+                        proto.optional(
+                            FullGameSnapshot::hasSpeedSmashBoost,
+                            FullGameSnapshot::getSpeedSmashBoost,
+                            SpeedConfig.DEFAULT_SMASH_BOOST,
+                        ),
+                    maxRallySpeed =
+                        proto.optional(
+                            FullGameSnapshot::hasSpeedMaxRallySpeed,
+                            FullGameSnapshot::getSpeedMaxRallySpeed,
+                            SpeedConfig.DEFAULT_MAX_RALLY_SPEED,
+                        ),
+                    maxEffectiveSpeed =
+                        proto.optional(
+                            FullGameSnapshot::hasSpeedMaxEffectiveSpeed,
+                            FullGameSnapshot::getSpeedMaxEffectiveSpeed,
+                            SpeedConfig.DEFAULT_MAX_EFFECTIVE_SPEED,
+                        ),
                 ),
             elapsedSeconds = proto.elapsedSeconds,
             aiConfig = proto.toAiOpponentConfig(),
@@ -570,4 +626,11 @@ object ReplayConverter {
                 durationNs = durationNs,
             )
         }.getOrNull()
+
+    /** A field absent from the wire was recorded before it existed, so it takes the current default. */
+    private inline fun <T> T.optional(
+        has: (T) -> Boolean,
+        get: (T) -> Double,
+        default: Double,
+    ): Double = if (has(this)) get(this) else default
 }

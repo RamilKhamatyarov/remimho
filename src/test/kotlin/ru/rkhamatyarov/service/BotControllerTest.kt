@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.model.AiOpponentConfig
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.MviPuck
+import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -65,6 +66,20 @@ class BotControllerTest {
         assertNull(controller.nextMove(state, 16_000_000L))
     }
 
+    @Test
+    fun `bot paddle keeps up with a fast rally beyond the old fixed cap`() {
+        val fastRally = MviPuck(x = 300.0, y = 20.0, vx = -100.0, vy = 3_000.0)
+        val state = botState(AiOpponentConfig(reactionDelayMs = 0, aimError = 0.0, predictionDepth = 0), fastRally)
+        val controller = BotController("room")
+        controller.nextMove(state, 0L)
+
+        val move = controller.nextMove(state, 16_000_000L)!!
+
+        val travelled = abs(state.paddle1Y - (move.y - state.paddleHeight / 2.0))
+        assertEquals(3_000.0 * 1.15 * 0.016, travelled, 0.0001, "speed tracks the puck's on-screen vertical speed")
+        assertTrue(travelled > OLD_FIXED_PADDLE_SPEED * 0.016, "the former 900 px/s cap would have been outrun")
+    }
+
     private fun botState(
         config: AiOpponentConfig,
         puck: MviPuck = MviPuck(x = 300.0, y = 120.0, vx = -100.0, vy = 0.0),
@@ -74,4 +89,8 @@ class BotControllerTest {
             paddle1Y = 250.0,
             aiConfig = config,
         )
+
+    private companion object {
+        const val OLD_FIXED_PADDLE_SPEED = 900.0
+    }
 }

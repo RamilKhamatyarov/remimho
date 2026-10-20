@@ -27,6 +27,9 @@ internal object OneTimerMechanic {
         val rawSpeed = hypot(puck.vx, puck.vy)
         if (rawSpeed <= 0.0 || !rawSpeed.isFinite()) return puck
 
+        // The cap limits how far a one-timer can boost; it must never brake a puck that a rally
+        // has already driven past it.
+        if (rawSpeed >= maximumRawSpeed) return puck
         val targetSpeed = (rawSpeed * multiplier).coerceAtMost(maximumRawSpeed)
         val scale = targetSpeed / rawSpeed
         return puck.copy(

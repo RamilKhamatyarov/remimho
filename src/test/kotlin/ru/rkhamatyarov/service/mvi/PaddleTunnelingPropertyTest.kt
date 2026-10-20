@@ -6,7 +6,6 @@ import io.kotest.property.arbitrary.filter
 import io.kotest.property.checkAll
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
-import ru.rkhamatyarov.model.SpeedConfig
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -43,7 +42,8 @@ class PaddleTunnelingPropertyTest {
                         puck = MviPuck(x = 400.0, y = 300.0, vx = vx, vy = vy),
                         paddle1Y = 250.0,
                         paddle2Y = 250.0,
-                        speedConfig = SpeedConfig(timeAccelerationRate = 0.0, levelAccelerationPerLine = 0.0),
+                        // Up to the widest legal cap, so collision is proven where the game can actually go.
+                        speedConfig = MAX_LEGAL_SPEED,
                     )
                 repeat(200) { index ->
                     val elapsedNs = (index + 1) * TICK_NS
@@ -74,11 +74,11 @@ class PaddleTunnelingPropertyTest {
                 for (side in PaddleSide.entries) {
                     val direction = if (side == PaddleSide.A) -1.0 else 1.0
                     val face = if (side == PaddleSide.A) 30.0 else 770.0
-                    val distance = minOf(200.0, speed * seconds / 2)
-                    val initial =
-                        MviGameState(
-                            puck = MviPuck(x = face - direction * distance, y = y, vx = direction * speed, vy = vy),
-                        )
+                    val aimed = MviGameState(puck = MviPuck(x = face, y = y, vx = direction * speed, vy = vy))
+                    // Half a tick of on-screen travel short of the face, after the effective-speed cap.
+                    val onScreenSpeed = speed * SpeedModel.effectiveMultiplier(aimed, turboSpeedMultiplier = 1.0)
+                    val distance = minOf(200.0, onScreenSpeed * seconds / 2)
+                    val initial = aimed.copy(puck = aimed.puck.copy(x = face - direction * distance))
                     val tick = GameAction.Tick(seconds, (seconds * 1_000_000_000L).toLong())
                     val contact = assertNotNull(PaddleInterception.contact(initial, tick))
                     val positioned = reduce(initial, GameAction.MovePaddle(contact.y, side))

@@ -27,6 +27,18 @@ message GameStateDelta {
   optional OneTimerConfig one_timer_config = 18;
   Combo combo = 19;
   optional string serve_side = 20;
+  SpeedRules speed_rules = 21;
+}
+
+message SpeedRules {
+  double base_multiplier = 1;
+  double time_acceleration_rate = 2;
+  double level_acceleration_per_line = 3;
+  double max_multiplier = 4;
+  optional double rally_growth_per_hit = 5;
+  optional double smash_boost = 6;
+  optional double max_rally_speed = 7;
+  optional double max_effective_speed = 8;
 }
 
 message Line {

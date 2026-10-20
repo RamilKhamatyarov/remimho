@@ -14,6 +14,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { comboMessageRef } from '../composables/useGameSocket'
 import { gameStateRef, oneTimerEffectRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
+import { puckTrail } from '../rendering/puckTrail'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
@@ -70,6 +71,7 @@ function draw(state: GameState) {
   drawBarrierLines(ctx, state.lines, scale)
   drawPowerUps(ctx, state, scale)
   drawPaddles(ctx, state, canvas, scale)
+  drawPuckTrail(ctx, state, scale)
   drawPuck(ctx, state, scale)
   drawOneTimerEffect(ctx, state, canvas, scale)
   drawScore(ctx, state, canvas, scale)
@@ -170,6 +172,29 @@ function drawPaddles(ctx: CanvasRenderingContext2D, state: GameState, canvas: HT
   ctx.fillRect(0, state.paddle1Y * scale.y, PADDLE_WIDTH * scale.x, state.paddleHeight * scale.y)
   ctx.fillStyle = '#4ecca3'
   ctx.fillRect(canvas.width - PADDLE_WIDTH * scale.x, state.paddle2Y * scale.y, PADDLE_WIDTH * scale.x, state.paddleHeight * scale.y)
+}
+
+function drawPuckTrail(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {
+  const trail = puckTrail(state.puck)
+  if (!trail) return
+
+  const tailX = trail.tailX * scale.x
+  const tailY = trail.tailY * scale.y
+  const headX = trail.headX * scale.x
+  const headY = trail.headY * scale.y
+  const gradient = ctx.createLinearGradient(tailX, tailY, headX, headY)
+  gradient.addColorStop(0, 'rgba(255,255,255,0)')
+  gradient.addColorStop(1, `rgba(255,255,255,${(0.55 * trail.intensity).toFixed(3)})`)
+
+  ctx.save()
+  ctx.strokeStyle = gradient
+  ctx.lineCap = 'round'
+  ctx.lineWidth = trail.width * Math.min(scale.x, scale.y) * 0.9
+  ctx.beginPath()
+  ctx.moveTo(tailX, tailY)
+  ctx.lineTo(headX, headY)
+  ctx.stroke()
+  ctx.restore()
 }
 
 function drawPuck(ctx: CanvasRenderingContext2D, state: GameState, scale: Point) {

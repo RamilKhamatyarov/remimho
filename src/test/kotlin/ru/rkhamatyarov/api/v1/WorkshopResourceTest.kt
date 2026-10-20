@@ -158,6 +158,101 @@ class WorkshopResourceTest {
     }
 
     @Test
+    fun `POST speed-config accepts and echoes rally speed settings`() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(
+                """
+                {
+                  "baseMultiplier": 1.0,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3,
+                  "rallyGrowthPerHit": 1.1,
+                  "smashBoost": 0.3,
+                  "maxRallySpeed": 2400,
+                  "maxEffectiveSpeed": 3600
+                }
+                """.trimIndent(),
+            ).`when`()
+            .post("/api/v1/workshop/speed-config")
+            .then()
+            .statusCode(200)
+            .body("rallyGrowthPerHit", equalTo(1.1f))
+            .body("smashBoost", equalTo(0.3f))
+            .body("maxRallySpeed", equalTo(2400.0f))
+            .body("maxEffectiveSpeed", equalTo(3600.0f))
+    }
+
+    @Test
+    fun `POST speed-config without rally fields keeps the defaults`() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(
+                """
+                {
+                  "baseMultiplier": 1.0,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3
+                }
+                """.trimIndent(),
+            )
+            .`when`()
+            .post("/api/v1/workshop/speed-config")
+            .then()
+            .statusCode(200)
+            .body("rallyGrowthPerHit", equalTo(1.06f))
+            .body("maxRallySpeed", equalTo(3200.0f))
+            .body("maxEffectiveSpeed", equalTo(4800.0f))
+    }
+
+    @Test
+    fun `POST speed-config with out-of-range rallyGrowthPerHit returns 400`() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(
+                """
+                {
+                  "baseMultiplier": 1.0,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3,
+                  "rallyGrowthPerHit": 1.5
+                }
+                """.trimIndent(),
+            )
+            .`when`()
+            .post("/api/v1/workshop/speed-config")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("rallyGrowthPerHit must be between 1.0 and 1.25"))
+    }
+
+    @Test
+    fun `POST speed-config rejects an effective cap below the rally cap`() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(
+                """
+                {
+                  "baseMultiplier": 1.0,
+                  "timeAccelerationRate": 0.05,
+                  "levelAccelerationPerLine": 0.02,
+                  "maxMultiplier": 3,
+                  "maxRallySpeed": 3000,
+                  "maxEffectiveSpeed": 2000
+                }
+                """.trimIndent(),
+            )
+            .`when`()
+            .post("/api/v1/workshop/speed-config")
+            .then()
+            .statusCode(400)
+            .body("error", equalTo("maxEffectiveSpeed must be between maxRallySpeed and 12000.0"))
+    }
+
+    @Test
     fun `POST speed-config with out-of-range baseMultiplier returns 400`() {
         given()
             .contentType(ContentType.JSON)

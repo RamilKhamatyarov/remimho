@@ -177,5 +177,6 @@ class TouchLedgerOneTimerTest {
                 TouchLedger(
                     listOf(PuckTouch(TouchSource.PADDLE, PaddleSide.B, "paddle:B", 0L, rawSpeed)),
                 ),
+            speedConfig = NO_RALLY_SPEED,
         )
 }
