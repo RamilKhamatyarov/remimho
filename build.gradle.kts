@@ -43,15 +43,15 @@ dependencies {
     implementation("io.quarkiverse.quinoa:quarkus-quinoa:2.9.2")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
 
     testImplementation("io.quarkus:quarkus-junit5")
     testImplementation("io.rest-assured:rest-assured")
     testImplementation("io.quarkus:quarkus-junit5-mockito")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.12.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.kotest:kotest-property-jvm:6.2.6")
 }
