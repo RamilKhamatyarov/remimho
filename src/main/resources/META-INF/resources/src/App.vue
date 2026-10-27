@@ -9,7 +9,7 @@
     </header>
 
     <main>
-      <GameCanvas :timeshift-active="isRewinding" :eraser-mode="eraserMode" @paddle-move="movePaddleIfLive" />
+      <GameCanvas ref="gameCanvas" :timeshift-active="isRewinding" :eraser-mode="eraserMode" @paddle-move="movePaddleIfLive" />
     </main>
 
     <div class="timeshift-bar" :class="{ rewinding: isRewinding }">
@@ -49,6 +49,10 @@
     </div>
 
     <footer>
+      <button v-if="captureEnabledRef" class="btn-capture" :disabled="capturing" title="Capture paddle diagnostics" @click="capture">
+        <Bug :size="17" /> {{ capturing ? 'Capturing...' : 'Capture' }}
+      </button>
+      <span v-if="captureStatus" role="status">{{ captureStatus }}</span>
       <button @click="togglePause">{{ gameState?.paused ? 'Resume' : 'Pause' }}</button>
       <button @click="reset">Reset</button>
       <button class="btn-clear"    @click="clearLines">Clear Lines</button>
@@ -86,16 +90,45 @@ import GameCanvas from './components/GameCanvas.vue';
 import Lobby from './components/Lobby.vue';
 import WorkshopModal from './components/WorkshopModal.vue';
 import CombinationsModal from './components/CombinationsModal.vue';
-import { Route } from '@lucide/vue';
-import { setSocketRoom, useGameSocket } from './composables/useGameSocket';
+import { Bug, Route } from '@lucide/vue';
+import { captureClientConfig, captureEnabledRef, setSocketRoom, useGameSocket } from './composables/useGameSocket';
+import { captureDossier } from './diagnostics/captureDossier';
 import { useRoomStore } from './stores/roomStore';
 
 const MAX_HISTORY_S = 15;
+const gameCanvas = ref<InstanceType<typeof GameCanvas> | null>(null);
+const capturing = ref(false);
+const captureStatus = ref('');
+
+async function capture() {
+  if (capturing.value) return;
+  capturing.value = true;
+  captureStatus.value = '';
+  try {
+    const screenshot = gameCanvas.value?.screenshot() ?? Promise.resolve(null);
+    const context = captureContext();
+    const result = await captureDossier(context.roomId, context.side, screenshot, {
+      connected: connected.value, rewinding: isRewinding.value, offsetSeconds: sliderOffset.value,
+      clientConfig: { ...captureClientConfig }, pixelRatio: window.devicePixelRatio,
+    }, context.token);
+    const url = URL.createObjectURL(result.blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `paddle-capture-${Date.now()}.zip`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    captureStatus.value = result.partial ? 'Partial dossier downloaded' : 'Dossier downloaded';
+  } catch {
+    captureStatus.value = 'Capture failed. Please retry.';
+  } finally {
+    capturing.value = false;
+  }
+}
 
 const {
   gameState, connected,
   movePaddle, activateTurbo, togglePause, reset, clearLines,
-  timeshift, resume, commitTimeshift, turboState, currentSide,
+  timeshift, resume, commitTimeshift, turboState, currentSide, captureContext,
 } = useGameSocket();
 const { roomId, joinRoom: setRoom } = useRoomStore();
 
@@ -316,6 +349,7 @@ button:hover { background: #e94560; }
 
 .btn-workshop       { border-color: #4ecca3; }
 .btn-combinations { display: inline-flex; align-items: center; gap: 7px; border-color: #64d9b0; }
+.btn-capture { display: inline-flex; align-items: center; gap: 7px; border-color: #64d9b0; }
 .btn-workshop:hover { background: #4ecca3; color: #000; }
 
 .btn-eraser         { border-color: #b388ff; }

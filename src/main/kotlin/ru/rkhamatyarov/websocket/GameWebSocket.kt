@@ -37,6 +37,7 @@ import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
+import ru.rkhamatyarov.telemetry.CaptureAccess
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID
@@ -56,6 +57,9 @@ class GameWebSocket {
 
     @Inject
     lateinit var roomRegistry: RoomRegistry
+
+    @Inject
+    lateinit var captureAccess: CaptureAccess
 
     private val sessions = ConcurrentHashMap<String, WebSocketConnection>()
     private val connectionRooms = ConcurrentHashMap<String, String>()
@@ -86,6 +90,7 @@ class GameWebSocket {
     ) {
         tickTimerId?.let { vertx.cancelTimer(it) }
         tickTimerId = null
+        captureAccess.clear()
     }
 
     @OnOpen
@@ -97,6 +102,10 @@ class GameWebSocket {
         connectionRooms[connection.id()] = roomId
         connectionSides[connection.id()] = side
         sessions[connection.id()] = connection
+        captureAccess.issue(connection.id(), roomId)?.let { token ->
+            connection.sendText(mapper.writeValueAsString(mapOf("type" to "CAPTURE_ACCESS", "token" to token)))
+                .subscribe().with({}, { captureAccess.revoke(connection.id()) })
+        }
         log.info("Client connected: ${connection.id()} room=$roomId side=$side (total: ${sessions.size})")
         lastFullStateByRoom.remove(roomId)
         launchStateCollector(connection, roomId)
@@ -110,6 +119,7 @@ class GameWebSocket {
 
     @OnClose
     fun onClose(connection: WebSocketConnection) {
+        captureAccess.revoke(connection.id())
         sessions.remove(connection.id())
         connectionRooms.remove(connection.id())?.let { roomId ->
             connectionSides.remove(connection.id())?.let { roomRegistry.get(roomId).unregisterHumanSide(it) }
@@ -753,6 +763,7 @@ class GameWebSocket {
             })
         }
         dead.forEach {
+            captureAccess.revoke(it)
             sessions.remove(it)
             connectionRooms.remove(it)
             collectorJobs.remove(it)?.cancel()

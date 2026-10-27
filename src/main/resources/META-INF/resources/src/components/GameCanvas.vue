@@ -15,6 +15,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { comboMessageRef } from '../composables/useGameSocket'
 import { gameStateRef, oneTimerEffectRef, remoteCursorsRef, turboStateRef, useGameSocket } from '../composables/useGameSocket'
 import { puckTrail } from '../rendering/puckTrail'
+import { captureBuffer } from '../diagnostics/captureBuffer'
 import type { GameState, Line, Point } from '../types/game'
 
 const emit = defineEmits<{ paddleMove: [y: number] }>()
@@ -22,6 +23,12 @@ const props = defineProps<{ timeshiftActive?: boolean; eraserMode?: boolean }>()
 const { eraseLine, send, sendCursorMove } = useGameSocket()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+defineExpose({
+  screenshot: (): Promise<Blob | null> => new Promise((resolve) => {
+    if (!canvasRef.value) return resolve(null)
+    canvasRef.value.toBlob(resolve, 'image/png')
+  }),
+})
 const isDrawing = ref(false)
 const localCursor = ref<Point | null>(null)
 
@@ -82,6 +89,12 @@ function draw(state: GameState) {
   drawPauseOverlay(ctx, state, canvas, scale)
   drawLocalCursor(ctx, scale)
   ctx.restore()
+  if (captureBuffer.enabled) captureBuffer.record('rendered', {
+    puck: state.puck, paddle1Y: state.paddle1Y, paddle2Y: state.paddle2Y,
+    paddleHeight: state.paddleHeight, score: state.score, paused: state.paused,
+    canvasWidth: state.canvasWidth, canvasHeight: state.canvasHeight,
+    timeshiftActive: props.timeshiftActive, oneTimerProgress, scale,
+  })
 }
 
 function resizeCanvasToGameState(canvas: HTMLCanvasElement, state: GameState) {

@@ -52,6 +52,8 @@ quarkus:
     enabled: true
 
 remimho:
+  capture:
+    enabled: true
   client:
     interpolation-enabled: false
   coroutines:

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.jboss.logging.Logger
 import ru.rkhamatyarov.config.ComboSettings
 import ru.rkhamatyarov.service.mvi.Combo
 import ru.rkhamatyarov.service.mvi.EphemeralEvent
@@ -29,9 +30,12 @@ import ru.rkhamatyarov.service.turbo.TurboBoostStrategy
 import ru.rkhamatyarov.service.turbo.TurboHistory
 import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
+import ru.rkhamatyarov.telemetry.CaptureRecorder
+import ru.rkhamatyarov.telemetry.DisabledCapture
 import ru.rkhamatyarov.telemetry.MonitoredMailbox
 import ru.rkhamatyarov.telemetry.MonitoredReducer
 import ru.rkhamatyarov.telemetry.PaddleDiagnostics
+import ru.rkhamatyarov.telemetry.RoomCapture
 import java.util.concurrent.ConcurrentHashMap
 
 class GameRoom(
@@ -46,7 +50,11 @@ class GameRoom(
     private val autoPowerUpsEnabled: Boolean = true,
     private val replayLogCapacity: Int = DEFAULT_REPLAY_LOG_CAPACITY,
     combo: Combo = Combo(),
+    val captureRecorder: RoomCapture = DisabledCapture,
+    private val paddleDiagnostics: (String, MviGameState, MviGameState, GameAction) -> Unit = PaddleDiagnostics::record,
 ) {
+    private val log = Logger.getLogger(GameRoom::class.java)
+    private var diagnosticsFailed = false
     private val mutableReliableState = MutableStateFlow(MviGameState(combo = combo))
     private val mutableEphemeralEvents =
         MutableSharedFlow<EphemeralEvent>(
@@ -135,8 +143,24 @@ class GameRoom(
 
         val before = mutableReliableState.value
         val captured = MviDomainEvents.capture { reducer(before, action) }
-        PaddleDiagnostics.record(id, before, captured.value, action)
         mutableReliableState.value = captured.value
+        if (!diagnosticsFailed) {
+            runCatching {
+                if (captureRecorder.enabled) {
+                    captureRecorder.record(
+                        before = before,
+                        after = captured.value,
+                        action = action,
+                        humanSides = PaddleSide.entries.filter(::isHumanControlled),
+                        domainEvents = captured.events,
+                    )
+                }
+                paddleDiagnostics(id, before, captured.value, action)
+            }.onFailure { failure ->
+                diagnosticsFailed = true
+                log.error("Room diagnostics disabled after failure; gameplay continues", failure)
+            }
+        }
         turboBoostStrategy.onEvents(captured.events, elapsedNs)
         captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>().forEach(::emitOneTimerFeedback)
         captured.events.forEach(::emitComboFeedback)
@@ -255,6 +279,9 @@ class RoomRegistry
         )
         var replayLogCapacity: Int = GameRoom.DEFAULT_REPLAY_LOG_CAPACITY
 
+        @org.eclipse.microprofile.config.inject.ConfigProperty(name = "remimho.capture.enabled", defaultValue = "true")
+        var captureEnabled: Boolean = true
+
         private val rooms = ConcurrentHashMap<String, GameRoom>()
 
         fun get(roomId: String): GameRoom =
@@ -265,10 +292,13 @@ class RoomRegistry
                     reducer = monitoredReducer.wrap(::reduce),
                     replayLogCapacity = replayLogCapacity,
                     combo = comboSettings.snapshot(),
+                    captureRecorder = if (captureEnabled) CaptureRecorder() else DisabledCapture,
                 )
             }
 
         fun activeRooms(): Collection<GameRoom> = rooms.values
+
+        fun find(roomId: String): GameRoom? = rooms[roomId]
 
         fun roomCount(): Int = rooms.size
 

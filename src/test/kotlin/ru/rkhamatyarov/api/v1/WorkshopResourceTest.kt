@@ -440,21 +440,6 @@ class WorkshopResourceTest {
         )
     }
 
-    private fun speedConfigBody(
-        baseMultiplier: Double,
-        timeAccelerationRate: Double,
-        levelAccelerationPerLine: Double,
-        maxMultiplier: Double,
-    ): String =
-        """
-        {
-          "baseMultiplier": $baseMultiplier,
-          "timeAccelerationRate": $timeAccelerationRate,
-          "levelAccelerationPerLine": $levelAccelerationPerLine,
-          "maxMultiplier": $maxMultiplier
-        }
-        """.trimIndent()
-
     private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 
     private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =

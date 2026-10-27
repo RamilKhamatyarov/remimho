@@ -3,6 +3,11 @@ import type { Ref } from 'vue'
 import type { GameState, OneTimerEffect, PaddleSide, RemoteCursor, TurboHudState, TurboSideState } from '../types/game'
 import { GameStateDelta as protoGameStateDelta } from '../proto/game_state'
 import { configureGameLoop, enqueueDelta } from './useGameLoop'
+import { captureBuffer } from '../diagnostics/captureBuffer'
+
+export const captureClientConfig = { clientInterpolation: false }
+export const captureEnabledRef = ref(false)
+let captureToken: string | null = null
 
 export const gameStateRef: Ref<GameState | null> = ref<GameState | null>(null)
 export const connectedRef: Ref<boolean> = ref(false)
@@ -129,6 +134,7 @@ function socketUrl(): string {
 }
 
 function onSocketOpen(url: string) {
+  captureBuffer.record('connection', { connected: true })
   connectedRef.value = true
   console.log('[WS] Connected to', url)
 }
@@ -145,15 +151,21 @@ function onSocketMessage(event: MessageEvent) {
 function applyBinaryMessage(data: ArrayBuffer) {
   try {
     const delta = protoGameStateDelta.decode(new Uint8Array(data))
+    captureBuffer.record('received', delta)
     if (!enqueueDelta(delta)) applyDelta(delta)
   } catch (error) {
     console.error('[WS] Protobuf decode error', error)
+    captureBuffer.record('decode-error', { format: 'protobuf' })
   }
 }
 
 function applyJsonMessage(message: string) {
   try {
     const data = JSON.parse(message) as Record<string, unknown>
+    if (data['type'] === 'CAPTURE_ACCESS') {
+      captureToken = typeof data['token'] === 'string' ? data['token'] : null
+      return
+    }
     if (isServerError(data)) {
       combinationResultRef.value = { ok: false, message: String(data['message'] ?? 'Command rejected') }
       console.warn('[WS] Server error:', data['message'])
@@ -268,6 +280,7 @@ function toTurboSideState(data: Record<string, unknown>): TurboSideState {
 }
 
 function applyJsonStateMessage(data: Record<string, unknown>) {
+  captureBuffer.record('received-json', data)
   if ('puck' in data && 'score' in data) {
     gameStateRef.value = { ...data } as unknown as GameState
     return
@@ -308,6 +321,8 @@ function mergeLegacyJsonDelta(data: Record<string, unknown>): GameState {
 }
 
 function onSocketClose() {
+  captureToken = null
+  captureBuffer.record('connection', { connected: false })
   connectedRef.value = false
   remoteCursorsRef.value = []
   comboMessageRef.value = null
@@ -323,7 +338,10 @@ async function loadClientConfig(): Promise<void> {
     const response = await fetch('/api/v1/game/client-config', { headers: { Accept: 'application/json' } })
     if (!response.ok) return
 
-    const config = await response.json() as { clientInterpolation?: boolean }
+    const config = await response.json() as { clientInterpolation?: boolean; captureEnabled?: boolean }
+    captureEnabledRef.value = config.captureEnabled === true
+    captureBuffer.configure(captureEnabledRef.value)
+    captureClientConfig.clientInterpolation = config.clientInterpolation === true
     configureGameLoop({
       clientInterpolation: config.clientInterpolation === true,
       gameState: gameStateRef,
@@ -339,6 +357,8 @@ export function setSocketRoom(roomId: string) {
   if (currentRoomId === nextRoomId) return
 
   currentRoomId = nextRoomId
+  captureToken = null
+  captureBuffer.clear()
   initialized = false
   clearReconnectTimer()
   closeSocketWithoutReconnect()
@@ -375,6 +395,7 @@ export function useGameSocket() {
   function send(type: string, data: Record<string, unknown> = {}) {
     if (socket?.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type, data }))
+      if (type !== 'CURSOR_MOVE') captureBuffer.record('sent-input', { type, data })
       return true
     }
     return false
@@ -415,6 +436,7 @@ export function useGameSocket() {
     turboState: turboStateRef,
     remoteCursors: remoteCursorsRef,
     currentSide,
+    captureContext: () => ({ roomId: currentRoomId, side: currentSide, token: captureToken }),
     movePaddle,
     activateTurbo,
     togglePause,
