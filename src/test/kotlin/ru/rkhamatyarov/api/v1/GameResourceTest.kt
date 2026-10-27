@@ -112,7 +112,11 @@ class GameResourceTest {
         val earlierRules = SpeedConfig(baseMultiplier = 1.7, rallyGrowthPerHit = 1.12, maxRallySpeed = 2_000.0)
         history.clear()
         history.add(
-            MviGameState(puck = MviPuck(x = 123.0, y = 234.0), speedConfig = earlierRules).toDelta().toByteArray(),
+            MviGameState(
+                puck = MviPuck(x = 123.0, y = 234.0),
+                speedConfig = earlierRules,
+                paused = true,
+            ).toDelta().toByteArray(),
         )
         defaultRoom().dispatch(GameIntent.Reliable(GameAction.ApplySpeedConfig(SpeedConfig(baseMultiplier = 3.0))))
 

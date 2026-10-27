@@ -42,6 +42,9 @@ class GameResource {
     @ConfigProperty(name = "remimho.rooms.enabled", defaultValue = "false")
     var roomsEnabled: Boolean = false
 
+    @ConfigProperty(name = "remimho.capture.enabled", defaultValue = "true")
+    var captureEnabled: Boolean = true
+
     @GET
     @Path("/state")
     fun getGameState(): Response {
@@ -73,6 +76,7 @@ class GameResource {
                 mapOf(
                     "clientInterpolation" to clientInterpolationEnabled,
                     "roomsEnabled" to roomsEnabled,
+                    "captureEnabled" to captureEnabled,
                 ),
             ).build()
 
