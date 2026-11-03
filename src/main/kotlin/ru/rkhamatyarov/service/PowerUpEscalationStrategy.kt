@@ -7,7 +7,7 @@ import kotlin.math.hypot
 
 class PowerUpEscalationStrategy(
     roomId: String,
-    private val curveVersion: String = DEFAULT_CURVE_VERSION,
+    curveVersion: String = DEFAULT_CURVE_VERSION,
     private val tiers: List<PowerUpEscalationTier> = DEFAULT_TIERS,
 ) {
     private val seed = stableSeed("$curveVersion:$roomId")
@@ -61,7 +61,7 @@ class PowerUpEscalationStrategy(
                     startsAtNs = 60L * SECOND_NS,
                     spawnIntervalNs = 8L * SECOND_NS,
                     fieldPowerUpLimit = 3,
-                    eligibleTypes = listOf(PowerUpType.SPEED_BOOST, PowerUpType.MAGNET_BALL, PowerUpType.GHOST_MODE),
+                    eligibleTypes = listOf(PowerUpType.SPEED_BOOST, PowerUpType.MAGNET_BALL, PowerUpType.RABBIT_MODE),
                 ),
                 PowerUpEscalationTier(
                     startsAtNs = 120L * SECOND_NS,
@@ -71,7 +71,7 @@ class PowerUpEscalationStrategy(
                         listOf(
                             PowerUpType.SPEED_BOOST,
                             PowerUpType.MAGNET_BALL,
-                            PowerUpType.GHOST_MODE,
+                            PowerUpType.RABBIT_MODE,
                             PowerUpType.PADDLE_SHIELD,
                         ),
                 ),
@@ -83,7 +83,7 @@ class PowerUpEscalationStrategy(
                         listOf(
                             PowerUpType.SPEED_BOOST,
                             PowerUpType.MAGNET_BALL,
-                            PowerUpType.GHOST_MODE,
+                            PowerUpType.RABBIT_MODE,
                             PowerUpType.PADDLE_SHIELD,
                         ),
                 ),
@@ -111,6 +111,7 @@ fun createDeterministicPowerUp(
     seed: Long = stableSeed("manual:${type.name}:$elapsedNs:${state.powerUps.size}"),
     spawnIndex: Long = state.powerUps.size.toLong(),
 ): MviPowerUp? {
+    if (type == PowerUpType.GHOST_MODE) return null
     repeat(SPAWN_ATTEMPTS) { attempt ->
         val candidateSeed = seed + spawnIndex * SPAWN_INDEX_STEP + attempt * ATTEMPT_STEP
         val x = deterministicCoordinate(candidateSeed, state.canvasWidth, state.canvasWidth * HORIZONTAL_MARGIN_RATIO)

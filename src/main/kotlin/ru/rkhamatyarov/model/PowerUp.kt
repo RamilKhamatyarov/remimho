@@ -24,7 +24,9 @@ enum class PowerUpType(
 ) {
     SPEED_BOOST("⚡ Speed (+50%)", "⚡"),
     MAGNET_BALL("🧲 Magnet Ball", "🧲"),
+
     GHOST_MODE("👻 Ghost Mode", "👻"),
+    RABBIT_MODE("🐇 Rabbit Mode", "🐇"),
     MULTI_BALL("⚪ Multi Ball", "⚪"),
     PADDLE_SHIELD("🛡️ Paddle Shield", "🛡️"),
     ;
@@ -34,7 +36,7 @@ enum class PowerUpType(
             when (type) {
                 SPEED_BOOST -> "#FFEB3B"
                 MAGNET_BALL -> "#E040FB"
-                GHOST_MODE -> "#40C4FF"
+                GHOST_MODE, RABBIT_MODE -> "#40C4FF"
                 MULTI_BALL -> "#FF6E40"
                 PADDLE_SHIELD -> "#69F0AE"
             }
@@ -43,7 +45,7 @@ enum class PowerUpType(
             when (type) {
                 SPEED_BOOST -> 5_000_000_000
                 MAGNET_BALL -> 8_000_000_000
-                GHOST_MODE -> 6_000_000_000
+                GHOST_MODE, RABBIT_MODE -> 6_000_000_000
                 MULTI_BALL -> 0L
                 PADDLE_SHIELD -> 10_000_000_000
             }

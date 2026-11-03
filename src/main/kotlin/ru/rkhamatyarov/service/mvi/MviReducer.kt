@@ -1,9 +1,23 @@
 package ru.rkhamatyarov.service.mvi
 
+import ru.rkhamatyarov.model.PowerUpType
+
 /** Applies one deterministic action to the authoritative state. */
 fun reduce(
     state: MviGameState,
     action: GameAction,
+): MviGameState = reduceAction(state.withoutGhostMode(), action, legacyGhostMode = false)
+
+/** Compatibility entry point for historical recordings, never used by the live actor. */
+internal fun reduceLegacyReplay(
+    state: MviGameState,
+    action: GameAction,
+): MviGameState = reduceAction(state, action, legacyGhostMode = true)
+
+private fun reduceAction(
+    state: MviGameState,
+    action: GameAction,
+    legacyGhostMode: Boolean,
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
@@ -12,6 +26,7 @@ fun reduce(
                 deltaSeconds = action.deltaSeconds,
                 elapsedNs = action.elapsedNs,
                 turboSpeedMultiplier = action.turboSpeedMultiplier,
+                legacyGhostMode = legacyGhostMode,
             )
         }
 
@@ -48,7 +63,7 @@ fun reduce(
         }
 
         is GameAction.RestoreSnapshot -> {
-            action.state
+            if (legacyGhostMode) action.state else action.state.withoutGhostMode()
         }
 
         is GameAction.ApplyTeleports -> {
@@ -56,7 +71,11 @@ fun reduce(
         }
 
         is GameAction.SpawnPowerUp -> {
-            state.copy(powerUps = state.powerUps + action.powerUp)
+            if (!legacyGhostMode && action.powerUp.type == PowerUpType.GHOST_MODE) {
+                state
+            } else {
+                state.copy(powerUps = state.powerUps + action.powerUp)
+            }
         }
 
         is GameAction.ApplySpeedConfig -> {
@@ -80,6 +99,20 @@ private fun MviGameState.movePaddle(action: GameAction.MovePaddle): MviGameState
         PaddleSide.A -> copy(paddle1Y = top, paddle1Velocity = paddle1Velocity + (top - paddle1Y))
         PaddleSide.B -> copy(paddle2Y = top, paddle2Velocity = paddle2Velocity + (top - paddle2Y))
     }
+}
+
+/** Prevents legacy snapshots from enabling ghost effects when resumed as a live match. */
+private fun MviGameState.withoutGhostMode(): MviGameState {
+    if (!ghostMode && powerUps.none { it.type == PowerUpType.GHOST_MODE } &&
+        activePowerUps.none { it.type == PowerUpType.GHOST_MODE }
+    ) {
+        return this
+    }
+    return copy(
+        ghostMode = false,
+        powerUps = powerUps.filterNot { it.type == PowerUpType.GHOST_MODE },
+        activePowerUps = activePowerUps.filterNot { it.type == PowerUpType.GHOST_MODE },
+    )
 }
 
 private fun MviGameState.commitLine(line: MviLine): MviGameState =

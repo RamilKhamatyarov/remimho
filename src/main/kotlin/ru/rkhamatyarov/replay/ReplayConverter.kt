@@ -616,6 +616,7 @@ object ReplayConverter {
             .setType(type.name)
             .setActivatedElapsedNs(activatedNs)
             .setDurationNs(durationNs)
+            .setRabbitTurnsApplied(rabbitTurnsApplied)
             .build()
 
     private fun SnapshotActivePowerUp.toMviActivePowerUp(): MviActivePowerUp? =
@@ -624,6 +625,7 @@ object ReplayConverter {
                 type = PowerUpType.valueOf(type),
                 activatedNs = activatedElapsedNs,
                 durationNs = durationNs,
+                rabbitTurnsApplied = rabbitTurnsApplied,
             )
         }.getOrNull()
 

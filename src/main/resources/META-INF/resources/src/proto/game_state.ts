@@ -90,14 +90,16 @@ function readPowerUp(buf: Uint8Array) {
 function readActivePowerUp(buf: Uint8Array) {
   const r = new ProtoReader(buf);
   let type = '', emoji = '', remainingSeconds = 0;
+  let remainingMs: number | undefined;
   while (!r.done) {
     const tag = r.varint(), f = tag >>> 3, w = tag & 7;
     if      (f === 1 && w === 2) type             = r.str();
     else if (f === 2 && w === 2) emoji            = r.str();
     else if (f === 3 && w === 0) remainingSeconds = r.varint();
+    else if (f === 7 && w === 0) remainingMs = r.varint();
     else r.skip(w);
   }
-  return { type, emoji, remainingMs: remainingSeconds * 1000 };
+  return { type, emoji, remainingMs: remainingMs ?? remainingSeconds * 1000 };
 }
 
 function decode(buf: Uint8Array): Record<string, unknown> {

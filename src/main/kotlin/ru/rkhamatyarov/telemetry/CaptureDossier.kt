@@ -51,7 +51,7 @@ object CaptureDossier {
         val intents = entries.mapNotNull { it.intent }
         val replay =
             ReplayFile.newBuilder()
-                .setVersion("1")
+                .setVersion("2")
                 .setRoomId(roomId)
                 .setStartingState(snapshot)
                 .setCombo(snapshot.combo)

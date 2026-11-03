@@ -49,7 +49,7 @@ class ReplayResource {
         val builder =
             ReplayFile
                 .newBuilder()
-                .setVersion("1")
+                .setVersion("2")
                 .setRoomId(roomId)
                 .setStartWallTimeMs(System.currentTimeMillis())
                 .setFrameCount(replayIntents.size)

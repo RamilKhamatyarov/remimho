@@ -12,6 +12,18 @@ import kotlin.test.assertTrue
 
 class PowerUpEscalationStrategyTest {
     @Test
+    fun `live escalation offers rabbit instead of ghost at later tiers`() {
+        val strategy = PowerUpEscalationStrategy("rabbit-spawns")
+        val types =
+            (1L..100L).mapNotNull { index ->
+                strategy.nextSpawn(MviGameState(), 240_000_000_000L + index * 10_000_000_000L)?.type
+            }.toSet()
+        assertTrue(PowerUpType.RABBIT_MODE in types)
+        assertTrue(PowerUpType.GHOST_MODE !in types)
+        assertNull(createDeterministicPowerUp(PowerUpType.GHOST_MODE, MviGameState()))
+    }
+
+    @Test
     fun `does not spawn before first logical threshold`() {
         val strategy = PowerUpEscalationStrategy(roomId = "room-a")
 
@@ -63,7 +75,7 @@ class PowerUpEscalationStrategyTest {
                     listOf(
                         MviPowerUp("one", 100.0, 100.0, PowerUpType.SPEED_BOOST, 0L),
                         MviPowerUp("two", 200.0, 100.0, PowerUpType.MAGNET_BALL, 0L),
-                        MviPowerUp("three", 300.0, 100.0, PowerUpType.GHOST_MODE, 0L),
+                        MviPowerUp("three", 300.0, 100.0, PowerUpType.RABBIT_MODE, 0L),
                     ),
             )
 
