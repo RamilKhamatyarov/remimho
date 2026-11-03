@@ -10,6 +10,7 @@ internal object TickReducer {
         deltaSeconds: Double,
         elapsedNs: Long,
         turboSpeedMultiplier: Double,
+        legacyGhostMode: Boolean = false,
     ): MviGameState {
         check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
         if (state.paused || deltaSeconds <= 0.0) return state
@@ -21,12 +22,13 @@ internal object TickReducer {
                 advanced = PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed),
                 effectiveSpeed = effectiveSpeed,
                 elapsedNs = elapsedNs,
+                legacyGhostPassThrough = legacyGhostMode && state.ghostMode,
             )
         frame = resolveLines(frame, state, elapsedNs, effectiveSpeed)
 
-        val scoring = resolveScore(frame, state, elapsedNs)
+        val scoring = resolveScore(frame, state, elapsedNs, legacyGhostMode)
         val powerUps = resolvePowerUps(scoring.frame, state, elapsedNs, deltaSeconds, effectiveSpeed)
-        return finalize(state, scoring.score, powerUps, deltaSeconds)
+        return finalize(state, scoring.score, powerUps, deltaSeconds, legacyGhostMode)
     }
 
     private fun effectiveSpeed(
@@ -63,6 +65,7 @@ internal object TickReducer {
         frame: TickFrame,
         state: MviGameState,
         elapsedNs: Long,
+        legacyGhostMode: Boolean,
     ): ScoringResult {
         val side =
             when {
@@ -70,7 +73,7 @@ internal object TickReducer {
                 frame.puck.x + frame.puck.radius >= state.canvasWidth -> PaddleSide.A
                 else -> return ScoringResult(frame, state.score)
             }
-        if (frame.touchLedger.defendedThisTick(side.opponent(), elapsedNs)) {
+        if (frame.touchLedger.defendedThisTick(side.opponent(), elapsedNs, includeShield = !legacyGhostMode)) {
             return ScoringResult(frame, state.score)
         }
         val chainLength = ComboMechanics.superGoalChainLength(frame.touchLedger, side, elapsedNs, state.combo)
@@ -99,16 +102,21 @@ internal object TickReducer {
         deltaSeconds: Double,
         effectiveSpeed: Double,
     ): PowerUpResult {
-        val active = state.activePowerUps.filterNot { it.isExpired(elapsedNs) }
+        val active =
+            state.activePowerUps.filterNot {
+                it.isExpired(elapsedNs) ||
+                    (it.type == PowerUpType.RABBIT_MODE && elapsedNs - it.activatedNs >= it.durationNs)
+            }
         val field = state.powerUps.filter { elapsedNs - it.createdNs <= it.lifetimeNs }
         val (remaining, collected) = field.partition { !it.intersects(frame.puck) }
-        val nextActive = active + collected.map { it.activate(elapsedNs) }
+        val nextActive = RabbitPhysics.refresh(active, collected, elapsedNs)
         val ledger = appendPowerUpTouches(frame, collected, elapsedNs, effectiveSpeed)
         val puck = applyActiveEffects(frame.puck, state, nextActive, deltaSeconds)
+        val rabbit = RabbitPhysics.apply(puck, nextActive, elapsedNs)
         return PowerUpResult(
-            frame = TickFrame(puck, ledger),
+            frame = TickFrame(rabbit.puck, ledger),
             field = remaining,
-            active = nextActive,
+            active = rabbit.active,
         )
     }
 
@@ -147,6 +155,7 @@ internal object TickReducer {
         score: MviScore,
         result: PowerUpResult,
         deltaSeconds: Double,
+        legacyGhostMode: Boolean,
     ): MviGameState =
         state.copy(
             puck = result.frame.puck,
@@ -158,26 +167,29 @@ internal object TickReducer {
             powerUps = result.field,
             activePowerUps = result.active,
             speedMultiplier = if (result.active.has(PowerUpType.SPEED_BOOST)) SPEED_BOOST_MULTIPLIER else 1.0,
-            ghostMode = result.active.has(PowerUpType.GHOST_MODE),
+            ghostMode = getLegacyGhostMode(legacyGhostMode, result),
             paddleShield = result.active.has(PowerUpType.PADDLE_SHIELD),
             touchLedger =
                 if (state.combo.enabled && score != state.score) TouchLedger() else result.frame.touchLedger,
         )
 
-    /** True when the given paddle registered a touch during this very tick. */
+    private fun getLegacyGhostMode(
+        legacyGhostMode: Boolean,
+        result: PowerUpResult,
+    ): Boolean = legacyGhostMode && result.active.has(PowerUpType.GHOST_MODE)
+
+    /** A paddle or current-rules shield save must not also award a goal at the boundary. */
     private fun TouchLedger.defendedThisTick(
         side: PaddleSide,
         elapsedNs: Long,
-    ): Boolean = entries.any { it.source == TouchSource.PADDLE && it.ownerSide == side && it.elapsedNs == elapsedNs }
+        includeShield: Boolean,
+    ): Boolean =
+        entries.any {
+            it.ownerSide == side && it.elapsedNs == elapsedNs &&
+                (it.source == TouchSource.PADDLE || (includeShield && it.source == TouchSource.WALL))
+        }
 
     private fun MviPowerUp.intersects(puck: MviPuck): Boolean = hypot(puck.x - x, puck.y - y) < radius + puck.radius
-
-    private fun MviPowerUp.activate(elapsedNs: Long): MviActivePowerUp =
-        MviActivePowerUp(
-            type = type,
-            activatedNs = elapsedNs,
-            durationNs = PowerUpType.getDuration(type),
-        )
 
     private fun List<MviActivePowerUp>.has(type: PowerUpType): Boolean = any { it.type == type }
 

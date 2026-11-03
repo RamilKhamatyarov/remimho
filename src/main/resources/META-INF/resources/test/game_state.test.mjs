@@ -31,6 +31,25 @@ function message(field, payload) {
   return Buffer.concat([varint(field * 8 + 2), varint(payload.length), payload]);
 }
 
+test('rabbit badge decodes precise countdown while skipping authoritative timing fields', () => {
+  const effect = Buffer.concat([
+    message(1, Buffer.from('RABBIT_MODE')),
+    message(2, Buffer.from('rabbit')),
+    varint(3 * 8), varint(0),
+    varint(4 * 8), varint(1000000000),
+    varint(5 * 8), varint(6000000000),
+    varint(6 * 8), varint(19),
+    varint(7 * 8), varint(250),
+  ]);
+  const decoded = decode(message(12, effect)).activePowerUps[0];
+  assert.deepEqual(decoded, { type: 'RABBIT_MODE', emoji: 'rabbit', remainingMs: 250 });
+});
+
+test('legacy power-up countdown still decodes from whole seconds', () => {
+  const effect = Buffer.concat([message(1, Buffer.from('SPEED_BOOST')), varint(3 * 8), varint(4)]);
+  assert.equal(decode(message(12, effect)).activePowerUps[0].remainingMs, 4000);
+});
+
 for (const field of [17, 18, 19]) {
   for (const size of [0, 3, 130]) {
     test(`skips field ${field} of length ${size} without corrupting paddle positions`, () => {

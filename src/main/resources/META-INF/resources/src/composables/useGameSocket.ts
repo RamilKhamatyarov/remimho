@@ -83,7 +83,7 @@ function toActivePowerUpEffect(effect: Record<string, unknown>): GameState['acti
   return {
     type: String(effect['type'] ?? ''),
     emoji: String(effect['emoji'] ?? ''),
-    remainingMs: Number(effect['remainingSeconds'] ?? 0) * 1000,
+    remainingMs: Number(effect['remainingMs'] ?? Number(effect['remainingSeconds'] ?? 0) * 1000),
   }
 }
 

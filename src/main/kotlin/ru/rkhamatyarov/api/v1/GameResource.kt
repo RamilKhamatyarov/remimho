@@ -193,6 +193,7 @@ class GameResource {
     ): Response =
         try {
             val type = PowerUpType.valueOf(request.type)
+            require(type != PowerUpType.GHOST_MODE) { "Ghost mode is only supported in legacy replays" }
             val room = roomRegistry.get(roomId ?: RoomRegistry.DEFAULT_ROOM_ID)
             val powerUp =
                 createDeterministicPowerUp(type, room.reliableState.value)

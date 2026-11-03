@@ -5,11 +5,14 @@ import org.eclipse.microprofile.config.inject.ConfigProperty
 import ru.rkhamatyarov.mapping.proto.toDelta
 import ru.rkhamatyarov.mapping.proto.toDomain
 import ru.rkhamatyarov.proto.ReplayFile
+import ru.rkhamatyarov.service.mvi.CapturedResult
 import ru.rkhamatyarov.service.mvi.Combo
+import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviDomainEvent
 import ru.rkhamatyarov.service.mvi.MviDomainEvents
 import ru.rkhamatyarov.service.mvi.MviGameState
 import ru.rkhamatyarov.service.mvi.reduce
+import ru.rkhamatyarov.service.mvi.reduceLegacyReplay
 import ru.rkhamatyarov.service.turbo.TurboBoostStrategy
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 
@@ -32,6 +35,8 @@ class HeadlessReplayImporter {
         replayFile: ReplayFile,
         sampleEveryFrames: Int? = null,
     ): HeadlessImportRun {
+        require(replayFile.version in setOf("", "1", "2")) { "Unsupported replay version: ${replayFile.version}" }
+        val legacyGhostMode = replayFile.version != "2"
         var startingState =
             if (replayFile.hasStartingState()) {
                 ReplayConverter.snapshotToState(replayFile.startingState)
@@ -66,7 +71,9 @@ class HeadlessReplayImporter {
                     (state.elapsedSeconds * 1_000_000_000L).toLong()
                 }
             turboBoostStrategy.onAction(intent.action, elapsedNs)
-            val captured = MviDomainEvents.capture { reduce(state, intent.action) }
+
+            val captured = getCaptured(legacyGhostMode, state, intent)
+
             state = captured.value
             oneTimerHighlights += captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>()
             comboHighlights +=
@@ -97,6 +104,15 @@ class HeadlessReplayImporter {
             sampledStates = sampledStates,
         )
     }
+
+    private fun getCaptured(
+        legacyGhostMode: Boolean,
+        state: MviGameState,
+        intent: GameIntent.Reliable,
+    ): CapturedResult<MviGameState> =
+        MviDomainEvents.capture {
+            if (legacyGhostMode) reduceLegacyReplay(state, intent.action) else reduce(state, intent.action)
+        }
 }
 
 private data class HeadlessImportRun(

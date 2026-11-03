@@ -16,8 +16,6 @@ internal object PaddlePhysics {
         effectiveSpeed: Double,
         elapsedNs: Long,
     ): TickFrame {
-        if (state.ghostMode) return frame
-
         var resolved = resolveSide(frame, state, PaddleSide.A, effectiveSpeed, elapsedNs)
         resolved = resolveSide(resolved, state, PaddleSide.B, effectiveSpeed, elapsedNs)
         return resolveShield(resolved, state, effectiveSpeed, elapsedNs)

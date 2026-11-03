@@ -129,12 +129,18 @@ private fun ru.rkhamatyarov.proto.PowerUp.toDomain(logicalNowNs: Long): MviPower
 private fun ru.rkhamatyarov.proto.ActivePowerUp.toDomain(logicalNowNs: Long): MviActivePowerUp? =
     runCatching {
         val powerUpType = PowerUpType.valueOf(type)
-        val durationNs = PowerUpType.getDuration(powerUpType)
+        val durationNs = if (hasDurationNs()) durationNs else PowerUpType.getDuration(powerUpType)
         val remainingNs = remainingSeconds * NANOS_PER_SECOND
         MviActivePowerUp(
             type = powerUpType,
-            activatedNs = logicalNowNs - (durationNs - remainingNs).coerceAtLeast(0L),
+            activatedNs =
+                if (hasActivatedElapsedNs()) {
+                    activatedElapsedNs
+                } else {
+                    logicalNowNs - (durationNs - remainingNs).coerceAtLeast(0L)
+                },
             durationNs = durationNs,
+            rabbitTurnsApplied = rabbitTurnsApplied,
         )
     }.getOrNull()
 
@@ -156,6 +162,10 @@ private fun MviActivePowerUp.toProto(nowNs: Long): ru.rkhamatyarov.proto.ActiveP
         .setType(type.name)
         .setEmoji(type.emoji)
         .setRemainingSeconds(remainingSeconds(nowNs))
+        .setActivatedElapsedNs(activatedNs)
+        .setDurationNs(durationNs)
+        .setRabbitTurnsApplied(rabbitTurnsApplied)
+        .setRemainingMs((durationNs - (nowNs - activatedNs)).coerceAtLeast(0L) / NANOS_PER_MILLISECOND)
         .build()
 
 private fun MviLine.toProto(): ru.rkhamatyarov.proto.Line {

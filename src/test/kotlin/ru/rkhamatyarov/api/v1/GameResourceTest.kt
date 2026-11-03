@@ -206,6 +206,25 @@ class GameResourceTest {
             .body("error", equalTo("Invalid power-up type: NOT_A_POWERUP"))
     }
 
+    @Test
+    fun `rabbit is available through live API and ghost is rejected`() {
+        val roomId = "rabbit-api-${System.nanoTime()}"
+        RestAssured.given()
+            .contentType("application/json")
+            .body("""{"type":"RABBIT_MODE"}""")
+            .post("/api/v1/game/powerup/spawn?roomId=$roomId")
+            .then()
+            .statusCode(200)
+            .body("type", equalTo("RABBIT_MODE"))
+        awaitRoomState(roomId) { state -> state.powerUps.any { it.type == PowerUpType.RABBIT_MODE } }
+        RestAssured.given()
+            .contentType("application/json")
+            .body("""{"type":"GHOST_MODE"}""")
+            .post("/api/v1/game/powerup/spawn?roomId=$roomId")
+            .then()
+            .statusCode(400)
+    }
+
     private fun defaultRoom() = roomRegistry.get(RoomRegistry.DEFAULT_ROOM_ID)
 
     private fun awaitDefaultState(predicate: (MviGameState) -> Boolean): MviGameState =

@@ -48,6 +48,7 @@ data class MviActivePowerUp(
     val type: PowerUpType,
     val activatedNs: Long,
     val durationNs: Long,
+    val rabbitTurnsApplied: Long = 0L,
 ) {
     fun isExpired(nowNs: Long): Boolean = durationNs > 0L && nowNs - activatedNs > durationNs
 

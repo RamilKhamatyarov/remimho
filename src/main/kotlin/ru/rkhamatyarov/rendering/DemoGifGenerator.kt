@@ -72,7 +72,7 @@ object DemoGifGenerator {
         val replay =
             ReplayFile
                 .newBuilder()
-                .setVersion("1")
+                .setVersion("2")
                 .setRoomId("demo")
                 .setStartingState(ReplayConverter.stateToSnapshot(startingState))
                 .addAllIntents(intents.mapNotNull(ReplayConverter::toProto))
