@@ -66,7 +66,7 @@ class RabbitReplayTest {
     @Test
     fun `unsupported replay rules fail explicitly`() {
         assertFailsWith<IllegalArgumentException> {
-            HeadlessReplayImporter().import(replay("3", MviGameState(), emptyList()))
+            HeadlessReplayImporter().import(replay("4", MviGameState(), emptyList()))
         }
     }
 

@@ -17,6 +17,7 @@ import ru.rkhamatyarov.replay.ReplayConverter
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
+import ru.rkhamatyarov.service.mvi.PhysicsRules
 import java.util.UUID
 
 @Path("/api/v1/replay")
@@ -49,7 +50,7 @@ class ReplayResource {
         val builder =
             ReplayFile
                 .newBuilder()
-                .setVersion("2")
+                .setVersion(PhysicsRules.CURRENT.replayVersion)
                 .setRoomId(roomId)
                 .setStartWallTimeMs(System.currentTimeMillis())
                 .setFrameCount(replayIntents.size)

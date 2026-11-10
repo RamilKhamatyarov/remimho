@@ -9,6 +9,11 @@ enum class PaddleSide {
     fun opponent(): PaddleSide = if (this == A) B else A
 }
 
+enum class PaddleContactAxis {
+    FACE,
+    EDGE,
+}
+
 sealed interface MviDomainEvent {
     data class GiveAndGoCompleted(
         val side: PaddleSide,
@@ -21,6 +26,7 @@ sealed interface MviDomainEvent {
 
     data class PaddleHit(
         val side: PaddleSide,
+        val axis: PaddleContactAxis = PaddleContactAxis.FACE,
     ) : MviDomainEvent
 
     data object LineDeflect : MviDomainEvent

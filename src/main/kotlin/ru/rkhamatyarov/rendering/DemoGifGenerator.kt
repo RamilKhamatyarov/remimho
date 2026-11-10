@@ -10,6 +10,7 @@ import ru.rkhamatyarov.service.mvi.MviLine
 import ru.rkhamatyarov.service.mvi.MviPoint
 import ru.rkhamatyarov.service.mvi.MviScore
 import ru.rkhamatyarov.service.mvi.PaddleSide
+import ru.rkhamatyarov.service.mvi.PhysicsRules
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.inputStream
@@ -72,7 +73,7 @@ object DemoGifGenerator {
         val replay =
             ReplayFile
                 .newBuilder()
-                .setVersion("2")
+                .setVersion(PhysicsRules.CURRENT.replayVersion)
                 .setRoomId("demo")
                 .setStartingState(ReplayConverter.stateToSnapshot(startingState))
                 .addAllIntents(intents.mapNotNull(ReplayConverter::toProto))

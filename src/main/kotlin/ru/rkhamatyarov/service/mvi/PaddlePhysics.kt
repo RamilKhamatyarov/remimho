@@ -15,9 +15,10 @@ internal object PaddlePhysics {
         state: MviGameState,
         effectiveSpeed: Double,
         elapsedNs: Long,
+        rules: PhysicsRules = PhysicsRules.CURRENT,
     ): TickFrame {
-        var resolved = resolveSide(frame, state, PaddleSide.A, effectiveSpeed, elapsedNs)
-        resolved = resolveSide(resolved, state, PaddleSide.B, effectiveSpeed, elapsedNs)
+        var resolved = resolveSide(frame, state, PaddleSide.A, effectiveSpeed, elapsedNs, rules)
+        resolved = resolveSide(resolved, state, PaddleSide.B, effectiveSpeed, elapsedNs, rules)
         return resolveShield(resolved, state, effectiveSpeed, elapsedNs)
     }
 
@@ -27,6 +28,7 @@ internal object PaddlePhysics {
         side: PaddleSide,
         effectiveSpeed: Double,
         elapsedNs: Long,
+        rules: PhysicsRules,
     ): TickFrame {
         val impact = frame.puck.paddleImpact(state, side) ?: return frame
         return when (impact.axis) {
@@ -37,6 +39,7 @@ internal object PaddlePhysics {
                     state = state,
                     effectiveSpeed = effectiveSpeed,
                     elapsedNs = elapsedNs,
+                    rules = rules,
                 )
 
             ImpactAxis.EDGE ->
@@ -47,6 +50,7 @@ internal object PaddlePhysics {
                     state = state,
                     effectiveSpeed = effectiveSpeed,
                     elapsedNs = elapsedNs,
+                    rules = rules,
                 )
         }
     }
@@ -57,6 +61,7 @@ internal object PaddlePhysics {
         state: MviGameState,
         effectiveSpeed: Double,
         elapsedNs: Long,
+        rules: PhysicsRules,
     ): TickFrame {
         val incomingSpeed = frame.puck.speed(effectiveSpeed)
         val config = state.oneTimerConfig
@@ -69,6 +74,7 @@ internal object PaddlePhysics {
                 paddleVelocity = state.paddleVelocity(side),
                 horizontalDirection = side.horizontalDirection(),
                 x = side.faceX(state.canvasWidth, frame.puck.radius),
+                rules = rules,
             )
         outgoing = rallyReturn(outgoing, state.paddleVelocity(side), state.speedConfig)
         outgoing = applyOneTimer(outgoing, side, incomingSpeed, multiplier, elapsedNs, config)
@@ -100,19 +106,51 @@ internal object PaddlePhysics {
         state: MviGameState,
         effectiveSpeed: Double,
         elapsedNs: Long,
+        rules: PhysicsRules,
     ): TickFrame {
         val incomingSpeed = frame.puck.speed(effectiveSpeed)
         val paddleY = state.paddleY(side)
         val fromAbove = impact.y <= paddleY + state.paddleHeight / 2.0
+        val travel = state.paddleVelocity(side)
+        val football = rules == PhysicsRules.V3
+        val contribution = travel / FootballSpin.PADDLE_NORMALIZER * FootballSpin.EDGE_GAIN
+        val swiped = football && abs(contribution) >= FootballSpin.MIN_SPIN
+        val spin = edgeSpin(impact.spin, contribution, football, swiped)
+        val impulse =
+            if (football) {
+                (travel * FootballSpin.EDGE_TANGENTIAL_GAIN)
+                    .coerceIn(-FootballSpin.MAX_EDGE_TANGENTIAL_IMPULSE, FootballSpin.MAX_EDGE_TANGENTIAL_IMPULSE)
+            } else {
+                0.0
+            }
         val outgoing =
             impact.copy(
                 y = if (fromAbove) paddleY - impact.radius else paddleY + state.paddleHeight + impact.radius,
+                vx = if (football) impact.vx + impulse else impact.vx,
                 vy = if (fromAbove) -abs(impact.vy) else abs(impact.vy),
-                spin = 0.0,
-                spinRemainingNs = 0L,
+                spin = spin,
+                spinRemainingNs =
+                    when {
+                        !football || spin == 0.0 -> 0L
+                        swiped -> FootballSpin.DURATION_NS
+                        else -> impact.spinRemainingNs
+                    },
             )
-        MviDomainEvents.record(MviDomainEvent.PaddleHit(side))
+        MviDomainEvents.record(MviDomainEvent.PaddleHit(side, PaddleContactAxis.EDGE))
         return TickFrame(outgoing, frame.touchLedger.append(paddleTouch(side, elapsedNs, incomingSpeed)))
+    }
+
+    /** A stationary edge preserves spin; a swipe adds signed spin and may cancel an opposite curve. */
+    private fun edgeSpin(
+        incoming: Double,
+        contribution: Double,
+        football: Boolean,
+        swiped: Boolean,
+    ): Double {
+        if (!football) return 0.0
+        if (!swiped) return incoming
+        val combined = (incoming + contribution).coerceIn(-FootballSpin.MAX_SPIN, FootballSpin.MAX_SPIN)
+        return if (abs(combined) >= FootballSpin.MIN_SPIN) combined else 0.0
     }
 
     private fun oneTimerMultiplier(
@@ -187,17 +225,21 @@ internal object PaddlePhysics {
         paddleVelocity: Double,
         horizontalDirection: Double,
         x: Double,
+        rules: PhysicsRules,
     ): MviPuck {
         val speed = ejectionSpeed(puck)
         val angle = bounceAngle(puck, paddleY, paddleHeight, paddleVelocity)
-        val spin = (paddleVelocity / PADDLE_SPIN_NORMALIZER).coerceIn(-MAX_SPIN, MAX_SPIN)
-        val hasSpin = abs(spin) >= MIN_SPIN
+        val football = rules == PhysicsRules.V3
+        val normalizer = if (football) FootballSpin.PADDLE_NORMALIZER else PADDLE_SPIN_NORMALIZER
+        val cap = if (football) FootballSpin.MAX_SPIN else MAX_SPIN
+        val spin = (paddleVelocity / normalizer).coerceIn(-cap, cap)
+        val hasSpin = abs(spin) >= if (football) FootballSpin.MIN_SPIN else MIN_SPIN
         return puck.copy(
             x = x,
             vx = horizontalDirection * cos(angle) * speed,
             vy = sin(angle) * speed,
             spin = if (hasSpin) spin else 0.0,
-            spinRemainingNs = if (hasSpin) SPIN_DURATION_NS else 0L,
+            spinRemainingNs = if (hasSpin) (if (football) FootballSpin.DURATION_NS else SPIN_DURATION_NS) else 0L,
         )
     }
 
@@ -274,7 +316,11 @@ internal object PaddlePhysics {
         high: Double,
     ): Slab? {
         if (abs(travel) < MIN_SWEEP_DISTANCE) {
-            return if (origin < low || origin > high) null else Slab(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+            return if (origin < low || origin > high) {
+                null
+            } else {
+                Slab(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+            }
         }
 
         val a = (low - origin) / travel
