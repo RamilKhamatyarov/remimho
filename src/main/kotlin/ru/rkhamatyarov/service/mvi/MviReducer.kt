@@ -6,18 +6,24 @@ import ru.rkhamatyarov.model.PowerUpType
 fun reduce(
     state: MviGameState,
     action: GameAction,
-): MviGameState = reduceAction(state.withoutGhostMode(), action, legacyGhostMode = false)
+): MviGameState = reduceReplay(state, action, PhysicsRules.CURRENT)
 
 /** Compatibility entry point for historical recordings, never used by the live actor. */
-internal fun reduceLegacyReplay(
+internal fun reduceReplay(
     state: MviGameState,
     action: GameAction,
-): MviGameState = reduceAction(state, action, legacyGhostMode = true)
+    rules: PhysicsRules,
+): MviGameState =
+    reduceAction(
+        state = state.forRules(rules),
+        action = action,
+        rules = rules,
+    )
 
 private fun reduceAction(
     state: MviGameState,
     action: GameAction,
-    legacyGhostMode: Boolean,
+    rules: PhysicsRules,
 ): MviGameState =
     when (action) {
         is GameAction.Tick -> {
@@ -26,7 +32,7 @@ private fun reduceAction(
                 deltaSeconds = action.deltaSeconds,
                 elapsedNs = action.elapsedNs,
                 turboSpeedMultiplier = action.turboSpeedMultiplier,
-                legacyGhostMode = legacyGhostMode,
+                rules = rules,
             )
         }
 
@@ -63,7 +69,7 @@ private fun reduceAction(
         }
 
         is GameAction.RestoreSnapshot -> {
-            if (legacyGhostMode) action.state else action.state.withoutGhostMode()
+            action.state.forRules(rules)
         }
 
         is GameAction.ApplyTeleports -> {
@@ -71,7 +77,7 @@ private fun reduceAction(
         }
 
         is GameAction.SpawnPowerUp -> {
-            if (!legacyGhostMode && action.powerUp.type == PowerUpType.GHOST_MODE) {
+            if (!rules.legacyGhostMode && action.powerUp.type == PowerUpType.GHOST_MODE) {
                 state
             } else {
                 state.copy(powerUps = state.powerUps + action.powerUp)
@@ -102,6 +108,9 @@ private fun MviGameState.movePaddle(action: GameAction.MovePaddle): MviGameState
 }
 
 /** Prevents legacy snapshots from enabling ghost effects when resumed as a live match. */
+private fun MviGameState.forRules(rules: PhysicsRules): MviGameState =
+    if (rules.legacyGhostMode) this else withoutGhostMode()
+
 private fun MviGameState.withoutGhostMode(): MviGameState {
     if (!ghostMode && powerUps.none { it.type == PowerUpType.GHOST_MODE } &&
         activePowerUps.none { it.type == PowerUpType.GHOST_MODE }
@@ -127,7 +136,9 @@ private fun MviGameState.applyCombination(action: GameAction.ApplyCombination): 
     val retained = lines.filterNot { it.ownerSide == action.side && it.combinationId != null }
     val additions =
         action.lines.filterNot { candidate ->
-            retained.any { it.ownerSide == action.side && it.points == candidate.points && it.width == candidate.width }
+            retained.any {
+                it.ownerSide == action.side && it.points == candidate.points && it.width == candidate.width
+            }
         }
     val nextLines = retained + additions
     val ids = nextLines.mapTo(mutableSetOf()) { it.id }

@@ -11,8 +11,8 @@ import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviDomainEvent
 import ru.rkhamatyarov.service.mvi.MviDomainEvents
 import ru.rkhamatyarov.service.mvi.MviGameState
-import ru.rkhamatyarov.service.mvi.reduce
-import ru.rkhamatyarov.service.mvi.reduceLegacyReplay
+import ru.rkhamatyarov.service.mvi.PhysicsRules
+import ru.rkhamatyarov.service.mvi.reduceReplay
 import ru.rkhamatyarov.service.turbo.TurboBoostStrategy
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 
@@ -35,8 +35,7 @@ class HeadlessReplayImporter {
         replayFile: ReplayFile,
         sampleEveryFrames: Int? = null,
     ): HeadlessImportRun {
-        require(replayFile.version in setOf("", "1", "2")) { "Unsupported replay version: ${replayFile.version}" }
-        val legacyGhostMode = replayFile.version != "2"
+        val rules = PhysicsRules.fromReplayVersion(replayFile.version)
         var startingState =
             if (replayFile.hasStartingState()) {
                 ReplayConverter.snapshotToState(replayFile.startingState)
@@ -72,7 +71,7 @@ class HeadlessReplayImporter {
                 }
             turboBoostStrategy.onAction(intent.action, elapsedNs)
 
-            val captured = getCaptured(legacyGhostMode, state, intent)
+            val captured = getCaptured(rules, state, intent)
 
             state = captured.value
             oneTimerHighlights += captured.events.filterIsInstance<MviDomainEvent.OneTimerFired>()
@@ -106,12 +105,12 @@ class HeadlessReplayImporter {
     }
 
     private fun getCaptured(
-        legacyGhostMode: Boolean,
+        rules: PhysicsRules,
         state: MviGameState,
         intent: GameIntent.Reliable,
     ): CapturedResult<MviGameState> =
         MviDomainEvents.capture {
-            if (legacyGhostMode) reduceLegacyReplay(state, intent.action) else reduce(state, intent.action)
+            reduceReplay(state, intent.action, rules)
         }
 }
 
