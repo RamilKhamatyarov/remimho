@@ -8,6 +8,7 @@ import ru.rkhamatyarov.mapping.captureSettings
 import ru.rkhamatyarov.proto.FullGameSnapshot
 import ru.rkhamatyarov.proto.ReplayFile
 import ru.rkhamatyarov.proto.ReplayIntent
+import ru.rkhamatyarov.service.mvi.PhysicsRules
 import java.time.Instant
 import java.util.Base64
 
@@ -51,7 +52,7 @@ object CaptureDossier {
         val intents = entries.mapNotNull { it.intent }
         val replay =
             ReplayFile.newBuilder()
-                .setVersion("2")
+                .setVersion(PhysicsRules.CURRENT.replayVersion)
                 .setRoomId(roomId)
                 .setStartingState(snapshot)
                 .setCombo(snapshot.combo)

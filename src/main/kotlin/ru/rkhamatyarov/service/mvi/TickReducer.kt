@@ -10,8 +10,9 @@ internal object TickReducer {
         deltaSeconds: Double,
         elapsedNs: Long,
         turboSpeedMultiplier: Double,
-        legacyGhostMode: Boolean = false,
+        rules: PhysicsRules = PhysicsRules.CURRENT,
     ): MviGameState {
+        val legacyGhostMode = rules.legacyGhostMode
         check(deltaSeconds.isFinite()) { "Tick delta must be finite" }
         if (state.paused || deltaSeconds <= 0.0) return state
 
@@ -19,10 +20,11 @@ internal object TickReducer {
         var frame =
             BoundaryPhysics.resolve(
                 state = state,
-                advanced = PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed),
+                advanced = PuckPhysics.advance(state.puck, deltaSeconds, effectiveSpeed, rules),
                 effectiveSpeed = effectiveSpeed,
                 elapsedNs = elapsedNs,
                 legacyGhostPassThrough = legacyGhostMode && state.ghostMode,
+                rules = rules,
             )
         frame = resolveLines(frame, state, elapsedNs, effectiveSpeed)
 

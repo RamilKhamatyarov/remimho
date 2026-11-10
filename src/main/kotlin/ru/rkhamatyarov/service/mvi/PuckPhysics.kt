@@ -13,8 +13,14 @@ internal object PuckPhysics {
         puck: MviPuck,
         deltaSeconds: Double,
         speedMultiplier: Double,
+        rules: PhysicsRules = PhysicsRules.CURRENT,
     ): MviPuck {
-        val curved = applySpinCurve(puck, deltaSeconds)
+        val curved =
+            if (rules == PhysicsRules.V3) {
+                applyFootballCurve(puck, deltaSeconds)
+            } else {
+                applySpinCurve(puck, deltaSeconds)
+            }
         return curved.copy(
             x = curved.x + curved.vx * speedMultiplier * deltaSeconds,
             y = curved.y + curved.vy * speedMultiplier * deltaSeconds,
@@ -91,6 +97,27 @@ internal object PuckPhysics {
         )
     }
 
+    /** Only the active portion of the logical tick contributes curvature, including the expiry tick. */
+    private fun applyFootballCurve(
+        puck: MviPuck,
+        deltaSeconds: Double,
+    ): MviPuck {
+        if (puck.spinRemainingNs <= 0L || !puck.spin.isFinite() || abs(puck.spin) < FootballSpin.MIN_SPIN) {
+            return puck.copy(spin = 0.0, spinRemainingNs = 0L)
+        }
+        val tickNs = (deltaSeconds * NANOS_PER_SECOND).toLong().coerceAtLeast(0L)
+        val activeNs = minOf(tickNs, puck.spinRemainingNs)
+        val remainingNs = puck.spinRemainingNs - activeNs
+        val nextSpin = puck.spin * StrictMath.pow(0.5, activeNs.toDouble() / FootballSpin.HALF_LIFE_NS)
+        val alive = remainingNs > 0L && abs(nextSpin) >= FootballSpin.MIN_SPIN
+        return puck.copy(
+            vy = puck.vy + nextSpin * FootballSpin.CURVE_ACCELERATION * (activeNs / NANOS_PER_SECOND),
+            spin = if (alive) nextSpin else 0.0,
+            spinRemainingNs = if (alive) remainingNs else 0L,
+        )
+    }
+
+    /** Versions 1 and 2 retain their original per-tick decay and expiry ordering. */
     private fun applySpinCurve(
         puck: MviPuck,
         deltaSeconds: Double,

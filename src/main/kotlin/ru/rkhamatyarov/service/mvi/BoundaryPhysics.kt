@@ -10,6 +10,7 @@ internal object BoundaryPhysics {
         effectiveSpeed: Double,
         elapsedNs: Long,
         legacyGhostPassThrough: Boolean = false,
+        rules: PhysicsRules = PhysicsRules.CURRENT,
     ): TickFrame {
         var start = advanced.copy(x = state.puck.x, y = state.puck.y)
         var dx = advanced.x - start.x
@@ -27,7 +28,7 @@ internal object BoundaryPhysics {
             val travel = if (hitsWall) fraction else 1.0
             val end = start.copy(x = start.x + dx * travel, y = start.y + dy * travel)
             val frame = TickFrame(end, ledger)
-            val resolved = resolveFrame(legacyGhostPassThrough, frame, state, start, effectiveSpeed, elapsedNs)
+            val resolved = resolveFrame(legacyGhostPassThrough, frame, state, start, effectiveSpeed, elapsedNs, rules)
             if (resolved !== frame) return resolved
             if (!hitsWall) return frame
 
@@ -48,11 +49,12 @@ internal object BoundaryPhysics {
         start: MviPuck,
         effectiveSpeed: Double,
         elapsedNs: Long,
+        rules: PhysicsRules,
     ): TickFrame =
         if (legacyGhostPassThrough) {
             frame
         } else {
-            PaddlePhysics.resolve(frame, state.copy(puck = start), effectiveSpeed, elapsedNs)
+            PaddlePhysics.resolve(frame, state.copy(puck = start), effectiveSpeed, elapsedNs, rules)
         }
 
     private const val MAX_WALL_CONTACTS = 64
