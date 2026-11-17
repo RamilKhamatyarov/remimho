@@ -7,6 +7,7 @@ import ru.rkhamatyarov.mapping.proto.toDomain
 import ru.rkhamatyarov.proto.ReplayFile
 import ru.rkhamatyarov.service.mvi.CapturedResult
 import ru.rkhamatyarov.service.mvi.Combo
+import ru.rkhamatyarov.service.mvi.GameAction
 import ru.rkhamatyarov.service.mvi.GameIntent
 import ru.rkhamatyarov.service.mvi.MviDomainEvent
 import ru.rkhamatyarov.service.mvi.MviDomainEvents
@@ -31,9 +32,16 @@ class HeadlessReplayImporter {
         return importInternal(replayFile, sampleEveryFrames).sampledStates
     }
 
+    /** Diagnostic import: [observer] sees the state after every reduced intent. Not used by live rooms. */
+    fun importObserved(
+        replayFile: ReplayFile,
+        observer: ReplayObserver,
+    ): HeadlessImportResult = importInternal(replayFile, observer = observer).result
+
     private fun importInternal(
         replayFile: ReplayFile,
         sampleEveryFrames: Int? = null,
+        observer: ReplayObserver? = null,
     ): HeadlessImportRun {
         val rules = PhysicsRules.fromReplayVersion(replayFile.version)
         var startingState =
@@ -81,6 +89,7 @@ class HeadlessReplayImporter {
                 }
             turboBoostStrategy.onEvents(captured.events, elapsedNs)
             frameIndex++
+            observer?.onReduced(frameIndex, intent.action, state)
             if (frameIndex % snapshotIntervalFrames == 0) {
                 val logicalNs = (state.elapsedSeconds * 1_000_000_000L).toLong()
                 snapshots.add(logicalNs to state.toDelta().toByteArray())
@@ -112,6 +121,15 @@ class HeadlessReplayImporter {
         MviDomainEvents.capture {
             reduceReplay(state, intent.action, rules)
         }
+}
+
+/** Receives each reduced intent of a headless import, for hashing and tracing. */
+fun interface ReplayObserver {
+    fun onReduced(
+        frameIndex: Int,
+        action: GameAction,
+        state: MviGameState,
+    )
 }
 
 private data class HeadlessImportRun(

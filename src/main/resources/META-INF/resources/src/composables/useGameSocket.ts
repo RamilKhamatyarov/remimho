@@ -190,7 +190,7 @@ function applyJsonMessage(message: string) {
     if (data['type'] === 'GIVE_AND_GO_COMPLETED' || data['type'] === 'SUPER_GOAL_SCORED') {
       if (data['side'] !== 'A' && data['side'] !== 'B') return
       comboMessageRef.value = {
-        text: data['type'] === 'SUPER_GOAL_SCORED' ? 'Super Goal +2' : 'Give-and-Go!',
+        text: data['type'] === 'SUPER_GOAL_SCORED' ? 'Tic-Tac-Toe +2' : 'Give-and-Go!',
         side: data['side'],
         startedAtMs: performance.now(),
       }

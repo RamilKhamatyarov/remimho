@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "gate": "3d-tunnel-physics",
+  "prerequisites": [
+    {
+      "id": "arm64-hash-vectors",
+      "status": "pending",
+      "evidence": null
+    },
+    {
+      "id": "arm64-2d-trace-parity",
+      "status": "pending",
+      "evidence": null
+    },
+    {
+      "id": "numerical-substrate-decision",
+      "status": "provisional",
+      "evidence": ".github/adr/0018-provisional-fixed-point-tunnel-substrate.md"
+    },
+    {
+      "id": "substrate-vectors-cross-architecture",
+      "status": "blocked",
+      "evidence": null
+    },
+    {
+      "id": "real-tunnel-reducer",
+      "status": "pending",
+      "evidence": null
+    },
+    {
+      "id": "golden-updater-through-real-reducer",
+      "status": "blocked",
+      "evidence": null
+    },
+    {
+      "id": "no-placeholder-physics-goldens",
+      "status": "pass",
+      "evidence": "docs/determinism/tunnel-tape.md#verification"
+    }
+  ]
+}

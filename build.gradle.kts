@@ -142,6 +142,76 @@ if (System.getenv("CI") != "true") {
     tasks.named("build") { dependsOn("generateDemoGif") }
 }
 
+// Determinism tools (docs/determinism/README.md). None of these are attached to `build`.
+val determinismOutDir = layout.buildDirectory.dir("determinism")
+
+fun registerDeterminismTask(
+    name: String,
+    summary: String,
+    command: String,
+    defaultArgs: () -> List<String> = { emptyList() },
+) = tasks.register<JavaExec>(name) {
+    group = "determinism"
+    description = summary
+    dependsOn("compileKotlin", "compileJava")
+    mainClass.set("ru.rkhamatyarov.determinism.DeterminismCli")
+    classpath = mainSourceSet.get().runtimeClasspath
+    systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+    // The command travels as a property because `--args` replaces the argument list.
+    systemProperty("determinism.command", command)
+    argumentProviders.add(CommandLineArgumentProvider { defaultArgs() })
+}
+
+val projectPath = layout.projectDirectory.asFile.absolutePath
+
+registerDeterminismTask("traceRecord", "Hashes every step: --args=\"<input> <out.trace>\"", "record")
+registerDeterminismTask("traceDump", "Writes all state fields: --args=\"<input> <step> <out.dump>\"", "dump")
+registerDeterminismTask("traceDiff", "First divergent step: --args=\"<left> <right> [--dump <file>]\"", "diff")
+registerDeterminismTask(
+    "determinismAudit",
+    "Traces the 2D audit corpus (-PauditLabel, -PauditCompare, -PauditJvmArgs)",
+    "audit",
+) {
+    val label = (findProperty("auditLabel") as String?) ?: "run"
+    val compare = findProperty("auditCompare") as String?
+    listOf(projectPath, determinismOutDir.get().dir(label).asFile.absolutePath) +
+        if (compare == null) {
+            emptyList()
+        } else {
+            listOf(
+                "--compare",
+                determinismOutDir.get().dir(compare).asFile.absolutePath,
+            )
+        }
+}.configure {
+    (findProperty("auditJvmArgs") as String?)?.let { jvmArgs(it.split(" ")) }
+}
+registerDeterminismTask("determinismParity", "Checks that must match on every architecture", "parity") {
+    listOf(projectPath, "blocking", determinismOutDir.get().dir("parity").asFile.absolutePath)
+}
+registerDeterminismTask("determinismGate", "Reports evidence blockers for the 3D tunnel physics gate", "gate") {
+    listOf(projectPath)
+}
+registerDeterminismTask("determinismParity2d", "Compares 2D traces with the committed x86-64 references", "parity") {
+    listOf(projectPath, "2d", determinismOutDir.get().dir("parity").asFile.absolutePath)
+}
+registerDeterminismTask(
+    "determinismUpdateReferences",
+    "Rewrites committed hash vectors and 2D reference traces",
+    "update-references",
+) {
+    listOf(projectPath)
+}
+tasks.register<JavaExec>("updateTunnelGoldens") {
+    group = "verification"
+    description = "Compares or provenance-guards updates to tunnel golden candidates"
+    dependsOn("test")
+    mainClass.set("ru.rkhamatyarov.tunnel.TunnelGoldenUpdater")
+    classpath = mainSourceSet.get().runtimeClasspath
+    val updaterArgs = (findProperty("tunnelGoldenArgs") as String?)?.trim()?.split(Regex("\\s+")) ?: emptyList()
+    args(updaterArgs)
+}
+
 val frontendDir = layout.projectDirectory.dir("src/main/resources/META-INF/resources")
 val frontendDistDir = frontendDir.dir("dist")
 val npmCommand = if (System.getProperty("os.name").lowercase().contains("windows")) "npm.cmd" else "npm"
