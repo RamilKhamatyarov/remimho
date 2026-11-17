@@ -6,7 +6,7 @@ plugins {
     kotlin("jvm") version "2.4.21"
     kotlin("plugin.allopen") version "2.4.21"
     kotlin("plugin.serialization") version "2.4.21"
-    id("io.quarkus") version "3.40.1.1"
+    id("io.quarkus") version "3.40.1.2"
     id("com.google.protobuf") version "0.10.1"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
     id("com.diffplug.spotless") version "8.11.0"
@@ -25,7 +25,7 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.40.1.1"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.40.1.2"))
 
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
@@ -44,7 +44,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.13.0")
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
 
@@ -53,7 +53,7 @@ dependencies {
     testImplementation("io.quarkus:quarkus-junit5-mockito")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.12.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("io.kotest:kotest-property-jvm:6.2.6")
+    testImplementation("io.kotest:kotest-property-jvm:6.2.7")
 }
 
 java {
