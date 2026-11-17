@@ -1,0 +1,7 @@
+# name hash; regenerate with: gradlew determinismUpdateReferences
+default 5c081c1f068af8e8
+populated 7850ca8aa9510169
+negative-zero 5aa524af7f9d77af
+positive-zero 2ed033c9448f2b2f
+not-a-number 956104a073f06ba1
+extremes 1447b668fbe47d92

@@ -1,0 +1,10 @@
+# x86-64 OpenJDK 21 integer-reference vectors; raw Q32.32 values, not physics goldens.
+# op operands expected-raw; integer uses an integer operand, ratio uses numerator/denominator.
+integer 123 528280977408
+integer -1 -4294967296
+add 5368709120 -2147483648 3221225472
+subtract 8589934592 12884901888 -4294967296
+multiply 8589934592 -12884901888 -25769803776
+divide -12884901888 8589934592 -6442450944
+ratio 1 3 1431655765
+ratio -1 3 -1431655765

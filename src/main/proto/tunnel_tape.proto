@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package ru.rkhamatyarov.proto;
+
+option java_multiple_files = true;
+
+message TapeHeader {
+  uint32 format_version = 1;
+  string physics_version = 2;
+  string substrate_id = 3;
+  uint64 step_duration_ns = 4;
+  fixed64 width_raw = 5;
+  fixed64 height_raw = 6;
+  fixed64 depth_raw = 7;
+  bytes initial_state = 8;
+}
+
+message TapeRecord {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    PADDLE_TARGET = 1;
+    SERVE = 2;
+    RESET = 3;
+    MARK = 4;
+  }
+
+  Kind kind = 1;
+  uint64 seq = 2;
+  uint64 step = 3;
+  oneof payload {
+    PaddleTarget paddle_target = 4;
+    Serve serve = 5;
+  }
+}
+
+message PaddleTarget {
+  enum Side {
+    SIDE_UNSPECIFIED = 0;
+    A = 1;
+    B = 2;
+  }
+  Side side = 1;
+  fixed64 x_raw = 2;
+  fixed64 y_raw = 3;
+}
+
+message Serve {
+  fixed64 vx_raw = 1;
+  fixed64 vy_raw = 2;
+  fixed64 vz_raw = 3;
+}

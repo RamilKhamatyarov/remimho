@@ -18,7 +18,7 @@ internal object ComboMechanics {
             line.elapsedNs in paddle.elapsedNs..elapsedNs
     }
 
-    /** Returns zero unless the recent uninterrupted suffix qualifies for a Super Goal. */
+    /** Returns zero unless the recent uninterrupted suffix qualifies for Tic-Tac-Toe scoring. */
     fun superGoalChainLength(
         ledger: TouchLedger,
         side: PaddleSide,
