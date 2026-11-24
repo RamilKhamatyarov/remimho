@@ -1,7 +1,5 @@
 package ru.rkhamatyarov.websocket
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import io.quarkus.websockets.next.OnClose
 import io.quarkus.websockets.next.OnOpen
 import io.quarkus.websockets.next.OnTextMessage
@@ -12,6 +10,8 @@ import jakarta.inject.Inject
 import org.eclipse.microprofile.config.inject.ConfigProperty
 import org.jboss.logging.Logger
 import ru.rkhamatyarov.service.RoomRegistry
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.readValue
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap

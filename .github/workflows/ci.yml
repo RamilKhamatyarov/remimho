@@ -201,11 +201,11 @@ jobs:
         working-directory: src/main/resources/META-INF/resources
         run: npm ci
 
-      - name: Setup GraalVM 25.0
+      - name: Setup GraalVM 25.6
         uses: graalvm/setup-graalvm@v1
         with:
-          version: '25.0'
-          distribution: 'graalvm'
+          version: '25.6'
+          distribution: 'graalvm-community'
           github-token: ${{ secrets.GITHUB_TOKEN }}
           native-image-job-reports: 'true'
           cache: 'gradle'

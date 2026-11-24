@@ -1,7 +1,7 @@
 package ru.rkhamatyarov.determinism
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.json.JsonMapper
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Path
@@ -40,13 +40,13 @@ object PhysicsGate {
         gateFile: Path,
         projectDir: Path,
     ): GateReport {
-        val root = ObjectMapper().readTree(Files.readString(gateFile))
+        val root = JsonMapper.builder().build().readTree(Files.readString(gateFile))
         require(root.path("version").asInt(-1) == 1) { "unsupported gate schema version" }
         val requirements = root.path("prerequisites")
         require(requirements.isArray && !requirements.isEmpty) { "gate has no prerequisites" }
         val ids = HashSet<String>()
         val rows =
-            requirements.map { requirement ->
+            requirements.values().map { requirement ->
                 parseRequirement(requirement, projectDir, ids)
             }
         return GateReport(rows)

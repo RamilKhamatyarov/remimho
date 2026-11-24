@@ -1,7 +1,5 @@
 package ru.rkhamatyarov.websocket
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import io.quarkus.runtime.ShutdownEvent
 import io.quarkus.runtime.StartupEvent
 import io.quarkus.runtime.annotations.RegisterForReflection
@@ -38,6 +36,8 @@ import ru.rkhamatyarov.service.mvi.PaddleSide
 import ru.rkhamatyarov.service.turbo.TurboHudState
 import ru.rkhamatyarov.service.turbo.TurboSnapshot
 import ru.rkhamatyarov.telemetry.CaptureAccess
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.readValue
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.UUID

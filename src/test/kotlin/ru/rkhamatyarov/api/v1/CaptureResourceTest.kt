@@ -1,6 +1,5 @@
 package ru.rkhamatyarov.api.v1
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.quarkus.test.common.http.TestHTTPResource
 import io.quarkus.test.junit.QuarkusTest
 import io.restassured.RestAssured.given
@@ -10,6 +9,7 @@ import org.junit.jupiter.api.Test
 import ru.rkhamatyarov.service.RoomRegistry
 import ru.rkhamatyarov.telemetry.CaptureAccess
 import ru.rkhamatyarov.telemetry.CapturePermission
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket

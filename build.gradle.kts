@@ -25,9 +25,9 @@ repositories {
 }
 
 dependencies {
-    implementation(enforcedPlatform("io.quarkus:quarkus-bom:3.40.1.2"))
+    implementation(enforcedPlatform("io.quarkus:quarkus-bom:4.0.0"))
 
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("tools.jackson.module:jackson-module-kotlin")
 
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-kotlin")
@@ -48,9 +48,9 @@ dependencies {
     implementation("com.google.protobuf:protobuf-java:$protobufVersion")
     implementation("com.google.protobuf:protobuf-kotlin:$protobufVersion")
 
-    testImplementation("io.quarkus:quarkus-junit5")
+    testImplementation("io.quarkus:quarkus-junit")
     testImplementation("io.rest-assured:rest-assured")
-    testImplementation("io.quarkus:quarkus-junit5-mockito")
+    testImplementation("io.quarkus:quarkus-junit-mockito")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.12.0")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("io.kotest:kotest-property-jvm:6.2.7")
