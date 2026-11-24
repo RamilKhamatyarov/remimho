@@ -56,6 +56,14 @@ class TunnelTapeWriter(
         closed = true
     }
 
+    /** Pins the step count reached; used by deterministic scenario scripts. */
+    @Synchronized
+    fun mark(step: Long) {
+        check(!closed) { "tape writer is closed" }
+        require(step >= lastStep) { "mark step $step is before the last input step $lastStep" }
+        if (lastMarkedStep != step) appendMark(step)
+    }
+
     private fun appendMark(step: Long) {
         TapeRecord.newBuilder()
             .setKind(TapeRecord.Kind.MARK)
@@ -66,6 +74,7 @@ class TunnelTapeWriter(
                 it.writeDelimitedTo(stream)
                 sequence++
                 lastMarkedStep = step
+                lastStep = step
             }
     }
 

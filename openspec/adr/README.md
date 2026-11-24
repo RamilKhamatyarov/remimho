@@ -1,5 +1,8 @@
 # Architecture decision records
 
+`openspec/adr/` is the canonical directory. Keep decision records with the change that cites them
+so repository evidence pointers remain valid. Staging and committing are controlled by the author.
+
 - [0001: Deterministic redirect and spin](0001-deterministic-redirect-and-spin.md)
 - [0002: Room-owned replayable bot controller](0002-room-owned-replayable-bot-controller.md)
 - [0003: Touch ledger and one-timer](0003-deterministic-touch-ledger-and-one-timer.md)
@@ -17,3 +20,5 @@
 - [0015: Ghost-mode paddle pass-through](0015-ghost-mode-paddle-pass-through.md)
 - [0016: Rabbit mode replaces live ghost mode](0016-rabbit-mode-replaces-live-ghost-mode.md)
 - [0017: Edge-hit deflection and football-style spin](0017-edge-hit-deflection-and-football-spin.md)
+- [0018: Strict IEEE substrate for future tunnel physics](0018-tunnel-numerical-substrate.md)
+- [0019: Tunnel physics mechanics and constants](0019-tunnel-physics-mechanics.md)

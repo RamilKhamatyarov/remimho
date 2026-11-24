@@ -19,13 +19,16 @@ data class Trace(
     val header: Map<String, String>,
     val entries: List<TraceEntry>,
 ) {
+    fun render(): String =
+        buildString {
+            append(MAGIC).append('\n')
+            header.forEach { (key, value) -> append("# ").append(key).append(": ").append(value).append('\n') }
+            entries.forEach { append(it.step).append(' ').append(hex(it.hash)).append('\n') }
+        }
+
     fun write(path: Path) {
         path.toAbsolutePath().parent?.let(Files::createDirectories)
-        Files.newBufferedWriter(path).use { out ->
-            out.write("$MAGIC\n")
-            header.forEach { (key, value) -> out.write("# $key: $value\n") }
-            entries.forEach { out.write("${it.step} ${hex(it.hash)}\n") }
-        }
+        Files.newBufferedWriter(path).use { out -> out.write(render()) }
     }
 
     companion object {

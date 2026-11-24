@@ -31,12 +31,19 @@ sealed interface TunnelInput {
 }
 
 data class TunnelRules(
-    val physicsVersion: String = PROVISIONAL_PHYSICS_VERSION,
+    val physicsVersion: String = PHYSICS_VERSION,
     val stepDurationNs: Long = DEFAULT_STEP_NS,
     val width: TunnelScalar = TunnelMath.fromInt(800L),
     val height: TunnelScalar = TunnelMath.fromInt(600L),
     val depth: TunnelScalar = TunnelMath.fromInt(300L),
     val paddleTravelPerStep: TunnelScalar = TunnelMath.fromInt(8L),
+    val paddleHalfWidth: TunnelScalar = TunnelMath.fromInt(60L),
+    val paddleHalfHeight: TunnelScalar = TunnelMath.fromInt(45L),
+    val spinCurveAcceleration: TunnelScalar = TunnelMath.fromRatio(1L, 20L),
+    val spinDecayPerStep: TunnelScalar = TunnelMath.fromRatio(99L, 100L),
+    val paddleSpinGain: TunnelScalar = TunnelMath.fromRatio(1L, 10L),
+    val maxSpin: TunnelScalar = TunnelMath.fromRatio(3L, 2L),
+    val maxReflectionsPerStep: Int = 8,
 ) {
     init {
         require(physicsVersion.isNotBlank()) { "physicsVersion must not be blank" }
@@ -49,12 +56,21 @@ data class TunnelRules(
             "tunnel dimensions must be in the supported range"
         }
         require(paddleTravelPerStep.raw >= 0L) { "paddleTravelPerStep must not be negative" }
+        require(paddleHalfWidth.raw > 0L && paddleHalfHeight.raw > 0L) {
+            "paddle half extents must be positive"
+        }
+        require(spinCurveAcceleration.raw >= 0L) { "spinCurveAcceleration must not be negative" }
+        require(spinDecayPerStep.raw in 0L..TunnelScalar.SCALE) { "spinDecayPerStep must be in [0, 1]" }
+        require(paddleSpinGain.raw >= 0L) { "paddleSpinGain must not be negative" }
+        require(maxSpin.raw >= 0L) { "maxSpin must not be negative" }
+        require(maxReflectionsPerStep in 1..MAX_REFLECTIONS) { "maxReflectionsPerStep is out of range" }
     }
 
     companion object {
-        const val PROVISIONAL_PHYSICS_VERSION = "tunnel-skeleton-v1"
+        const val PHYSICS_VERSION = "tunnel-v1"
         const val DEFAULT_STEP_NS = 8_333_333L
         const val MAX_DIMENSION_RAW = 42_949_672_960_000L
+        const val MAX_REFLECTIONS = 64
     }
 }
 
@@ -84,7 +100,6 @@ data class TunnelState(
 
 /** Canonical state-field order for tunnel fingerprints and debugging dumps. */
 object TunnelStateEncoder : StateEncoder<TunnelState> {
-    const val VERSION = 1
     val EXCLUDED_PATHS: Set<String> = emptySet()
 
     override fun encode(
@@ -131,5 +146,12 @@ object TunnelStateEncoder : StateEncoder<TunnelState> {
         sink.long("rules.height.raw", rules.height.raw)
         sink.long("rules.depth.raw", rules.depth.raw)
         sink.long("rules.paddleTravelPerStep.raw", rules.paddleTravelPerStep.raw)
+        sink.long("rules.paddleHalfWidth.raw", rules.paddleHalfWidth.raw)
+        sink.long("rules.paddleHalfHeight.raw", rules.paddleHalfHeight.raw)
+        sink.long("rules.spinCurveAcceleration.raw", rules.spinCurveAcceleration.raw)
+        sink.long("rules.spinDecayPerStep.raw", rules.spinDecayPerStep.raw)
+        sink.long("rules.paddleSpinGain.raw", rules.paddleSpinGain.raw)
+        sink.long("rules.maxSpin.raw", rules.maxSpin.raw)
+        sink.int("rules.maxReflectionsPerStep", rules.maxReflectionsPerStep)
     }
 }

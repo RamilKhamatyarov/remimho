@@ -111,17 +111,24 @@ The diff tool is therefore built before the audit report is finished, although t
 it fifth: the audit needs it to name divergence points. Ordering in tasks.md reflects that; the
 gate before physics is unaffected.
 
-### D5. Substrate: provisional fixed-point selection, behind one facade
+### D5. Substrate: strict IEEE subset selected from ARM64 parity evidence
 
-Implementation amendment (2026-11-17): because this environment cannot provide ARM64 evidence,
-Q32.32 is selected provisionally as a risk-reduction choice for the tunnel only. Integer-defined
-arithmetic avoids reliance on platform floating-point intrinsics and math-library behavior. This
-does not satisfy the cross-architecture gate; ADR 0018 remains provisional until ARM64 vectors and
-trace parity are observed. The original cross-architecture selection criteria below remain the
-criteria for confirming or revising this choice.
+Evidence amendment (2026-11-17): ARM64 run 44112987043 passed the blocking vector check and the
+report-only comparison of all 12 2D traces. The successful trace step compares every per-step hash
+and trace length with committed x86-64 references. The manifest writer maps the successful step to
+`traceParity=pass`; its artifact was uploaded. These results make a strict IEEE subset admissible
+and preferred for future tunnel physics: basic `Double` operations only, `StrictMath` or specified
+integer algorithms for non-basic operations, and no `Math.fma`. This is empirical evidence for
+the tested corpus and JVM builds, not a universal proof. [ADR 0018](../../adr/0018-tunnel-numerical-substrate.md) records the decision and its
+remaining runtime-metadata limitation.
 
-All tunnel arithmetic goes through `TunnelMath` and a scalar type, so the choice is confined to
-one package:
+The pre-existing Q32.32 facade and vectors remained scaffolding until implementation. They were
+explicitly retained for tunnel physics by [ADR 0019](../../adr/0019-tunnel-physics-mechanics.md),
+which also opens gate 7.1; the strict IEEE subset remains the direction for a future 2D migration.
+
+Tunnel arithmetic remains behind a package-local facade. [ADR 0019](../../adr/0019-tunnel-physics-mechanics.md)
+explicitly retains the `TunnelMath` Q32.32 implementation for the tunnel physics. The substrate
+choice remains confined to one package:
 
 | Candidate | Exactness | Cost |
 | --- | --- | --- |
@@ -132,9 +139,10 @@ one package:
 Decision criteria, applied to audit evidence:
 
 1. If basic `Double` operations show any cross-architecture divergence, choose fixed-point.
-2. Cross-architecture evidence will confirm or revise the provisional fixed-point choice; it will
-   not retroactively change replay versions 1-3.
-3. ADR 0018 states the 2D migration cost: call sites to change, and that it requires
+2. The tested traces match, so use the strict IEEE subset for the new tunnel. Any future substrate
+   vector or physics-trace divergence requires revisiting the decision; replay versions 1-3 remain
+   unaffected.
+3. [ADR 0018](../../adr/0018-tunnel-numerical-substrate.md) states the 2D migration cost: call sites to change, and that it requires
    replay version 4 with versions 1-3 kept on their current arithmetic.
 
 A source-scan test fails the build if anything under `ru.rkhamatyarov.tunnel` imports
@@ -202,9 +210,8 @@ as part of step 7 and frozen from then on.
 ### D10. Gate before physics
 
 `docs/determinism/gate.md` is a checklist of the verification criteria for steps 1-6, each with
-a link to its evidence (report, CI run, test name). The input-only `TunnelState` contract and
-reducer scaffold may be implemented before the gate is open; neither performs puck physics. No
-collision, curve, goal, or physics-golden task may start before the gate is ticked.
+a link to its evidence (report, CI run, test name). The gate was ticked on 2026-11-19 once the real
+reducer and its goldens existed; see [gate.md](../../../docs/determinism/gate.md).
 
 ### D11. ARM64 parity in CI
 
@@ -216,22 +223,22 @@ of blocking every pull request; hash vectors, substrate vectors and tunnel golde
 
 ## Risks / Trade-offs
 
-- [The audit finds 2D diverges across architectures] → Expected possibility; it is reported with
-  first divergent tick and operation, 2D stays as is, and the migration cost goes into ADR 0018.
-- [The audit finds nothing, but divergence exists on untested hardware or JVMs] → The report
+- **The audit finds 2D diverges across architectures** → Expected possibility; it is reported with
+  first divergent tick and operation, 2D stays as is, and the migration cost goes into [ADR 0018](../../adr/0018-tunnel-numerical-substrate.md).
+- **The audit finds nothing, but divergence exists on untested hardware or JVMs** → The report
   states exactly which CPUs, OS and JVM builds were compared and claims nothing beyond them.
-- [GitHub ARM runners are free only for public repositories] → If the repository is private the
+- **GitHub ARM runners are free only for public repositories** → If the repository is private the
   job costs minutes; fallback is a manual run with the trace committed, noted in the report.
-- [Fixed-point overflow or precision loss, if chosen] → Range analysis in ADR 0018, checked
+- **Fixed-point overflow or precision loss, if chosen** → Range analysis in [ADR 0018](../../adr/0018-tunnel-numerical-substrate.md), checked
   arithmetic in tests, and tunnel dimensions bounded in the tape header validation.
-- [Encoder forgets a new state field, so hashes miss a divergence] → Completeness test in D2.
-- [Golden traces get regenerated casually to make a test pass] → Separate task, version bump
+- **Encoder forgets a new state field, so hashes miss a divergence** → Completeness test in D2.
+- **Golden traces get regenerated casually to make a test pass** → Separate task, version bump
   required, and traces are text so the diff is visible in review.
-- [Golden traces break on every state-shape change] → Accepted; that is the point of a full-trace
+- **Golden traces break on every state-shape change** → Accepted; that is the point of a full-trace
   golden. Regeneration is cheap and deliberate.
-- [Per-tick observer slows headless import] → It is optional and absent by default; the existing
+- **Per-tick observer slows headless import** → It is optional and absent by default; the existing
   importer tests guard the unobserved path.
-- [One change is large and long-lived] → Groups 1-6 are each mergeable on their own and add no
+- **One change is large and long-lived** → Groups 1-6 are each mergeable on their own and add no
   live behavior; the gate keeps physics from starting early.
 
 ## Migration Plan

@@ -13,15 +13,28 @@ class PhysicsGateTest {
     lateinit var temporaryDirectory: Path
 
     @Test
-    fun `committed gate prints blockers and remains closed`() {
+    fun `committed gate prints the passing evidence and is open`() {
         val projectDirectory = Path.of(System.getProperty("user.dir"))
         val output = mutableListOf<String>()
 
         val status = PhysicsGate.check(listOf("gate", projectDirectory.toString()), output::add)
 
-        assertEquals(PhysicsGate.EXIT_CLOSED, status)
-        assertTrue(output.any { it.contains("arm64-hash-vectors") && it.contains("BLOCKED") })
-        assertTrue(output.last().startsWith("GATE CLOSED"))
+        assertEquals(PhysicsGate.EXIT_OPEN, status)
+        assertTrue(output.any { it.contains("real-tunnel-reducer") && it.contains("PASS") })
+        assertTrue(output.any { it.contains("golden-updater-through-real-reducer") && it.contains("PASS") })
+        assertTrue(output.last().startsWith("GATE OPEN"))
+    }
+
+    @Test
+    fun `substrate decision resolves to the canonical ADR`() {
+        val projectDirectory = Path.of(System.getProperty("user.dir"))
+        val report = PhysicsGate.inspect(projectDirectory.resolve(PhysicsGate.DEFAULT_FILE), projectDirectory)
+        val decision = report.rows.single { it.id == "numerical-substrate-decision" }
+
+        assertEquals("openspec/adr/0018-tunnel-numerical-substrate.md", decision.evidence)
+        assertEquals(null, decision.blocker)
+        assertTrue(Files.isRegularFile(projectDirectory.resolve(requireNotNull(decision.evidence))))
+        assertTrue(report.open)
     }
 
     @Test

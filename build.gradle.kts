@@ -205,11 +205,12 @@ registerDeterminismTask(
 tasks.register<JavaExec>("updateTunnelGoldens") {
     group = "verification"
     description = "Compares or provenance-guards updates to tunnel golden candidates"
-    dependsOn("test")
+    val updaterArgs = (findProperty("tunnelGoldenArgs") as String?)?.trim()?.split(Regex("\\s+")) ?: emptyList()
+    if (!updaterArgs.contains("--bootstrap")) dependsOn("test")
     mainClass.set("ru.rkhamatyarov.tunnel.TunnelGoldenUpdater")
     classpath = mainSourceSet.get().runtimeClasspath
-    val updaterArgs = (findProperty("tunnelGoldenArgs") as String?)?.trim()?.split(Regex("\\s+")) ?: emptyList()
-    args(updaterArgs)
+    systemProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager")
+    args(listOf("--generate") + updaterArgs)
 }
 
 val frontendDir = layout.projectDirectory.dir("src/main/resources/META-INF/resources")

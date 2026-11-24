@@ -1,39 +1,54 @@
-# 2D audit (in progress)
+# 2D audit (ARM64 parity observed; runtime metadata review pending)
 
 Local verification: 2026-11-17, Windows amd64, OpenJDK 64-Bit Server VM
 21.0.1+12-29. Two fresh JVM runs and one `-Xint` process agreed on every
 step of all 12 recordings. Windows denied access to WMI processor metadata, so
 the CPU model is unavailable; `amd64` is the JVM-reported architecture only.
-This is not evidence of ARM64 parity.
 
 On the same date, `./gradlew determinismParity determinismParity2d` passed locally:
 hash vectors matched and all 12 current traces matched their committed references.
-The task output is local build output, not a committed cross-architecture artifact.
+
+ARM64 evidence was produced by [CI run 44112987043, ARM64 parity job](https://github.com/RamilKhamatyarov/remimho/actions/runs/44112987043/job/134143336027),
+triggered manually with `workflow_dispatch` on commit `041acd7f8bd40f4e2b312b4b1857b682df3099dc`.
+GitHub reports the blocking `determinismParity` step, report-only `determinismParity2d` step,
+manifest writer, and artifact upload all succeeded. The run uploaded the `determinism-arm64`
+artifact. The manifest writer maps successful hash and trace steps to `hashVectors=pass` and
+`traceParity=pass`; these values are derived from the successful steps because the artifact bytes
+could not be downloaded in this workspace. The trace comparison task exits successfully only when
+every recording has matching hashes and lengths. Thus all 12 recordings below matched the
+committed x86 references on ARM64, with no divergent step or fields. Hash-vector success is
+reported separately: it validates integer-only hashing and Q32.32 operation vectors, not
+floating-point 2D physics.
+
+The ARM runner was configured as `ubuntu-24.04-arm` with `actions/setup-java` Temurin 21. The
+uploaded report contains the observed `os.arch` and JVM runtime version; those exact values and
+the physical CPU model are not available locally. The x86 CPU model is also unavailable. Task 3.7
+remains open until exact runtime metadata and durable local repeat/interpreter evidence are recorded.
 
 Commands are in [the tool README](README.md). Local output directories are
 `build/determinism/first`, `second`, and `interpreted`; these build artifacts
 are not committed evidence. Reference traces are under
 `src/test/resources/determinism/2d/`.
 
-| Recording | Steps | Final hash | Second JVM / interpreter |
-| --- | --- | --- | --- |
-| bounce-angles | 2400 | 7287119c925582ef | identical / identical |
-| bounce-angles-v1 | 2400 | 950145718a90821a | identical / identical |
-| bounce-angles-v2 | 2400 | 7287119c925582ef | identical / identical |
-| line-collisions | 2400 | 270b0de03b735bf8 | identical / identical |
-| rabbit-turns | 2400 | 4b3825ba32d2f82e | identical / identical |
-| power-ups | 2400 | 903a081889c0a0dd | identical / identical |
-| spin-decay | 2400 | 6d66cab71288773c | identical / identical |
-| edge-hit-swipe | 600 | 95831e91247a94cd | identical / identical |
-| edge-hit-retreat | 600 | 74232809a10cf923 | identical / identical |
-| edge-hit-spinning | 600 | ddeb19020a771db3 | identical / identical |
-| extreme-speed | 2400 | e47ebae8fb9c57eb | identical / identical |
-| demo | 180 | 9d9dc96f9b1c31f8 | identical / identical |
+| Recording (committed x86 trace) | Steps | Final hash | Second JVM / `-Xint` | ARM64 comparison |
+| --- | ---: | --- | --- | --- |
+| [bounce-angles](../../src/test/resources/determinism/2d/bounce-angles.trace) | 2400 | `7287119c925582ef` | identical / identical | identical |
+| [bounce-angles-v1](../../src/test/resources/determinism/2d/bounce-angles-v1.trace) | 2400 | `950145718a90821a` | identical / identical | identical |
+| [bounce-angles-v2](../../src/test/resources/determinism/2d/bounce-angles-v2.trace) | 2400 | `7287119c925582ef` | identical / identical | identical |
+| [line-collisions](../../src/test/resources/determinism/2d/line-collisions.trace) | 2400 | `270b0de03b735bf8` | identical / identical | identical |
+| [rabbit-turns](../../src/test/resources/determinism/2d/rabbit-turns.trace) | 2400 | `4b3825ba32d2f82e` | identical / identical | identical |
+| [power-ups](../../src/test/resources/determinism/2d/power-ups.trace) | 2400 | `903a081889c0a0dd` | identical / identical | identical |
+| [spin-decay](../../src/test/resources/determinism/2d/spin-decay.trace) | 2400 | `6d66cab71288773c` | identical / identical | identical |
+| [edge-hit-swipe](../../src/test/resources/determinism/2d/edge-hit-swipe.trace) | 600 | `95831e91247a94cd` | identical / identical | identical |
+| [edge-hit-retreat](../../src/test/resources/determinism/2d/edge-hit-retreat.trace) | 600 | `74232809a10cf923` | identical / identical | identical |
+| [edge-hit-spinning](../../src/test/resources/determinism/2d/edge-hit-spinning.trace) | 600 | `ddeb19020a771db3` | identical / identical | identical |
+| [extreme-speed](../../src/test/resources/determinism/2d/extreme-speed.trace) | 2400 | `e47ebae8fb9c57eb` | identical / identical | identical |
+| [demo](../../src/test/resources/determinism/2d/demo.trace) | 180 | `9d9dc96f9b1c31f8` | identical / identical | identical |
 
-Pending: CPU model is unavailable in this environment; durable run evidence,
-ARM64 workflow execution and comparison remain outstanding. Tasks 3.5 and 3.7 are not complete.
-ADR 0018 records Q32.32 as a provisional tunnel-only risk-reduction choice. The decision remains
-unconfirmed until cross-architecture vectors and traces are available.
+Remaining for task 3.7: review and record the exact ARM64 runtime string and runner metadata from
+the uploaded report, and preserve durable same-machine and `-Xint` output evidence. Cross-architecture
+trace parity itself has passed. [ADR 0018](../../openspec/adr/0018-tunnel-numerical-substrate.md) records the D5 substrate decision from that result. Tunnel physics and its goldens landed
+separately in [ADR 0019](../../openspec/adr/0019-tunnel-physics-mechanics.md), which opens the gate.
 
 ### ARM64 emulation attempt
 
@@ -97,7 +112,8 @@ behavior remains unknown until an ARM64 trace is available.
   and is the only current transcendental call with an explicit cross-platform reproducibility
   contract.
 - The listed `kotlin.math` calls use JVM math-library implementations. Their cross-architecture
-  bit identity is not assumed by this project; the local run and ARM64 CI must compare their
-  resulting state traces empirically before the provisional substrate can be confirmed.
+  bit identity is not assumed universally; the x86-64 and ARM64 runs matched for this committed
+  corpus. Future tunnel code must follow the stricter `StrictMath`/specified-algorithm policy in
+  [ADR 0018](../../openspec/adr/0018-tunnel-numerical-substrate.md) rather than treating this corpus as a general guarantee.
 - This inventory guard pins the present transcendental/magnitude call counts. Any new call requires
   review, updated evidence, and an intentional allowlist change.

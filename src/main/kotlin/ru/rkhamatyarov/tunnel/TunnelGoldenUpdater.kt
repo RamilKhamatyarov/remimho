@@ -41,20 +41,34 @@ object TunnelGoldenUpdater {
             require(!candidateDirectory.startsWith(targetDirectory.toAbsolutePath().normalize())) {
                 "candidate directory must not be inside the golden output directory"
             }
+            if (options.generate) {
+                TunnelGoldenFixtures.writeCandidates(candidateDirectory)
+                out("GENERATED ${TunnelGoldenScenarios.all.size * 2} candidate files in $candidateDirectory")
+            }
             if (!options.update) {
                 val candidates = readCandidates(candidateDirectory)
                 return verify(candidates, targetDirectory, out)
             }
 
-            val manifest = options.evidenceFile?.let(::readManifest)
+            val bootstrap = options.bootstrap && goldenDirectoryIsEmpty(targetDirectory)
             val blockers =
-                GoldenWriteGuard.blockers(
-                    allowGoldenWrite = options.allowGoldenWrite,
-                    manifest = manifest,
-                    arch = arch,
-                    commitSha = commitSha.ifBlank { git(projectDir, "rev-parse", "HEAD").trim() },
-                    worktreeClean = worktreeClean ?: git(projectDir, "status", "--porcelain").isBlank(),
-                )
+                if (options.bootstrap) {
+                    buildList {
+                        if (!options.allowGoldenWrite) add("pass --allow-golden-write together with --update")
+                        if (!bootstrap) {
+                            add("bootstrap is only allowed while the golden directory has no committed fixtures")
+                        }
+                    }
+                } else {
+                    val manifest = options.evidenceFile?.let(::readManifest)
+                    GoldenWriteGuard.blockers(
+                        allowGoldenWrite = options.allowGoldenWrite,
+                        manifest = manifest,
+                        arch = arch,
+                        commitSha = commitSha.ifBlank { git(projectDir, "rev-parse", "HEAD").trim() },
+                        worktreeClean = worktreeClean ?: git(projectDir, "status", "--porcelain").isBlank(),
+                    )
+                }
             if (blockers.isNotEmpty()) {
                 blockers.forEach { out("BLOCKED $it") }
                 return EXIT_FAILED
@@ -167,14 +181,25 @@ object TunnelGoldenUpdater {
         }
     }
 
+    private fun goldenDirectoryIsEmpty(directory: Path): Boolean =
+        !Files.isDirectory(directory) ||
+            Files.list(directory).use { entries ->
+                entries.noneMatch { path ->
+                    val name = path.fileName.toString()
+                    name.endsWith(".tape") || name.endsWith(".trace")
+                }
+            }
+
     private data class Options(
         val update: Boolean,
         val allowGoldenWrite: Boolean,
         val evidenceFile: Path?,
         val candidates: Path?,
+        val generate: Boolean,
+        val bootstrap: Boolean,
     ) {
         fun candidateDirectory(projectDir: Path): Path =
-            candidates?.let(projectDir::resolve) ?: projectDir.resolve("build/tunnel-golden-candidates")
+            candidates?.let(projectDir::resolve) ?: projectDir.resolve(TunnelGoldenFixtures.CANDIDATE_DIRECTORY)
 
         companion object {
             fun parse(args: List<String>): Options {
@@ -182,19 +207,26 @@ object TunnelGoldenUpdater {
                 var allowWrite = false
                 var evidence: Path? = null
                 var candidates: Path? = null
+                var generate = false
+                var bootstrap = false
                 var index = 0
                 while (index < args.size) {
                     when (val option = args[index++]) {
                         "--verify" -> update = false
                         "--update" -> update = true
                         "--allow-golden-write" -> allowWrite = true
+                        "--generate" -> generate = true
+                        "--bootstrap" -> bootstrap = true
                         "--evidence" -> evidence = Path.of(args.getOrNull(index++) ?: usage(option))
                         "--candidate-dir" -> candidates = Path.of(args.getOrNull(index++) ?: usage(option))
                         else -> usage(option)
                     }
                 }
                 require(!allowWrite || update) { "--allow-golden-write is only valid with --update" }
-                return Options(update, allowWrite, evidence, candidates)
+                require(!bootstrap || (update && allowWrite)) {
+                    "--bootstrap is only valid with --update --allow-golden-write"
+                }
+                return Options(update, allowWrite, evidence, candidates, generate, bootstrap)
             }
 
             private fun usage(option: String): Nothing =
@@ -202,7 +234,7 @@ object TunnelGoldenUpdater {
         }
     }
 
-    private data class GoldenCandidate(
+    private class GoldenCandidate(
         val fileName: String,
         val bytes: ByteArray,
     )

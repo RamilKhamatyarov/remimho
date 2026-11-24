@@ -143,10 +143,12 @@ class TunnelTapeTest {
     fun `truncated complete-record tape replays matching hash prefix`() {
         val complete = recordedTape()
         val full = read(complete).replay(0, ::reduce, Int::toLong)
-        val prefixBytes = tapePrefixThroughStep(complete, 2L)
-        val prefix = read(prefixBytes).replay(0, ::reduce, Int::toLong)
+        for (maximumStep in 1L..3L) {
+            val prefixBytes = tapePrefixThroughStep(complete, maximumStep)
+            val prefix = read(prefixBytes).replay(0, ::reduce, Int::toLong)
 
-        assertEquals(full.entries.take(2), prefix.entries)
+            assertEquals(full.entries.take(maximumStep.toInt()), prefix.entries)
+        }
     }
 
     @Test
@@ -171,7 +173,7 @@ class TunnelTapeTest {
             }
 
         assertTrue(error.message.orEmpty().contains("future"))
-        assertTrue(error.message.orEmpty().contains(TunnelRules.PROVISIONAL_PHYSICS_VERSION))
+        assertTrue(error.message.orEmpty().contains(TunnelRules.PHYSICS_VERSION))
     }
 
     @Test
@@ -231,7 +233,7 @@ class TunnelTapeTest {
     }
 
     private fun header(
-        physics: String = TunnelRules.PROVISIONAL_PHYSICS_VERSION,
+        physics: String = TunnelRules.PHYSICS_VERSION,
         substrate: String = TunnelMath.SUBSTRATE_ID,
     ): TapeHeader =
         TapeHeader.newBuilder()
@@ -272,7 +274,7 @@ class TunnelTapeTest {
     ): Int = state + step.toInt() + inputs.size
 
     companion object {
-        private val PHYSICS = setOf(TunnelRules.PROVISIONAL_PHYSICS_VERSION)
+        private val PHYSICS = setOf(TunnelRules.PHYSICS_VERSION)
         private val SUBSTRATES = setOf(TunnelMath.SUBSTRATE_ID)
     }
 }

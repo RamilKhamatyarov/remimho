@@ -86,4 +86,18 @@ object TunnelMath {
     }
 
     fun increment(value: Long): Long = BigInteger.valueOf(value).add(BigInteger.ONE).longValueExact()
+
+    fun negate(value: TunnelScalar): TunnelScalar = TunnelScalar(-value.raw)
+
+    fun absolute(value: TunnelScalar): TunnelScalar = if (value.raw < 0L) TunnelScalar(-value.raw) else value
+
+    fun min(
+        left: TunnelScalar,
+        right: TunnelScalar,
+    ): TunnelScalar = if (left <= right) left else right
+
+    fun max(
+        left: TunnelScalar,
+        right: TunnelScalar,
+    ): TunnelScalar = if (left >= right) left else right
 }

@@ -4,33 +4,33 @@
   "prerequisites": [
     {
       "id": "arm64-hash-vectors",
-      "status": "pending",
-      "evidence": null
+      "status": "pass",
+      "evidence": "https://github.com/RamilKhamatyarov/remimho/actions/runs/44112987043"
     },
     {
       "id": "arm64-2d-trace-parity",
-      "status": "pending",
-      "evidence": null
+      "status": "pass",
+      "evidence": "https://github.com/RamilKhamatyarov/remimho/actions/runs/44112987043"
     },
     {
       "id": "numerical-substrate-decision",
-      "status": "provisional",
-      "evidence": ".github/adr/0018-provisional-fixed-point-tunnel-substrate.md"
+      "status": "pass",
+      "evidence": "openspec/adr/0018-tunnel-numerical-substrate.md"
     },
     {
       "id": "substrate-vectors-cross-architecture",
-      "status": "blocked",
-      "evidence": null
+      "status": "pass",
+      "evidence": "https://github.com/RamilKhamatyarov/remimho/actions/runs/44112987043"
     },
     {
       "id": "real-tunnel-reducer",
-      "status": "pending",
-      "evidence": null
+      "status": "pass",
+      "evidence": "openspec/adr/0019-tunnel-physics-mechanics.md"
     },
     {
       "id": "golden-updater-through-real-reducer",
-      "status": "blocked",
-      "evidence": null
+      "status": "pass",
+      "evidence": "src/test/resources/tunnel/golden/known-sweep-paddle-contact.trace"
     },
     {
       "id": "no-placeholder-physics-goldens",
