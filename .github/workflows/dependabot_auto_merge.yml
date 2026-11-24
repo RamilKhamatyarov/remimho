@@ -26,6 +26,7 @@ jobs:
         uses: dependabot/fetch-metadata@v3
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          skip-verification: true
 
       - name: Enable squash auto-merge
         if: >-
