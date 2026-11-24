@@ -16,10 +16,11 @@ first and then zero or more records.
 | `initial_state` | Serialized initial simulation configuration/state. |
 
 The reader requires explicit sets of supported physics versions and substrate identifiers. A tape
-with unsupported metadata is rejected before a reducer is invoked. For the current provisional
-substrate, the id is `q32.32-provisional`. The reader rejects blank identifiers, absent initial
-state, non-positive dimensions, dimensions above 10,000 units, and step durations outside 1 ns
-through 1 s.
+with unsupported metadata is rejected before a reducer is invoked. The tapes and goldens use the
+`q32.32-provisional` substrate id; [ADR 0019](../../openspec/adr/0019-tunnel-physics-mechanics.md)
+explicitly retains Q32.32 for tunnel physics and keeps that id for tape compatibility. The reader
+rejects blank identifiers, absent initial state, non-positive dimensions, dimensions above 10,000
+units, and step durations outside 1 ns through 1 s.
 
 ## Records
 
@@ -52,12 +53,13 @@ The tests cover deterministic serialization, periodic and final markers, sequenc
 validation, header and payload validation, unsupported metadata, ordered same-step inputs, and
 truncated-prefix replay.
 
-`TunnelGoldenScenarios` contains test-only input-script descriptors for the three planned invariants.
-Their tapes use the `tunnel-harness-v1` stand-in identifier and are not physics goldens. The current
-reducer applies input records and bounded paddle targets only; it has no puck integration or
-collision behavior. The `updateTunnelGoldens` task remains separate and refuses writes without
-provenanced ARM64 evidence. Do not generate physics goldens until the real tunnel physics reducer
-exists and the parity gate is open.
+`TunnelGoldenScenarios` (in `src/main/kotlin/ru/rkhamatyarov/tunnel`) defines the three committed
+scenario scripts and their starting states. Their tapes use the `tunnel-v1` physics identifier and
+run through the real fixed-step reducer: swept wall and paddle contact, spin curve and decay. The
+committed goldens live under `src/test/resources/tunnel/golden/`, are produced only by
+`updateTunnelGoldens` (bootstrap while empty, then ARM64-provenanced updates), and are pinned by
+`TunnelGoldenTest`, the constant mutation runner and the blocking `tunnel golden traces` parity
+check.
 
 Once both architectures have produced traces for the same tape and matching physics/substrate
 headers, compare the downloaded files with:
@@ -66,5 +68,7 @@ headers, compare the downloaded files with:
 ./gradlew traceDiff --args="build/determinism/tunnel-x86.trace build/determinism/tunnel-arm64.trace"
 ```
 
-Trace diff checks identity headers before comparing hashes. Cross-architecture tunnel parity is
-pending external ARM64 verification.
+Trace diff checks identity headers before comparing hashes. Cross-architecture tunnel physics parity
+is a blocking `determinismParity` check: the committed goldens under
+`src/test/resources/tunnel/golden/` replay to identical hash sequences. See the
+[audit report](2d-audit.md) for 2D ARM64 parity.

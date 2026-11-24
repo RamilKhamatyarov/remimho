@@ -24,15 +24,15 @@ class TunnelGoldenHarnessTest {
         )
         scenarios.values.forEach { scenario ->
             val tape = TunnelGoldenScenarios.parse(scenario)
-            assertEquals("tunnel-harness-v1", tape.header.physicsVersion)
+            assertEquals(TunnelRules.PHYSICS_VERSION, tape.header.physicsVersion)
             assertTrue(tape.records.any { it.kind == TapeRecord.Kind.MARK })
             assertTrue(scenario.qualitativeInvariant.isNotBlank())
         }
         assertTrue(scenarios.getValue("zero-spin-wall-bounce").initialState.contains("spin=0"))
         assertTrue(scenarios.getValue("constant-spin-curve").initialState.contains("spin-x=0.5"))
         assertEquals(
-            TunnelMath.fromInt(180L).raw,
-            TunnelGoldenScenarios.parse(scenarios.getValue("zero-spin-wall-bounce"))
+            TunnelMath.fromInt(-20L).raw,
+            TunnelGoldenScenarios.parse(scenarios.getValue("known-sweep-paddle-contact"))
                 .records.first { it.kind == TapeRecord.Kind.SERVE }.serve.vzRaw,
         )
         assertTrue(

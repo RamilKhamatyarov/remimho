@@ -83,7 +83,7 @@ class Fnv1a64 {
     }
 
     companion object {
-        const val OFFSET_BASIS = -0x340d631b7bdddcdbL // 0xcbf29ce484222325
+        const val OFFSET_BASIS = -0x340d631b7bdddcdbL
         const val PRIME = 0x100000001b3L
         private const val BYTE_MASK = 0xff
     }

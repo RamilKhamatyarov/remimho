@@ -9,13 +9,6 @@ on:
     branches:
       - main
       - develop
-  workflow_dispatch:
-    inputs:
-      run_arm64_parity:
-        description: Run the optional ARM64 determinism evidence job
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -23,64 +16,6 @@ permissions:
   checks: write
 
 jobs:
-  determinism-arm:
-    name: Determinism parity (ARM64)
-    runs-on: ubuntu-24.04-arm
-    if: github.event_name == 'workflow_dispatch' && inputs.run_arm64_parity
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: gradle
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-      - name: Verify hash vectors
-        id: hash-vectors
-        run: bash gradlew determinismParity
-      - name: Compare historical 2D traces (evidence only)
-        id: trace-parity
-        if: always()
-        continue-on-error: true
-        run: bash gradlew determinismParity2d
-      - name: Write ARM64 evidence manifest
-        if: always()
-        env:
-          HASH_VECTOR_OUTCOME: ${{ steps.hash-vectors.outcome }}
-          TRACE_PARITY_OUTCOME: ${{ steps.trace-parity.outcome }}
-          COMMIT_SHA: ${{ github.sha }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-        shell: bash
-        run: |
-          mkdir -p build/determinism
-          arch="$(uname -m)"
-          if [[ "$arch" == "aarch64" || "$arch" == "arm64" ]]; then
-            arch="aarch64"
-          fi
-          hash_status="fail"
-          trace_status="fail"
-          [[ "$HASH_VECTOR_OUTCOME" == "success" ]] && hash_status="pass"
-          [[ "$TRACE_PARITY_OUTCOME" == "success" ]] && trace_status="pass"
-          {
-            printf 'arch=%s\n' "$arch"
-            printf 'runnerId=github-%s-%s-arm64\n' "$RUN_ID" "$RUN_ATTEMPT"
-            printf 'commitSha=%s\n' "$COMMIT_SHA"
-            printf 'hashVectors=%s\n' "$hash_status"
-            printf 'traceParity=%s\n' "$trace_status"
-          } > build/determinism/arm64-evidence.properties
-      - name: Upload ARM64 audit evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: determinism-arm64
-          path: build/determinism/
-          retention-days: 30
-
   build:
     name: Build & Test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}

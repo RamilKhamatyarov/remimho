@@ -82,7 +82,6 @@ class CaptureRecorder(
                 after = ReplayConverter.stateToSnapshot(after).toByteArray(),
                 intent = intent?.toByteArray(),
             )
-        // Budget a standalone baseline before eviction so an oversized record cannot erase history.
         val standaloneBaseline = entry.baseline ?: entries.last().after
         if (entry.size + (if (entry.baseline == null) standaloneBaseline.size else 0) > maxBytes) {
             needsBaseline = true

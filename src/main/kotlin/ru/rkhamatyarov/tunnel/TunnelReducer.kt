@@ -1,19 +1,35 @@
 package ru.rkhamatyarov.tunnel
 
-/** Applies one fixed logical step. This scaffold has no puck physics or live integration. */
+/** Applies one fixed logical step of tunnel physics. This scaffold has no live integration. */
 fun reduceTunnel(
     state: TunnelState,
     inputs: List<TunnelInput>,
     rules: TunnelRules,
 ): TunnelState {
+    val startA = state.paddleA.position
+    val startB = state.paddleB.position
     var next = state.copy(rules = rules)
     inputs.forEach { input -> next = next.apply(input, rules) }
-    return next.copy(
-        paddleA = next.paddleA.move(rules),
-        paddleB = next.paddleB.move(rules),
+    next =
+        next.copy(
+            paddleA = next.paddleA.move(rules),
+            paddleB = next.paddleB.move(rules),
+        )
+    val deltaA = displacement(startA, next.paddleA.position)
+    val deltaB = displacement(startB, next.paddleB.position)
+    return TunnelPhysics.advance(next, rules, deltaA, deltaB).copy(
         step = TunnelMath.increment(next.step),
     )
 }
+
+private fun displacement(
+    from: TunnelVector2,
+    to: TunnelVector2,
+): TunnelVector2 =
+    TunnelVector2(
+        TunnelMath.subtract(to.x, from.x),
+        TunnelMath.subtract(to.y, from.y),
+    )
 
 private fun TunnelState.apply(
     input: TunnelInput,

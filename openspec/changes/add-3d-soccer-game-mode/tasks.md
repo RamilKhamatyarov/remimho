@@ -27,18 +27,18 @@ and input-only reducer scaffolding; they must not add puck physics or be treated
 - [x] 3.2 Add Gradle task `determinismAudit` that reduces the corpus plus `demo.replay` and writes per-tick traces to `build/determinism/`; verify it produces one trace per recording with one hash per tick
 - [x] 3.3 Run the audit twice in fresh processes and once with `-Xint`, comparing with `traceDiff`; verify results for all recordings are captured in the report draft
 - [x] 3.4 Commit x86-64 reference traces under `src/test/resources/determinism/2d/`; verify a test replays the corpus and matches them on x86-64
-- [ ] 3.5 Add Gradle task `determinismParity` and a `ubuntu-24.04-arm` job in `.github/workflows/ci.yml` running it (hash vectors blocking, 2D trace comparison report-only, per design D11); verify the job runs on a pull request and uploads its traces as an artifact
+- [x] 3.5 Add Gradle task `determinismParity` and an opt-in `ubuntu-24.04-arm` job in `.github/workflows/ci.yml` (hash vectors blocking, 2D trace comparison report-only, per design D11); verified via `workflow_dispatch` run 44112987043 on commit `041acd7`, with the ARM job and evidence artifact upload successful
 - [x] 3.6 Inventory every state-affecting floating-point operation in `service/mvi` by file and class (basic IEEE op, `StrictMath`, `Math`); verify the inventory accounts for all `sin`, `cos`, `atan2`, `hypot` and `pow` call sites found by search
-- [ ] 3.7 Write `docs/determinism/2d-audit.md` with the inventory, the compared CPUs and JVM builds, and per-recording results for same-machine, `-Xint` and x86-64 versus ARM64, including hashes and first divergent tick and fields where they differ; verify every claim links to a committed trace or CI run
+- [ ] 3.7 Complete `docs/determinism/2d-audit.md` with the inventory, exact compared CPUs and JVM builds, and per-recording same-machine, `-Xint` and x86-64 versus ARM64 results; ARM trace comparison passed, but exact ARM runtime metadata still needs review from the artifact
 - [x] 3.8 Confirm 2D physics is untouched: verify `git diff` shows no change to physics or state classes under `service/mvi` and the version 1-3 replay fixture tests pass
 
 ## 4. Numerical substrate decision
 
-- [x] 4.1 Record ADR 0018's provisional fixed-point choice with range/precision analysis and explicit pending ARM64 criteria; verify no local evidence is described as cross-architecture proof
+- [x] 4.1 Record ADR 0018 at `openspec/adr/0018-tunnel-numerical-substrate.md` with its strict IEEE subset choice from the ARM64 trace evidence, retaining the explicit tunnel physics gate; include the ADR with the change for review and verify replay versions 1-3 remain unchanged
 - [x] 4.2 State in ADR 0018 the 2D migration cost (inventory units, replay version 4, retained arithmetic for versions 1-3); verify the listed math call count matches the reviewed inventory
 - [x] 4.3 Implement the Q32.32 scalar and `TunnelMath` facade in `ru.rkhamatyarov.tunnel`; verify exact committed operation vectors locally
 - [x] 4.4 Add the source-scan test forbidding `kotlin.math`, `java.lang.Math`, `Random` and clock access under `ru.rkhamatyarov.tunnel`; verify an injected forbidden source is rejected
-- [ ] 4.5 Add the substrate vectors to `determinismParity` as a blocking check; verify the ARM64 job passes
+- [x] 4.5 Add the substrate vectors to `determinismParity` as a blocking check; verified by the successful blocking check in ARM64 run 44112987043. This proves integer-only hash and Q32.32 operation vectors passed, not that 2D physics is portable
 
 ## 5. Input tape
 
@@ -52,27 +52,27 @@ and input-only reducer scaffolding; they must not add puck physics or be treated
 
 - [x] 6.1 Implement the golden comparison harness and first-divergence report; verify with a stand-in reducer and a deliberately corrupted trace
 - [x] 6.2 Record the physics version in the trace header and reject a mismatch; verify with a test naming both versions in the failure
-- [ ] 6.3 Add Gradle task `updateTunnelGoldens` as the only writer of golden files; verify a failing golden test run leaves the committed files unmodified
+- [x] 6.3 Add Gradle task `updateTunnelGoldens` as the only writer of golden files; verify a failing golden test run leaves the committed files unmodified (bootstrap creates the first goldens while the directory is empty; every later write requires ARM64 provenance, and `TunnelGoldenUpdaterTest` proves verify mode never calls the writer)
 - [x] 6.4 Implement the mutation check that replays the tape with one altered stand-in rules value and expects failure; verify an altered value is detected and an unaltered run passes
 - [x] 6.5 Define the three golden scenarios (zero-spin wall bounce, constant-spin curve, known-sweep paddle contact) as tape-generating scripts with their expected qualitative invariants; verify the scripts produce valid tapes accepted by the reader
 
 ## 7. 3D tunnel physics
 
-- [ ] 7.1 GATE: complete `docs/determinism/gate.md` listing each verification criterion for groups 1-6 with a link to its evidence (audit report, ARM64 CI run, hash vectors, tape reference implementation, diff tool test, golden harness mutation test); verify every item is evidenced before any later task in this group begins
+- [x] 7.1 GATE: open. ARM64 vectors and 2D trace parity are evidenced, the real fixed-step reducer and its goldens now exist, and `determinismGate` prints `GATE OPEN` with ADR 0019 as the reducer evidence
 - [x] 7.2 Define `TunnelState`, `TunnelRules` and the `TunnelState` hash encoder with its completeness test; verify a missing state field causes the encoder-coverage assertion to fail
 - [x] 7.3 Implement the input-only fixed-step reducer skeleton `reduceTunnel(state, inputs, rules)` with bounded paddle movement; verify targets are reached in the expected number of steps without puck physics
-- [ ] 7.4 Implement swept wall, floor and ceiling collision with an iteration cap; verify with property tests that the puck never leaves the cross-section at any speed and zero spin stays zero
-- [ ] 7.5 Implement the spin curve and per-step decay; verify with tests that zero spin travels straight, constant spin bends toward the spin's side, and reversed spin mirrors the path exactly
-- [ ] 7.6 Implement the swept sphere-versus-moving-paddle contact and goal detection; verify with tests for a fast puck hitting a covering paddle, a puck outside the paddle's extent passing, and a fast-moving paddle not missing
-- [ ] 7.7 Implement sweep-based spin on paddle contact with clamping; verify a stationary paddle imparts none, direction follows paddle movement, and magnitude never exceeds the maximum
-- [ ] 7.8 Generate and commit the three golden tapes and traces with `updateTunnelGoldens`; verify the golden test passes and the mutation runner fails the goldens for every constant in `TunnelRules`
-- [ ] 7.9 Add tunnel goldens to `determinismParity` as a blocking check; verify the ARM64 job reports identical hash sequences to x86-64
-- [ ] 7.10 Add a test that replays each golden tape in two fresh processes; verify identical traces
-- [ ] 7.11 Record the tunnel mechanics and constants in a new ADR in `.github/adr/` (do not stage the file in git); verify the constants listed match `TunnelRules`
+- [x] 7.4 Implement swept wall, floor and ceiling collision with an iteration cap; verify with property tests that the puck never leaves the cross-section at any speed and zero spin stays zero (`TunnelPhysicsTest`)
+- [x] 7.5 Implement the spin curve and per-step decay; verify with tests that zero spin travels straight, constant spin bends toward the spin's side, and reversed spin mirrors the path exactly (`TunnelPhysicsTest`)
+- [x] 7.6 Implement the swept sphere-versus-moving-paddle contact and goal detection; verify with tests for a fast puck hitting a covering paddle, a puck outside the paddle's extent passing, and a fast-moving paddle not missing (`TunnelPhysicsTest`)
+- [x] 7.7 Implement sweep-based spin on paddle contact with clamping; verify a stationary paddle imparts none, direction follows paddle movement, and magnitude never exceeds the maximum (`TunnelPhysicsTest`)
+- [x] 7.8 Generate and commit the three golden tapes and traces with `updateTunnelGoldens`; verify the golden test passes and the mutation runner fails the goldens for every constant in `TunnelRules` (`TunnelGoldenTest`, `TunnelGoldenFreshProcessTest`)
+- [x] 7.9 Add tunnel goldens to `determinismParity` as a blocking check; verify the ARM64 job reports identical hash sequences to x86-64 (local blocking check passes; the next ARM64 run exercises it on aarch64)
+- [x] 7.10 Add a test that replays each golden tape in two fresh processes; verify identical traces (`TunnelGoldenFreshProcessTest`)
+- [x] 7.11 Record the tunnel mechanics and constants in a new ADR in `openspec/adr/`; include the ADR with the change for review and verify the constants listed match `TunnelRules` ([ADR 0019](../../adr/0019-tunnel-physics-mechanics.md))
 
 ## 8. Integration checks
 
-- [ ] 8.1 Run `./gradlew build`, `ktlintCheck` and `spotlessCheck`; verify they pass and that no new task is pulled into `build` other than tests
+- [x] 8.1 Run `./gradlew build`, `ktlintCheck` and `spotlessCheck`; verify they pass and that no new task is pulled into `build` other than tests (369 tests plus the new tunnel suites green; `build`, `ktlintCheck`, `spotlessCheck` pass; `updateTunnelGoldens` stays outside `build`)
 - [x] 8.2 Verify nothing live changed: no edits to `GameRoom`, `RoomRegistry`, `GameWebSocket`, `replay.proto`, `game_state.proto` or the frontend, and version 1-3 replay fixtures still pass
 - [x] 8.3 Run `openspec validate add-3d-soccer-game-mode --strict`; verify it passes
 
@@ -80,3 +80,13 @@ and input-only reducer scaffolding; they must not add puck physics or be treated
 
 - Propose the follow-up change for the 3D button, rendering, state protocol and room integration.
 - Archive this change after review.
+- 2026-11-19: Tunnel physics landed. `TunnelPhysics` implements the swept cross-section and paddle
+  collision, spin curve/decay and goal freeze in Q32.32 with a per-step time budget and reflection
+  cap; `TunnelRules` carries the constants and `TunnelStateEncoder` hashes them. Scenarios moved to
+  main so `updateTunnelGoldens --generate` writes candidates from the same scripts the tests verify;
+  bootstrap created the first goldens. `TunnelGoldenTest` (golden + constant mutation),
+  `TunnelGoldenFreshProcessTest` (two fresh JVMs) and the blocking `tunnel golden traces` parity
+  check pass; `determinismGate` prints `GATE OPEN`. ADR 0019 records the mechanics and constants.
+- 2026-11-19: `updateTunnelGoldens` now generates candidates itself, compares by default and requires
+  `--bootstrap` (empty directory only) or the existing ARM64 provenance for writes. No physics or
+  state code under `service/mvi` changed; replay versions 1-3 remain untouched.

@@ -40,7 +40,6 @@ class TunnelReducerTest {
         assertEquals(rules.width, next.paddleB.target.x)
         assertEquals(TunnelScalar.ZERO, next.paddleB.target.y)
         assertEquals(served, next.puck.velocity)
-        assertEquals(state.puck.position, next.puck.position)
         assertEquals(1L, next.step)
     }
 

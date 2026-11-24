@@ -127,7 +127,6 @@ class TraceDiffTest {
         assertEquals(DeterminismCli.EXIT_OK, DeterminismCli.run(listOf("diff", "$replay", "$trace"), output::add))
         assertTrue(output.last().startsWith("AGREE: 600 steps"), output.last())
 
-        // A trace from "another machine" that disagrees from step 40, with that machine's state.
         val recorded = Trace.read(trace)
         val foreign =
             recorded.copy(entries = recorded.entries.map { if (it.step >= 40) it.copy(hash = it.hash xor 1L) else it })
@@ -160,7 +159,6 @@ class TraceDiffTest {
         assertTrue(output.contains("1 differing field(s) at step 40:"), output.joinToString("\n"))
         assertTrue(output.last().trim().startsWith("puck.vy:"), output.last())
 
-        // Traces of two different recordings must not be compared.
         val otherReplay =
             dir.resolve("b.replay").also {
                 Files.write(it, recordings.first { it.name == "edge-hit-retreat" }.replay.toByteArray())

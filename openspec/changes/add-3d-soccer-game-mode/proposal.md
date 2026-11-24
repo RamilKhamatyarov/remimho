@@ -70,5 +70,5 @@ is audited, not changed.
 - **Build**: new Gradle tasks for the audit, trace recording, trace diff and golden regeneration.
   None of them are attached to `build`.
 - **CI**: one added job in `.github/workflows/ci.yml` on `ubuntu-24.04-arm`.
-- **Docs**: audit report under `docs/determinism/`, and ADR 0018 for the substrate decision.
+- **Docs**: audit report under `docs/determinism/`, and [ADR 0018](../../adr/0018-tunnel-numerical-substrate.md) for the substrate decision.
 - **Risk to existing behavior**: none intended; versions 1-3 fixture hashes must stay unchanged.

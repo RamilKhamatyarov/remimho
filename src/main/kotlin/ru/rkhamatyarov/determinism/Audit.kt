@@ -15,6 +15,7 @@ object Audit {
     init {
         registerBlockingCheck("state hash vectors", HashVectors::mismatches)
         registerBlockingCheck("tunnel Q32.32 vectors", ru.rkhamatyarov.tunnel.TunnelMathVectors::mismatches)
+        registerBlockingCheck("tunnel golden traces", ru.rkhamatyarov.tunnel.TunnelGoldenCheck::mismatches)
     }
 
     /** [check] returns a description of every failure, or an empty list when it passes. */
