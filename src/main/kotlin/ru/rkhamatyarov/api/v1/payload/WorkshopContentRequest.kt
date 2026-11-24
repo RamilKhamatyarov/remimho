@@ -1,6 +1,6 @@
 package ru.rkhamatyarov.api.v1.payload
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 
 data class WorkshopContentRequest(
     val type: ContentType,
